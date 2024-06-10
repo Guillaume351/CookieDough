@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://hibernate.sourceforge.net/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+    <session-factory>
+        <!-- Database connection settings -->
+        <property name="hibernate.connection.driver_class">${hibernate.connection.driver_class}</property>
+        <property name="hibernate.connection.url">${hibernate.connection.url}</property>
+        <property name="hibernate.connection.username">${hibernate.connection.username}</property>
+        <property name="hibernate.connection.password">${hibernate.connection.password}</property>
+
+        <!-- JDBC connection pool settings -->
+        <property name="hibernate.c3p0.min_size">${hibernate.c3p0.min_size}</property>
+        <property name="hibernate.c3p0.max_size">${hibernate.c3p0.max_size}</property>
+
+        <!-- SQL dialect -->
+        <property name="hibernate.dialect">${hibernate.dialect}</property>
+
+        <!-- Echo all executed SQL to stdout -->
+        <property name="hibernate.show_sql">${hibernate.show_sql}</property>
+
+        <!-- Drop and re-create the database schema on startup -->
+        <property name="hibernate.hbm2ddl.auto">${hibernate.hbm2ddl.auto}</property>
+
+        <!-- List of annotated entity classes -->
+        <mapping class="com.cookiebuild.CustomPlayerEntity"/>
+    </session-factory>
+</hibernate-configuration>
