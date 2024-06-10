@@ -1,0 +1,8 @@
+name: CookieDough
+version: '${version}'
+main: com.cookiebuild.cookiedough.CookieDough
+api-version: '1.20'
+load: STARTUP
+authors: [Guillaume Claverie]
+description: New Cookie Build Core plugin
+website: cookie-build.com
