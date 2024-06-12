@@ -1,13 +1,9 @@
 package com.cookiebuild.cookiedough;
 
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
-import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
-import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.hibernate.SessionFactory;
-
-import java.util.ArrayList;
 
 public final class CookieDough extends JavaPlugin {
     static CookieDough instance;
