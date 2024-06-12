@@ -11,7 +11,7 @@ import java.util.ArrayList;
 
 public final class CookieDough extends JavaPlugin {
     static CookieDough instance;
-    private SessionFactory sessionFactory;
+    public static SessionFactory sessionFactory;
 
     public static CookieDough getInstance() {
         return instance;
@@ -26,7 +26,6 @@ public final class CookieDough extends JavaPlugin {
     public void onEnable() {
         // Plugin startup logic
         sessionFactory = HibernateUtil.buildSessionFactory();
-
     }
 
     @Override
