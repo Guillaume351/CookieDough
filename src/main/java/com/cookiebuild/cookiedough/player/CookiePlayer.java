@@ -1,6 +1,11 @@
 package com.cookiebuild.cookiedough.player;
 
+import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.game.GameManager;
 import org.bukkit.entity.Player;
+
+import java.util.Objects;
+import java.util.logging.Level;
 
 public class CookiePlayer {
     final private Player player;
@@ -20,6 +25,14 @@ public class CookiePlayer {
 
     public void disconnect() {
         PlayerManager.removePlayer(this);
+        if(inGame) {
+            try {
+                Objects.requireNonNull(GameManager.getGameOfPlayer(this)).removePlayer(this);
+            }
+            catch (Exception e) {
+                CookieDough.getInstance().getLogger().log(Level.SEVERE, "Error while removing player from game: " + e.getMessage());
+            }
+        }
     }
 
     public boolean isInGame() {

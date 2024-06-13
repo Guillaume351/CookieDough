@@ -1,7 +1,8 @@
-package com.cookiebuild.cookiedough.utils;
+package com.cookiebuild.cookiedough.game;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 import org.bukkit.ChatColor;
 import java.util.ArrayList;
 import java.util.List;
