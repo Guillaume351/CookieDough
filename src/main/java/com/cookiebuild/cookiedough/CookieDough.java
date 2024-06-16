@@ -4,6 +4,7 @@ import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
 import com.cookiebuild.cookiedough.listener.LevelEventListener;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
+import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.hibernate.SessionFactory;
 
@@ -22,8 +23,14 @@ public final class CookieDough extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        this.getLogger().info("Enabling CookieDough");
         // Plugin startup logic
         sessionFactory = HibernateUtil.buildSessionFactory();
+
+        // Initialize RabbitMQ
+        RabbitMQInitializer.initialize();
+
+        this.getLogger().info("CookieDough enabled!");
     }
 
     @Override
