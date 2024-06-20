@@ -24,7 +24,6 @@ public class CookiePlayer {
     }
 
     public void disconnect() {
-        PlayerManager.removePlayer(this);
         if(inGame) {
             try {
                 Objects.requireNonNull(GameManager.getGameOfPlayer(this)).removePlayer(this);
@@ -33,6 +32,7 @@ public class CookiePlayer {
                 CookieDough.getInstance().getLogger().log(Level.SEVERE, "Error while removing player from game: " + e.getMessage());
             }
         }
+        PlayerManager.removePlayer(this);
     }
 
     public boolean isInGame() {
