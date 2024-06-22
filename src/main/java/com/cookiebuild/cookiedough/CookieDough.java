@@ -1,7 +1,6 @@
 package com.cookiebuild.cookiedough;
 
-import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
-import com.cookiebuild.cookiedough.listener.LevelEventListener;
+import com.cookiebuild.cookiedough.listener.WorldEventListener;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
@@ -18,7 +17,7 @@ public final class CookieDough extends JavaPlugin {
 
     public void registerListeners() {
         getServer().getPluginManager().registerEvents(new PlayerWrapperListener(), this);
-        getServer().getPluginManager().registerEvents(new LevelEventListener(), this);
+        getServer().getPluginManager().registerEvents(new WorldEventListener(), this);
     }
 
     @Override
