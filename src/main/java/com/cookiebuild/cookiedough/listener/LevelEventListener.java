@@ -16,5 +16,8 @@ public class LevelEventListener implements Listener {
     @EventHandler
     public void onLevelLoad(WorldLoadEvent event) {
         event.getWorld().setGameRule(GameRule.DO_DAYLIGHT_CYCLE, Boolean.FALSE);
+        event.getWorld().setGameRule(GameRule.DO_WEATHER_CYCLE, Boolean.FALSE);
+
+        event.getWorld().setTime(0);
     }
 }
