@@ -19,5 +19,6 @@ public class WorldEventListener implements Listener {
         event.getWorld().setGameRule(GameRule.DO_WEATHER_CYCLE, Boolean.FALSE);
 
         event.getWorld().setTime(0);
+        event.getWorld().setAutoSave(false);
     }
 }
