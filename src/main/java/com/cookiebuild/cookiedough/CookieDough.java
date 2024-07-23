@@ -4,14 +4,20 @@ import com.cookiebuild.cookiedough.chat.ChatManager;
 import com.cookiebuild.cookiedough.listener.PlayerChatListener;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.listener.WorldEventListener;
+import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
+import org.bukkit.block.Sign;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.hibernate.SessionFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public final class CookieDough extends JavaPlugin {
     static CookieDough instance;
     public static SessionFactory sessionFactory;
+    private static LobbyManager lobbyManager;
 
     public static CookieDough getInstance() {
         return instance;
@@ -23,6 +29,10 @@ public final class CookieDough extends JavaPlugin {
 
         ChatManager chatManager = new ChatManager();
         getServer().getPluginManager().registerEvents(new PlayerChatListener(chatManager), this);
+    }
+
+    public static LobbyManager getLobbyManager() {
+        return lobbyManager;
     }
 
     @Override
@@ -39,6 +49,11 @@ public final class CookieDough extends JavaPlugin {
 
         // register listeners
         registerListeners();
+
+
+        // Initialize lobby manager
+        List<Sign> gameSigns = new ArrayList<>(); // TODO: get signs from config ?
+        lobbyManager = new LobbyManager(this, gameSigns);
 
         this.getLogger().info("CookieDough enabled!");
     }

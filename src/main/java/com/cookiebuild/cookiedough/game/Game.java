@@ -2,8 +2,10 @@ package com.cookiebuild.cookiedough.game;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
+import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
 import org.bukkit.ChatColor;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
@@ -36,7 +38,7 @@ public abstract class Game {
     public void addPlayer(CookiePlayer player) {
         if (!players.contains(player)) {
             players.add(player);
-            player.setInGame(true); // Set player as in game
+            player.setState(PlayerState.IN_GAME); // Set player as in game
         } else {
             // Log error if player is already in the game
             CookieDough.getInstance().getLogger().log(Level.SEVERE, player.getPlayer().getName() + " was added multiple times to the game!");
@@ -45,7 +47,6 @@ public abstract class Game {
 
     public void removePlayer(CookiePlayer player) {
         if (players.remove(player)) {
-            player.setInGame(false);
             if (startTimer > 0 && players.size() < 2) {
                 startTimer = 0;
             }
