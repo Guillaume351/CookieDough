@@ -10,10 +10,11 @@ import java.util.logging.Level;
 public class CookiePlayer {
     final private Player player;
 
-    private boolean inGame = false;
+    private PlayerState state;
 
     public CookiePlayer(Player player) {
         this.player = player;
+        this.state = PlayerState.LOBBY;  // Assume new players start in the lobby
 
         // Register player into plugin's player list
         PlayerManager.addPlayer(this);
@@ -24,22 +25,23 @@ public class CookiePlayer {
     }
 
     public void disconnect() {
-        if(inGame) {
+        if (this.state == PlayerState.IN_GAME) {
             try {
                 Objects.requireNonNull(GameManager.getGameOfPlayer(this)).removePlayer(this);
-            }
-            catch (Exception e) {
+                setState(PlayerState.OFFLINE);
+            } catch (Exception e) {
                 CookieDough.getInstance().getLogger().log(Level.SEVERE, "Error while removing player from game: " + e.getMessage());
             }
         }
+        this.state = PlayerState.OFFLINE; // Set state to offline when the player disconnects
         PlayerManager.removePlayer(this);
     }
 
-    public boolean isInGame() {
-        return inGame;
+    public PlayerState getState() {
+        return state;
     }
 
-    public void setInGame(boolean inGame) {
-        this.inGame = inGame;
+    public void setState(PlayerState state) {
+        this.state = state;
     }
 }
