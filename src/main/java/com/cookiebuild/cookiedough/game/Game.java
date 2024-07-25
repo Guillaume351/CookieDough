@@ -8,9 +8,12 @@ import org.bukkit.ChatColor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.logging.Level;
 
-public abstract class Game {
+public abstract class Game implements GameStatus {
+
+    private final String gameName;
 
     public static final int GAME_OPEN = 0;
     public static final int GAME_STARTING = 1;
@@ -21,7 +24,7 @@ public abstract class Game {
 
     private final List<CookiePlayer> players;
 
-    private int gameNumber;
+    private final UUID gameId;
     private int time;
     private int startTimer;
     private int state;
@@ -29,8 +32,9 @@ public abstract class Game {
 
     private int capacity = 8;
 
-    public Game(int gameNumber) {
-        this.gameNumber = gameNumber;
+    public Game(String gameName) {
+        this.gameName = gameName;
+        this.gameId = UUID.randomUUID();
         this.players = new ArrayList<>();
         this.resetGame();
     }
@@ -97,12 +101,8 @@ public abstract class Game {
     public abstract boolean isGameEnded();
 
     // Getters and Setters for encapsulation
-    public int getGameNumber() {
-        return gameNumber;
-    }
-
-    public void setGameNumber(int gameNumber) {
-        this.gameNumber = gameNumber;
+    public int getGameId() {
+        return gameId.hashCode();
     }
 
     public int getTime() {
@@ -143,5 +143,9 @@ public abstract class Game {
 
     public void setCapacity(int capacity) {
         this.capacity = capacity;
+    }
+
+    public String getGameName() {
+        return gameName;
     }
 }

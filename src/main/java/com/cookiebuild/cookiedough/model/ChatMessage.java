@@ -1,7 +1,9 @@
 package com.cookiebuild.cookiedough.model;
 
-import jakarta.persistence.*;
-import org.bukkit.entity.Player;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
 
 import java.util.Date;
 import java.util.UUID;
@@ -25,12 +27,16 @@ public class ChatMessage {
     @Column(nullable = false)
     private Date sentAt;
 
+    @Column(nullable = false)
+    private String playerWorld;
+
     public ChatMessage() {
 
     }
 
-    public ChatMessage(UUID sender, String message) {
+    public ChatMessage(UUID sender, String playerWorld, String message) {
         this.sender = sender;
+        this.playerWorld = playerWorld;
         this.message = message;
         this.sentAt = new Date();
     }

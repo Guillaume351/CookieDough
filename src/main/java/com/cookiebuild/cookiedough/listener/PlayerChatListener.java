@@ -1,8 +1,11 @@
 package com.cookiebuild.cookiedough.listener;
 
+import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.chat.ChatManager;
+import com.cookiebuild.cookiedough.dao.GenericDAOImpl;
 import com.cookiebuild.cookiedough.model.ChatMessage;
 import io.papermc.paper.event.player.AsyncChatEvent;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -25,7 +28,14 @@ public class PlayerChatListener implements Listener {
             return;
         }
 
-        ChatMessage chatMessage = new ChatMessage(player.getUniqueId(), event.message().toString());
+        ChatMessage chatMessage = new ChatMessage(player.getUniqueId(), player.getWorld().getName(), event.message().toString());
+
+        Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
+            GenericDAOImpl<ChatMessage> chatMessageDAO = new GenericDAOImpl<>(ChatMessage.class);
+            chatMessageDAO.save(chatMessage);
+        });
+
+
         chatManager.addChatMessage(player, chatMessage);
     }
 }

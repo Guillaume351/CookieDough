@@ -1,5 +1,6 @@
 package com.cookiebuild.cookiedough.lobby;
 
+import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerState;
@@ -31,6 +32,7 @@ public class LobbyManager implements Listener {
     }
 
     public void registerGame(GameStatus game) {
+        CookieDough.getInstance().getLogger().info("Registering game " + game.getGameId() + " of " + game.getGameName());
         activeGames.add(game);
     }
 
@@ -49,7 +51,7 @@ public class LobbyManager implements Listener {
             Sign sign = gameSigns.get(i);
 
             sign.setLine(0, "Game");
-            sign.setLine(1, "Game " + game.getGameNumber());
+            sign.setLine(1, "Game " + game.getGameName());
             sign.setLine(2, game.isGameEnded() ? "Finished" : "In Progress");
             sign.setLine(3, game.getPlayerCount() + " players");
             sign.update();
