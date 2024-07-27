@@ -6,3 +6,8 @@ load: POSTWORLD
 authors: [Guillaume Claverie]
 description: New Cookie Build Core plugin
 website: cookie-build.com
+commands:
+  lobby:
+    description: Teleport to the lobby
+    usage: /<command>
+    aliases: [ hub ]

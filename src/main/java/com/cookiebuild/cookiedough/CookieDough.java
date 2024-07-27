@@ -66,6 +66,13 @@ public final class CookieDough extends JavaPlugin {
 
         // Tick games every second
         Bukkit.getScheduler().runTaskTimer(this, GameManager::tickGames, 0, 20);
+
+        registerCommands();
+    }
+
+    public void registerCommands() {
+        this.getCommand("lobby").setExecutor(new LobbyCommand(lobbyManager));
+        this.getCommand("hub").setExecutor(new LobbyCommand(lobbyManager));
     }
 
     @Override
