@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough.lobby;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
 import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
@@ -122,6 +123,11 @@ public class LobbyManager implements Listener {
         Player player = cookiePlayer.getPlayer();
         World lobbyWorld = Bukkit.getWorld("lobby");
         if (lobbyWorld != null) {
+            // if player is in a game, remove them from the game
+            if (cookiePlayer.getState() == PlayerState.IN_GAME) {
+                GameManager.getGameOfPlayer(cookiePlayer).removePlayer(cookiePlayer);
+            }
+
             Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
             player.teleport(lobbySpawnLocation);
             CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
