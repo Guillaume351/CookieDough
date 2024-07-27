@@ -61,8 +61,8 @@ public class LobbyManager implements Listener {
             Sign sign = gameSigns.get(i);
 
             sign.setLine(0, "Game");
-            sign.setLine(1, "Game " + game.getGameName());
-            sign.setLine(2, game.isGameEnded() ? "Finished" : "In Progress");
+            sign.setLine(1, game.getGameName());
+            sign.setLine(2, game.getState().toString());
             sign.setLine(3, game.getPlayerCount() + " players");
             sign.update();
         }

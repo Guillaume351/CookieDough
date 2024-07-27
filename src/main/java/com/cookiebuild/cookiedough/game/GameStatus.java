@@ -13,5 +13,7 @@ public interface GameStatus {
 
     boolean addPlayerToAvailableTeam(CookiePlayer player);
 
+    GameState getState();
+
     String getGameName();
 }
