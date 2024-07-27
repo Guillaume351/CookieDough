@@ -56,6 +56,9 @@ public class PlayerWrapperListener implements Listener {
                 playerData.setLastLogin(new Date());
                 playerDataDAO.save(playerData);
                 CookieDough.getInstance().getLogger().info("Player " + player.getName() + " created");
+            } else {
+                playerData.setLastLogin(new Date());
+                playerDataDAO.update(playerData);
             }
         });
     }
