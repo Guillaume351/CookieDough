@@ -16,7 +16,7 @@ public abstract class Game implements GameStatus {
     private final String gameName;
 
 
-    private static final int START_DELAY_SECONDS = 60;
+    protected static final int START_DELAY_SECONDS = 60;
 
     private final List<CookiePlayer> players;
 
@@ -61,7 +61,7 @@ public abstract class Game implements GameStatus {
         if (state == GameState.OPEN) {
             if (players.size() >= 2) {
                 startTimer++;
-                if (startTimer >= START_DELAY_SECONDS) {
+                if (startTimer >= START_DELAY_SECONDS) { // TODO: make this configurable
                     startGame();
                     startTimer = 0;
                 }

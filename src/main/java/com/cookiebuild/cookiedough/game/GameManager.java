@@ -21,6 +21,12 @@ public class GameManager {
         return games;
     }
 
+    public static void tickGames() {
+        for (Game game : games) {
+            game.tick();
+        }
+    }
+
     public static Game getGameOfPlayer(CookiePlayer player) {
         for (Game game : GameManager.getGames()) {
             if (game.getPlayers().contains(player)) {
