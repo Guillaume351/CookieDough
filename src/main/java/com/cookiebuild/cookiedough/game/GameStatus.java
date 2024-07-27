@@ -2,8 +2,10 @@ package com.cookiebuild.cookiedough.game;
 
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 
+import java.util.UUID;
+
 public interface GameStatus {
-    int getGameId();
+    UUID getGameId();
 
     boolean isGameEnded();
 

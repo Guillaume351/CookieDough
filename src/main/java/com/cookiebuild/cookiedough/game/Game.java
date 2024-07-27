@@ -15,10 +15,6 @@ public abstract class Game implements GameStatus {
 
     private final String gameName;
 
-    public static final int GAME_OPEN = 0;
-    public static final int GAME_STARTING = 1;
-    public static final int GAME_RUNNING = 2;
-    public static final int GAME_FINISHED = 3;
 
     private static final int START_DELAY_SECONDS = 60;
 
@@ -27,7 +23,7 @@ public abstract class Game implements GameStatus {
     private final UUID gameId;
     private int time;
     private int startTimer;
-    private int state;
+    private GameState state;
     private boolean isFilling;
 
     private int capacity = 8;
@@ -62,7 +58,7 @@ public abstract class Game implements GameStatus {
     }
 
     public void tick() {
-        if (state == GAME_OPEN) {
+        if (state == GameState.OPEN) {
             if (players.size() >= 2) {
                 startTimer++;
                 if (startTimer >= START_DELAY_SECONDS) {
@@ -76,23 +72,27 @@ public abstract class Game implements GameStatus {
     }
 
     public void startGame() {
-        state = GAME_RUNNING;
+        state = GameState.RUNNING;
         isFilling = false;
         for (CookiePlayer player : players) {
             teleportToGame(player);
             // send localized message
             player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage("game.start", player.getPlayer().locale()));
         }
+
+        registerANewGame();
     }
+
+    public abstract void registerANewGame();
 
     protected abstract void teleportToGame(CookiePlayer player);
 
     public boolean hasStarted() {
-        return state == GAME_RUNNING;
+        return state == GameState.RUNNING;
     }
 
     public void resetGame() {
-        state = GAME_OPEN;
+        state = GameState.OPEN;
         time = 0;
         startTimer = 0;
         players.clear();
@@ -101,8 +101,8 @@ public abstract class Game implements GameStatus {
     public abstract boolean isGameEnded();
 
     // Getters and Setters for encapsulation
-    public int getGameId() {
-        return gameId.hashCode();
+    public UUID getGameId() {
+        return gameId;
     }
 
     public int getTime() {
@@ -121,11 +121,11 @@ public abstract class Game implements GameStatus {
         this.startTimer = startTimer;
     }
 
-    public int getState() {
+    public GameState getState() {
         return state;
     }
 
-    public void setState(int state) {
+    public void setState(GameState state) {
         this.state = state;
     }
 
