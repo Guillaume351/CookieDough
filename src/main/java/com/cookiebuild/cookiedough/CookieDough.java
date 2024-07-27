@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough;
 
 import com.cookiebuild.cookiedough.chat.ChatManager;
+import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
 import com.cookiebuild.cookiedough.listener.PlayerChatListener;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.listener.WorldEventListener;
@@ -24,6 +25,7 @@ public final class CookieDough extends JavaPlugin {
     }
 
     public void registerListeners() {
+        getServer().getPluginManager().registerEvents(new BaseEventBlocker(), this);
         getServer().getPluginManager().registerEvents(new PlayerWrapperListener(), this);
         getServer().getPluginManager().registerEvents(new WorldEventListener(), this);
 

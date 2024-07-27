@@ -1,16 +1,16 @@
 package com.cookiebuild.cookiedough.listener;
 
+import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.EventHandler;
 
 // Blocks common events (BlockBreakEvent, BlockPlaceEvent, etc.)
-public abstract class BaseEventBlocker implements Listener {
+public class BaseEventBlocker implements Listener {
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
@@ -53,7 +53,6 @@ public abstract class BaseEventBlocker implements Listener {
             event.setCancelled(true);
         }
     }
-
     // Methods to be overridden by sub-plugins
     protected boolean shouldAllowBlockBreak(BlockBreakEvent event) {
         return false;
