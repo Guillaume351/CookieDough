@@ -1,18 +1,21 @@
 package com.cookiebuild.cookiedough.lobby;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.game.GameState;
 import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -60,21 +63,41 @@ public class LobbyManager implements Listener {
             GameStatus game = activeGames.get(i);
             Sign sign = gameSigns.get(i);
 
-            sign.setLine(0, "Game");
-            sign.setLine(1, game.getGameName());
-            sign.setLine(2, game.getState().toString());
-            sign.setLine(3, game.getPlayerCount() + " players");
+            sign.setLine(0, ChatColor.BLUE + "Game");
+            sign.setLine(1, ChatColor.GOLD + game.getGameName());
+
+            if (game.getState() == GameState.OPEN) {
+                sign.setLine(2, ChatColor.GREEN + game.getState().toString());
+            } else {
+                sign.setLine(2, ChatColor.RED + game.getState().toString());
+            }
+
+            sign.setLine(3, ChatColor.YELLOW + String.valueOf(game.getPlayerCount()) + " players");
             sign.update();
         }
     }
 
     @EventHandler
-    public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
-//        if (gameNpcs.contains(event.getRightClicked())) {
-//            Player player = event.getPlayer();
-//            CookiePlayer cookiePlayer = new CookiePlayer(player);
-//            joinAvailableGame(cookiePlayer);
-//        }
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        event.getPlayer().sendMessage("Clicked");
+
+        Block clickedBlock = event.getClickedBlock();
+        if (clickedBlock != null && clickedBlock.getState() instanceof Sign sign) {
+
+            for (GameStatus game : activeGames) {
+                if (sign.getLine(1).contains(game.getGameName())) {
+                    if (game.getState() == GameState.OPEN) {
+                        Player player = event.getPlayer();
+                        CookiePlayer cookiePlayer = new CookiePlayer(player);
+                        joinAvailableGame(cookiePlayer);
+                    } else {
+                        event.getPlayer().sendMessage(ChatColor.RED + "This game is not available.");
+                    }
+                    break;
+                }
+            }
+        }
+
     }
 
     public void joinAvailableGame(CookiePlayer player) {

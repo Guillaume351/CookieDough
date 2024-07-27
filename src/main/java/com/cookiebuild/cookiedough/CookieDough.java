@@ -31,6 +31,7 @@ public final class CookieDough extends JavaPlugin {
 
         ChatManager chatManager = new ChatManager();
         getServer().getPluginManager().registerEvents(new PlayerChatListener(chatManager), this);
+        getServer().getPluginManager().registerEvents(lobbyManager, this);
     }
 
     public static LobbyManager getLobbyManager() {
@@ -49,15 +50,15 @@ public final class CookieDough extends JavaPlugin {
         // Initialize RabbitMQ
         RabbitMQInitializer.initialize();
 
-        // register listeners
-        registerListeners();
-
-
         // Initialize lobby manager
         List<Sign> gameSigns = new ArrayList<>();
         gameSigns.add(getServer().getWorld("lobby").getBlockAt(0, 8, 12).getState() instanceof Sign ? (Sign) getServer().getWorld("lobby").getBlockAt(0, 8, 12).getState() : null);
         this.getLogger().info("Game signs: " + gameSigns);
+
         lobbyManager = new LobbyManager(this, gameSigns);
+
+        // register listeners
+        registerListeners();
 
         this.getLogger().info("CookieDough enabled!");
     }
