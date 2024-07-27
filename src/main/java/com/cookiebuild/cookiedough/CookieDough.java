@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough;
 
 import com.cookiebuild.cookiedough.chat.ChatManager;
+import com.cookiebuild.cookiedough.commands.LobbyCommand;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
 import com.cookiebuild.cookiedough.listener.PlayerChatListener;
