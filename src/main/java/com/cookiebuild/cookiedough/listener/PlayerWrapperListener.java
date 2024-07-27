@@ -2,6 +2,7 @@ package com.cookiebuild.cookiedough.listener;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.dao.GenericDAOImpl;
+import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
@@ -26,7 +27,11 @@ public class PlayerWrapperListener implements Listener {
 
         Player player = event.getPlayer();
 
-        new CookiePlayer(player);
+        CookiePlayer cookiePlayer = new CookiePlayer(player);
+
+        // Teleport player to lobby
+        LobbyManager.teleportPlayerToLobby(cookiePlayer);
+
 
         // Send welcome message
         player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("welcome.message", player.locale(), player.getName()));

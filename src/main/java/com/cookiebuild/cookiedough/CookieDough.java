@@ -52,7 +52,9 @@ public final class CookieDough extends JavaPlugin {
 
 
         // Initialize lobby manager
-        List<Sign> gameSigns = new ArrayList<>(); // TODO: get signs from config ?
+        List<Sign> gameSigns = new ArrayList<>();
+        gameSigns.add(getServer().getWorld("lobby").getBlockAt(0, 8, 12).getState() instanceof Sign ? (Sign) getServer().getWorld("lobby").getBlockAt(0, 8, 12).getState() : null);
+        this.getLogger().info("Game signs: " + gameSigns);
         lobbyManager = new LobbyManager(this, gameSigns);
 
         this.getLogger().info("CookieDough enabled!");

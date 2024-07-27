@@ -1,5 +1,6 @@
 package com.cookiebuild.cookiedough.game;
 
+import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ public class GameManager {
 
     public static void addGame(Game game) {
         games.add(game);
+        LobbyManager.getInstance().registerGame(game);
     }
 
     public static void removeGame(Game game) {

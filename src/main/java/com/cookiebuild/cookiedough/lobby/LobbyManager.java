@@ -5,8 +5,11 @@ import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
@@ -22,13 +25,20 @@ public class LobbyManager implements Listener {
     private final List<Sign> gameSigns;
     //private final List<Entity> gameNpcs; // TODO: add NPCs
 
+    // Singleton
+    private static LobbyManager instance;
+
     public LobbyManager(JavaPlugin plugin, List<Sign> gameSigns) {
         this.plugin = plugin;
         this.gameSigns = gameSigns;
-
+        instance = this;
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
         startSignRefreshTask();
+    }
+
+    public static LobbyManager getInstance() {
+        return instance;
     }
 
     public void registerGame(GameStatus game) {
@@ -83,5 +93,17 @@ public class LobbyManager implements Listener {
 
     public void addGameNpc(Entity npc) {
         // TODO: add NPCs
+    }
+
+    public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {
+        Player player = cookiePlayer.getPlayer();
+        World lobbyWorld = Bukkit.getWorld("lobby");
+        if (lobbyWorld != null) {
+            Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
+            player.teleport(lobbySpawnLocation);
+            CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
+        } else {
+            CookieDough.getInstance().getLogger().severe("Lobby world 'lobby' is not loaded!");
+        }
     }
 }
