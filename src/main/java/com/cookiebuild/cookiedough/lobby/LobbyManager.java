@@ -16,6 +16,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -80,8 +81,9 @@ public class LobbyManager implements Listener {
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        event.getPlayer().sendMessage("Clicked");
-
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
         Block clickedBlock = event.getClickedBlock();
         if (clickedBlock != null && clickedBlock.getState() instanceof Sign sign) {
 

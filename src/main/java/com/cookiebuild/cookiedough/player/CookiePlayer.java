@@ -3,6 +3,7 @@ package com.cookiebuild.cookiedough.player;
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.GameManager;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
 
 import java.util.Objects;
 import java.util.logging.Level;
@@ -43,5 +44,17 @@ public class CookiePlayer {
 
     public void setState(PlayerState state) {
         this.state = state;
+    }
+
+    public void resetPlayer() {
+        this.player.getInventory().clear();
+        this.player.setHealth(20);
+        this.player.setFoodLevel(20);
+        this.player.setSaturation(20);
+        this.player.setFireTicks(0);
+        // remove all potion effects
+        for (PotionEffect effect : this.player.getActivePotionEffects()) {
+            this.player.removePotionEffect(effect.getType());
+        }
     }
 }

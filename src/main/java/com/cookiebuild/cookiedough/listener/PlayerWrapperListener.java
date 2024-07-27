@@ -15,6 +15,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 
 import java.util.Date;
 
@@ -69,6 +70,16 @@ public class PlayerWrapperListener implements Listener {
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         if (cookiePlayer != null) {
             cookiePlayer.disconnect();
+        }
+    }
+
+    // on world change, reset all states (inventory, health, etc.)
+    @EventHandler
+    public void onWorldChange(PlayerTeleportEvent event) {
+        Player player = event.getPlayer();
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        if (cookiePlayer != null) {
+            cookiePlayer.resetPlayer();
         }
     }
 }
