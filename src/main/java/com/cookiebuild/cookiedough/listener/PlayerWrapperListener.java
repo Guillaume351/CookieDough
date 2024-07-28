@@ -65,7 +65,7 @@ public class PlayerWrapperListener implements Listener {
     }
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        // TODO
+        event.quitMessage(null);
         Player player = event.getPlayer();
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         if (cookiePlayer != null) {
