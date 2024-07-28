@@ -9,47 +9,51 @@ import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 
+import java.util.List;
+
 // Blocks common events (BlockBreakEvent, BlockPlaceEvent, etc.)
 public class BaseEventBlocker implements Listener {
 
+    private final List<String> protectedWorlds = List.of("lobby");
+
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
-        if (!shouldAllowBlockBreak(event)) {
+        if (!shouldAllowBlockBreak(event) && protectedWorlds.contains(event.getBlock().getWorld().getName())) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
-        if (!shouldAllowBlockPlace(event)) {
+        if (!shouldAllowBlockPlace(event) && protectedWorlds.contains(event.getBlock().getWorld().getName())) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (!shouldAllowPlayerInteract(event)) {
+        if (!shouldAllowPlayerInteract(event) && protectedWorlds.contains(event.getPlayer().getWorld().getName())) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
-        if (!shouldAllowEntityDamage(event)) {
+        if (!shouldAllowEntityDamage(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onProjectileLaunch(ProjectileLaunchEvent event) {
-        if (!shouldAllowProjectileLaunch(event)) {
+        if (!shouldAllowProjectileLaunch(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onPlayerDropItem(PlayerDropItemEvent event) {
-        if (!shouldAllowPlayerDropItem(event)) {
+        if (!shouldAllowPlayerDropItem(event) && protectedWorlds.contains(event.getPlayer().getWorld().getName())) {
             event.setCancelled(true);
         }
     }

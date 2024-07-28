@@ -5,6 +5,7 @@ import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
 import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
+import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -79,34 +80,27 @@ public class LobbyManager implements Listener {
         }
     }
 
-    @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
-            return;
-        }
-        Block clickedBlock = event.getClickedBlock();
-        if (clickedBlock != null && clickedBlock.getState() instanceof Sign sign) {
-
-            for (GameStatus game : activeGames) {
-                if (sign.getLine(1).contains(game.getGameName())) {
-                    if (game.getState() == GameState.OPEN) {
-                        Player player = event.getPlayer();
-                        CookiePlayer cookiePlayer = new CookiePlayer(player);
-                        joinAvailableGame(cookiePlayer);
-                    } else {
-                        event.getPlayer().sendMessage(ChatColor.RED + "This game is not available.");
-                    }
-                    break;
-                }
+    public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {
+        Player player = cookiePlayer.getPlayer();
+        World lobbyWorld = Bukkit.getWorld("lobby");
+        if (lobbyWorld != null) {
+            // if player is in a game, remove them from the game
+            if (cookiePlayer.getState() == PlayerState.IN_GAME) {
+                GameManager.getGameOfPlayer(cookiePlayer).removePlayer(cookiePlayer);
+                cookiePlayer.setState(PlayerState.LOBBY);
             }
-        }
 
+            Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
+            player.teleport(lobbySpawnLocation);
+            CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
+        } else {
+            CookieDough.getInstance().getLogger().severe("Lobby world 'lobby' is not loaded!");
+        }
     }
 
     public void joinAvailableGame(CookiePlayer player) {
         for (GameStatus game : activeGames) {
             if (game.addPlayerToAvailableTeam(player)) {
-                player.setState(PlayerState.IN_GAME);
                 return;
             }
         }
@@ -121,20 +115,28 @@ public class LobbyManager implements Listener {
         // TODO: add NPCs
     }
 
-    public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {
-        Player player = cookiePlayer.getPlayer();
-        World lobbyWorld = Bukkit.getWorld("lobby");
-        if (lobbyWorld != null) {
-            // if player is in a game, remove them from the game
-            if (cookiePlayer.getState() == PlayerState.IN_GAME) {
-                GameManager.getGameOfPlayer(cookiePlayer).removePlayer(cookiePlayer);
-            }
-
-            Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
-            player.teleport(lobbySpawnLocation);
-            CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
-        } else {
-            CookieDough.getInstance().getLogger().severe("Lobby world 'lobby' is not loaded!");
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
         }
+        Block clickedBlock = event.getClickedBlock();
+        if (clickedBlock != null && clickedBlock.getState() instanceof Sign sign) {
+            for (GameStatus game : activeGames) {
+                if (sign.getLine(1).contains(game.getGameName())) {
+                    if (game.getState() == GameState.OPEN) {
+                        Player player = event.getPlayer();
+                        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+                        if (!cookiePlayer.getState().equals(PlayerState.IN_GAME)) {
+                            joinAvailableGame(cookiePlayer);
+                        }
+                    } else {
+                        event.getPlayer().sendMessage(ChatColor.RED + "This game is not available.");
+                    }
+                    break;
+                }
+            }
+        }
+
     }
 }
