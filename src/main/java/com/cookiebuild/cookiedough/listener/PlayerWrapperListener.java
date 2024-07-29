@@ -78,7 +78,7 @@ public class PlayerWrapperListener implements Listener {
     public void onWorldChange(PlayerTeleportEvent event) {
         Player player = event.getPlayer();
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-        if (cookiePlayer != null) {
+        if (cookiePlayer != null && event.getFrom().getWorld() != event.getTo().getWorld()) {
             cookiePlayer.resetPlayer();
         }
     }

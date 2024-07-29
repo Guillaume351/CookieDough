@@ -14,7 +14,7 @@ import java.util.List;
 // Blocks common events (BlockBreakEvent, BlockPlaceEvent, etc.)
 public class BaseEventBlocker implements Listener {
 
-    private final List<String> protectedWorlds = List.of("lobby");
+    public List<String> protectedWorlds = List.of("lobby");
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
