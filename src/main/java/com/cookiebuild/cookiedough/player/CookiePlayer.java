@@ -2,6 +2,7 @@ package com.cookiebuild.cookiedough.player;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.GameManager;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 
@@ -48,10 +49,13 @@ public class CookiePlayer {
 
     public void resetPlayer() {
         this.player.getInventory().clear();
+        this.player.setGameMode(GameMode.SURVIVAL);
         this.player.setHealth(20);
         this.player.setFoodLevel(20);
         this.player.setSaturation(20);
         this.player.setFireTicks(0);
+        // remove display name color
+        this.player.setDisplayName(this.player.getName());
         // remove all potion effects
         for (PotionEffect effect : this.player.getActivePotionEffects()) {
             this.player.removePotionEffect(effect.getType());

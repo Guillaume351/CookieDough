@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough.lobby;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
 import com.cookiebuild.cookiedough.game.GameStatus;
@@ -47,11 +48,6 @@ public class LobbyManager implements Listener {
         return instance;
     }
 
-    public void registerGame(GameStatus game) {
-        CookieDough.getInstance().getLogger().info("Registering game " + game.getGameId() + " of " + game.getGameName());
-        activeGames.add(game);
-    }
-
     private void startSignRefreshTask() {
         new BukkitRunnable() {
             @Override
@@ -62,8 +58,9 @@ public class LobbyManager implements Listener {
     }
 
     private void refreshSigns() {
-        for (int i = 0; i < activeGames.size() && i < gameSigns.size(); i++) {
-            GameStatus game = activeGames.get(i);
+        ArrayList<Game> games = GameManager.getGames();
+        for (int i = 0; i < games.size() && i < gameSigns.size(); i++) {
+            GameStatus game = games.get(i);
             Sign sign = gameSigns.get(i);
 
             sign.setLine(0, ChatColor.BLUE + "Game");
@@ -99,7 +96,7 @@ public class LobbyManager implements Listener {
     }
 
     public void joinAvailableGame(CookiePlayer player) {
-        for (GameStatus game : activeGames) {
+        for (GameStatus game : GameManager.getGames()) {
             if (game.addPlayerToAvailableTeam(player)) {
                 return;
             }
@@ -122,7 +119,7 @@ public class LobbyManager implements Listener {
         }
         Block clickedBlock = event.getClickedBlock();
         if (clickedBlock != null && clickedBlock.getState() instanceof Sign sign) {
-            for (GameStatus game : activeGames) {
+            for (GameStatus game : GameManager.getGames()) {
                 if (sign.getLine(1).contains(game.getGameName())) {
                     if (game.getState() == GameState.OPEN) {
                         Player player = event.getPlayer();
