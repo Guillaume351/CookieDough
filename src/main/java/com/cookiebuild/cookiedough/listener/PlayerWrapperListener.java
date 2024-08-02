@@ -75,7 +75,9 @@ public class PlayerWrapperListener implements Listener {
 
     // on world change, reset all states (inventory, health, etc.)
     @EventHandler
-    public void onWorldChange(PlayerTeleportEvent event) {
+    public void onPlayerTeleport(PlayerTeleportEvent event) {
+        // TODO: remove this when we have a proper teleport system
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "ocm mode old " + event.getPlayer().getName());
         Player player = event.getPlayer();
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         if (cookiePlayer != null && event.getFrom().getWorld() != event.getTo().getWorld()) {
