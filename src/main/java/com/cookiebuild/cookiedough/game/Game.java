@@ -16,7 +16,7 @@ public abstract class Game implements GameStatus {
     private final String gameName;
 
 
-    protected static final int START_DELAY_SECONDS = 10;
+    protected static final int START_DELAY_SECONDS = 30;
 
     private final List<CookiePlayer> players;
 

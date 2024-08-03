@@ -21,7 +21,7 @@ public class ChatMessage {
     // Relation with PlayerData
     private UUID sender;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 1024)
     private String message;
 
     @Column(nullable = false)
