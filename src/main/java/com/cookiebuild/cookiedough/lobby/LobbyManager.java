@@ -54,7 +54,7 @@ public class LobbyManager implements Listener {
             public void run() {
                 refreshSigns();
             }
-        }.runTaskTimer(plugin, 0, 20 * 10); // Refresh every 10 seconds
+        }.runTaskTimer(plugin, 0, 20); // Refresh every second
     }
 
     private void refreshSigns() {

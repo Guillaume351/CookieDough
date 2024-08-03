@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough.game;
 
 import com.cookiebuild.cookiedough.player.CookiePlayer;
+import org.bukkit.Bukkit;
 
 import java.util.ArrayList;
 
@@ -13,6 +14,8 @@ public class GameManager {
 
     public static void removeGame(Game game) {
         games.remove(game);
+        // unload game's map
+        Bukkit.unloadWorld("game_maps/" + game.getGameId(), false);
     }
 
     public static ArrayList<Game> getGames() {

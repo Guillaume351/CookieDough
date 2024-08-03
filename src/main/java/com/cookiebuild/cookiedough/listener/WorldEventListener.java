@@ -3,6 +3,8 @@ package com.cookiebuild.cookiedough.listener;
 import org.bukkit.GameRule;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockFromToEvent;
+import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 
@@ -20,5 +22,15 @@ public class WorldEventListener implements Listener {
 
         event.getWorld().setTime(0);
         event.getWorld().setAutoSave(false);
+    }
+
+    @EventHandler
+    public void onBlockTick(BlockPhysicsEvent event) {
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onBlockUpdate(BlockFromToEvent event) {
+        event.setCancelled(true);
     }
 }
