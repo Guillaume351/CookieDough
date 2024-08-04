@@ -5,6 +5,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -57,6 +58,19 @@ public class BaseEventBlocker implements Listener {
             event.setCancelled(true);
         }
     }
+
+    // Prevent hunger / saturation changes
+    @EventHandler
+    public void onPlayerChangeFoodLevel(FoodLevelChangeEvent event) {
+        if (!shouldAllowPlayerChangeFoodLevel(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
+            event.setCancelled(true);
+        }
+    }
+
+    protected boolean shouldAllowPlayerChangeFoodLevel(FoodLevelChangeEvent event) {
+        return false;
+    }
+
     // Methods to be overridden by sub-plugins
     protected boolean shouldAllowBlockBreak(BlockBreakEvent event) {
         return false;
