@@ -38,4 +38,13 @@ public class GameManager {
         }
         return null;
     }
+
+    public static Game getGameByName(String gameName) {
+        for (Game game : GameManager.getGames()) {
+            if (game.getGameName().equals(gameName)) {
+                return game;
+            }
+        }
+        return null;
+    }
 }

@@ -30,7 +30,7 @@ public class LobbyManager implements Listener {
     private final JavaPlugin plugin;
     private final List<GameStatus> activeGames = new ArrayList<>(); // Initialize the list
     private final List<Sign> gameSigns;
-    //private final List<Entity> gameNpcs; // TODO: add NPCs
+    private final List<GameNPC> gameNpcs = new ArrayList<>();
 
     // Singleton
     private static LobbyManager instance;
@@ -42,6 +42,15 @@ public class LobbyManager implements Listener {
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
         startSignRefreshTask();
+
+        // Get lobby world, remove all entities
+        World lobbyWorld = Bukkit.getWorld("lobby");
+        for (Entity entity : lobbyWorld.getEntities()) {
+            entity.remove();
+        }
+
+        // enable NPC listeners
+        Bukkit.getPluginManager().registerEvents(new NPCListener(), plugin);
     }
 
     public static LobbyManager getInstance() {
@@ -75,6 +84,11 @@ public class LobbyManager implements Listener {
             sign.setLine(3, ChatColor.YELLOW + String.valueOf(game.getPlayerCount()) + " players");
             sign.update();
         }
+    }
+
+    public void addGameNpc(String gameName, Location location) {
+        GameNPC npc = new GameNPC(gameName, location, CookieDough.getInstance());
+        gameNpcs.add(npc);
     }
 
     public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {
@@ -135,5 +149,9 @@ public class LobbyManager implements Listener {
             }
         }
 
+    }
+
+    public List<GameNPC> getGameNpcs() {
+        return gameNpcs;
     }
 }

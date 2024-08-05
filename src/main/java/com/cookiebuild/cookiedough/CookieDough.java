@@ -11,6 +11,8 @@ import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.block.Sign;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.hibernate.SessionFactory;
@@ -59,6 +61,12 @@ public final class CookieDough extends JavaPlugin {
         this.getLogger().info("Game signs: " + gameSigns);
 
         lobbyManager = new LobbyManager(this, gameSigns);
+
+
+        World lobbyWorld = getServer().getWorld("lobby");
+        Location npcLocation = new Location(lobbyWorld, 0.5, 8, 12.5);
+        npcLocation.setYaw(180);
+        lobbyManager.addGameNpc("MicroBattles", npcLocation);
 
         // register listeners
         registerListeners();
