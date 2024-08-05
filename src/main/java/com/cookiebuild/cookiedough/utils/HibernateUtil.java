@@ -1,5 +1,7 @@
 package com.cookiebuild.cookiedough.utils;
 
+import com.cookiebuild.cookiedough.model.ChatMessage;
+import com.cookiebuild.cookiedough.model.Match;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;
@@ -27,6 +29,8 @@ public class HibernateUtil {
 
         configuration.setProperties(properties);
         configuration.addAnnotatedClass(PlayerData.class);
+        configuration.addAnnotatedClass(ChatMessage.class);
+        configuration.addAnnotatedClass(Match.class);
 
         return configuration.buildSessionFactory();
     }

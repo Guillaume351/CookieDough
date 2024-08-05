@@ -1,0 +1,98 @@
+package com.cookiebuild.cookiedough.listener;
+
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.FoodLevelChangeEvent;
+import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+
+import java.util.List;
+
+// Blocks common events (BlockBreakEvent, BlockPlaceEvent, etc.)
+public class BaseEventBlocker implements Listener {
+
+    public List<String> protectedWorlds = List.of("lobby");
+
+    @EventHandler
+    public void onBlockBreak(BlockBreakEvent event) {
+        if (!shouldAllowBlockBreak(event) && protectedWorlds.contains(event.getBlock().getWorld().getName())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onBlockPlace(BlockPlaceEvent event) {
+        if (!shouldAllowBlockPlace(event) && protectedWorlds.contains(event.getBlock().getWorld().getName())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (!shouldAllowPlayerInteract(event) && protectedWorlds.contains(event.getPlayer().getWorld().getName())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onEntityDamage(EntityDamageEvent event) {
+        if (!shouldAllowEntityDamage(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onProjectileLaunch(ProjectileLaunchEvent event) {
+        if (!shouldAllowProjectileLaunch(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerDropItem(PlayerDropItemEvent event) {
+        if (!shouldAllowPlayerDropItem(event) && protectedWorlds.contains(event.getPlayer().getWorld().getName())) {
+            event.setCancelled(true);
+        }
+    }
+
+    // Prevent hunger / saturation changes
+    @EventHandler
+    public void onPlayerChangeFoodLevel(FoodLevelChangeEvent event) {
+        if (!shouldAllowPlayerChangeFoodLevel(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
+            event.setCancelled(true);
+        }
+    }
+
+    protected boolean shouldAllowPlayerChangeFoodLevel(FoodLevelChangeEvent event) {
+        return false;
+    }
+
+    // Methods to be overridden by sub-plugins
+    protected boolean shouldAllowBlockBreak(BlockBreakEvent event) {
+        return false;
+    }
+
+    protected boolean shouldAllowBlockPlace(BlockPlaceEvent event) {
+        return false;
+    }
+
+    protected boolean shouldAllowPlayerInteract(PlayerInteractEvent event) {
+        return false;
+    }
+
+    protected boolean shouldAllowEntityDamage(EntityDamageEvent event) {
+        return false;
+    }
+
+    protected boolean shouldAllowProjectileLaunch(ProjectileLaunchEvent event) {
+        return false;
+    }
+
+    protected boolean shouldAllowPlayerDropItem(PlayerDropItemEvent event) {
+        return false;
+    }
+}
