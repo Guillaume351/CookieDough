@@ -39,6 +39,10 @@ public abstract class Game implements GameStatus {
         if (!players.contains(player)) {
             players.add(player);
             player.setState(PlayerState.IN_GAME); // Set player as in game
+
+            // send localized message to in game players
+            getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage("player.joined.game", p.getPlayer().locale(), player.getPlayer().getName())));
+
         } else {
             // Log error if player is already in the game
             CookieDough.getInstance().getLogger().log(Level.SEVERE, player.getPlayer().getName() + " was added multiple times to the game!");
@@ -51,6 +55,7 @@ public abstract class Game implements GameStatus {
                 startTimer = 0;
             }
         }
+        getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage("player.left.game", p.getPlayer().locale(), player.getPlayer().getName())));
     }
 
     public List<CookiePlayer> getPlayers() {
