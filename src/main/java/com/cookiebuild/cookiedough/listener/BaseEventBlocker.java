@@ -19,42 +19,42 @@ public class BaseEventBlocker implements Listener {
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
-        if (!shouldAllowBlockBreak(event) && protectedWorlds.contains(event.getBlock().getWorld().getName())) {
+        if (protectedWorlds.contains(event.getBlock().getWorld().getName()) && !shouldAllowBlockBreak(event)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
-        if (!shouldAllowBlockPlace(event) && protectedWorlds.contains(event.getBlock().getWorld().getName())) {
+        if (protectedWorlds.contains(event.getBlock().getWorld().getName()) && !shouldAllowBlockPlace(event)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (!shouldAllowPlayerInteract(event) && protectedWorlds.contains(event.getPlayer().getWorld().getName())) {
+        if (protectedWorlds.contains(event.getPlayer().getWorld().getName()) && !shouldAllowPlayerInteract(event)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
-        if (!shouldAllowEntityDamage(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
+        if (protectedWorlds.contains(event.getEntity().getWorld().getName()) && !shouldAllowEntityDamage(event)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onProjectileLaunch(ProjectileLaunchEvent event) {
-        if (!shouldAllowProjectileLaunch(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
+        if (protectedWorlds.contains(event.getEntity().getWorld().getName()) && !shouldAllowProjectileLaunch(event)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onPlayerDropItem(PlayerDropItemEvent event) {
-        if (!shouldAllowPlayerDropItem(event) && protectedWorlds.contains(event.getPlayer().getWorld().getName())) {
+        if (protectedWorlds.contains(event.getPlayer().getWorld().getName()) && !shouldAllowPlayerDropItem(event)) {
             event.setCancelled(true);
         }
     }
@@ -62,7 +62,7 @@ public class BaseEventBlocker implements Listener {
     // Prevent hunger / saturation changes
     @EventHandler
     public void onPlayerChangeFoodLevel(FoodLevelChangeEvent event) {
-        if (!shouldAllowPlayerChangeFoodLevel(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
+        if (protectedWorlds.contains(event.getEntity().getWorld().getName()) && !shouldAllowPlayerChangeFoodLevel(event) && protectedWorlds.contains(event.getEntity().getWorld().getName())) {
             event.setCancelled(true);
         }
     }
