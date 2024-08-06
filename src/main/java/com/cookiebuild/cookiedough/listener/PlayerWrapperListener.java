@@ -26,12 +26,12 @@ public class PlayerWrapperListener implements Listener {
         // Remove default join message
         event.setJoinMessage(null); // TODO: remove this when we have a proper join message
 
-        // send player join message using LocaleManager
-        for (Player player : event.getPlayer().getServer().getOnlinePlayers()) {
-            player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("player.joined.server", player.locale(), player.getName()));
-        }
-
         Player player = event.getPlayer();
+
+        // send player join message using LocaleManager
+        for (Player p : event.getPlayer().getServer().getOnlinePlayers()) {
+            p.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("player.joined.server", p.locale(), player.getName()));
+        }
 
         CookiePlayer cookiePlayer = new CookiePlayer(player);
 

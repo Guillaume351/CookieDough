@@ -35,7 +35,14 @@ public abstract class Game implements GameStatus {
         this.resetGame();
     }
 
-    public void addPlayer(CookiePlayer player) {
+    public boolean addPlayer(CookiePlayer player) {
+        // if game is running, do not allow players to join
+        if (state == GameState.RUNNING) {
+            player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage("game.already_started", player.getPlayer().locale()));
+            return false;
+        }
+
+
         if (!players.contains(player)) {
             players.add(player);
             player.setState(PlayerState.IN_GAME); // Set player as in game
@@ -47,6 +54,7 @@ public abstract class Game implements GameStatus {
             // Log error if player is already in the game
             CookieDough.getInstance().getLogger().log(Level.SEVERE, player.getPlayer().getName() + " was added multiple times to the game!");
         }
+        return true;
     }
 
     public void removePlayer(CookiePlayer player) {

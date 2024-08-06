@@ -68,6 +68,9 @@ public final class CookieDough extends JavaPlugin {
         npcLocation.setYaw(180);
         lobbyManager.addGameNpc("MicroBattles", npcLocation);
 
+        Location pitchoutLocation = new Location(lobbyWorld, 0.5, 8, -11.5);
+        lobbyManager.addGameNpc("Pitchout", pitchoutLocation);
+
         // register listeners
         registerListeners();
 

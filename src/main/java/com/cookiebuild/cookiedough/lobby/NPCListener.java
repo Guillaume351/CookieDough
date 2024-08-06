@@ -6,6 +6,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 
 public class NPCListener implements Listener {
@@ -41,6 +42,15 @@ public class NPCListener implements Listener {
                     break;
                 }
             }
+        }
+    }
+
+    // prevent from despawning
+    @EventHandler
+    public void onEntityDeath(EntityDeathEvent event) {
+        if (event.getEntity() instanceof Zombie) {
+            event.getEntity().setHealth(20);
+            event.setCancelled(true);
         }
     }
 }

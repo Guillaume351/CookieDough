@@ -2,6 +2,7 @@ package com.cookiebuild.cookiedough.lobby;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.GameManager;
+import com.cookiebuild.cookiedough.game.GameState;
 import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
@@ -71,7 +72,7 @@ public class GameNPC {
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         GameStatus game = GameManager.getGameByName(gameName);
 
-        if (game != null) {
+        if (game != null && game.getState() == GameState.OPEN) {
             if (game.addPlayerToAvailableTeam(cookiePlayer)) {
                 player.sendMessage(ChatColor.GREEN + "You've joined a " + gameName + " game!");
             } else {
