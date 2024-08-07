@@ -4,31 +4,52 @@ import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
 import com.cookiebuild.cookiedough.game.GameStatus;
+import com.cookiebuild.cookiedough.listener.NPCReloadListener;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 public class GameNPC {
     private final String gameName;
-    private final Zombie npc;
+    private static NPCReloadListener reloadListener;
     private final CookieDough plugin;
+    private final Location location;
+    private Zombie npc;
 
     public GameNPC(String gameName, Location location, CookieDough plugin) {
         this.gameName = gameName;
         this.plugin = plugin;
+        this.location = location;
+
+        if (reloadListener != null) {
+            reloadListener.registerNPC(gameName, location);
+        }
+
+        spawnNPC();
+    }
+
+    public static void setReloadListener(NPCReloadListener listener) {
+        reloadListener = listener;
+    }
+
+    private void spawnNPC() {
         this.npc = (Zombie) location.getWorld().spawnEntity(location, EntityType.ZOMBIE);
 
         // Customize the NPC
         this.npc.setBaby(false);
         this.npc.setAI(false);
+        this.npc.setPersistent(true);
 
+        npc.getPersistentDataContainer().set(new NamespacedKey(plugin, gameName), PersistentDataType.BYTE, (byte) 1);
 
         // Give the NPC a sword
         this.npc.getEquipment().setItemInMainHand(new ItemStack(Material.DIAMOND_SWORD));
@@ -89,5 +110,9 @@ public class GameNPC {
 
     public String getGameName() {
         return gameName;
+    }
+
+    public Location getLocation() {
+        return location;
     }
 }

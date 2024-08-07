@@ -3,10 +3,8 @@ package com.cookiebuild.cookiedough;
 import com.cookiebuild.cookiedough.chat.ChatManager;
 import com.cookiebuild.cookiedough.commands.LobbyCommand;
 import com.cookiebuild.cookiedough.game.GameManager;
-import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
-import com.cookiebuild.cookiedough.listener.PlayerChatListener;
-import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
-import com.cookiebuild.cookiedough.listener.WorldEventListener;
+import com.cookiebuild.cookiedough.listener.*;
+import com.cookiebuild.cookiedough.lobby.GameNPC;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
@@ -80,6 +78,10 @@ public final class CookieDough extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimer(this, GameManager::tickGames, 0, 20);
 
         registerCommands();
+
+        NPCReloadListener npcReloadListener = new NPCReloadListener(this);
+        getServer().getPluginManager().registerEvents(npcReloadListener, this);
+        GameNPC.setReloadListener(npcReloadListener);
     }
 
     public void registerCommands() {

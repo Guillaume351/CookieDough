@@ -89,6 +89,8 @@ public class LobbyManager implements Listener {
     public void addGameNpc(String gameName, Location location) {
         GameNPC npc = new GameNPC(gameName, location, CookieDough.getInstance());
         gameNpcs.add(npc);
+        // keep chunk loaded
+        npc.getNPC().getLocation().getChunk().load(true);
     }
 
     public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {
@@ -154,4 +156,6 @@ public class LobbyManager implements Listener {
     public List<GameNPC> getGameNpcs() {
         return gameNpcs;
     }
+
+
 }

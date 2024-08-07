@@ -51,12 +51,21 @@ public class CookiePlayer {
         this.player.getInventory().clear();
         this.player.setGameMode(GameMode.SURVIVAL);
         this.player.setHealth(20);
+        this.player.setMaxHealth(20);
         this.player.setFoodLevel(20);
         this.player.setSaturation(20);
         this.player.setFireTicks(0);
-        // remove display name color
+
+        // Reset display name (chat)
         this.player.setDisplayName(this.player.getName());
-        // remove all potion effects
+
+        // Reset name tag above head
+        this.player.setPlayerListName(this.player.getName());
+
+        // If you're using a scoreboard for nametags, reset it
+        this.player.setScoreboard(Objects.requireNonNull(this.player.getServer().getScoreboardManager()).getNewScoreboard());
+
+        // Remove all potion effects
         for (PotionEffect effect : this.player.getActivePotionEffects()) {
             this.player.removePotionEffect(effect.getType());
         }
