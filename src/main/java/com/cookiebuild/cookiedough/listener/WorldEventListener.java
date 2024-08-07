@@ -5,6 +5,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPhysicsEvent;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 
@@ -32,5 +33,10 @@ public class WorldEventListener implements Listener {
     @EventHandler
     public void onBlockUpdate(BlockFromToEvent event) {
         event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onCreatureSpawn(CreatureSpawnEvent event) {
+        if (event.getSpawnReason().equals(CreatureSpawnEvent.SpawnReason.NATURAL)) event.setCancelled(true);
     }
 }

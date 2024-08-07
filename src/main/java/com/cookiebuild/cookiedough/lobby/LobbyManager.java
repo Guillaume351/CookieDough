@@ -28,7 +28,6 @@ import java.util.List;
 
 public class LobbyManager implements Listener {
     private final JavaPlugin plugin;
-    private final List<GameStatus> activeGames = new ArrayList<>(); // Initialize the list
     private final List<Sign> gameSigns;
     private final List<GameNPC> gameNpcs = new ArrayList<>();
 
@@ -63,27 +62,37 @@ public class LobbyManager implements Listener {
             public void run() {
                 refreshSigns();
             }
-        }.runTaskTimer(plugin, 0, 20); // Refresh every second
+        }.runTaskTimer(plugin, 0, 10); // Refresh every 0.5 seconds (10 ticks)
     }
 
     private void refreshSigns() {
         ArrayList<Game> games = GameManager.getGames();
-        for (int i = 0; i < games.size() && i < gameSigns.size(); i++) {
-            GameStatus game = games.get(i);
+        for (int i = 0; i < gameSigns.size(); i++) {
             Sign sign = gameSigns.get(i);
-
-            sign.setLine(0, ChatColor.BLUE + "Game");
-            sign.setLine(1, ChatColor.GOLD + game.getGameName());
-
-            if (game.getState() == GameState.OPEN) {
-                sign.setLine(2, ChatColor.GREEN + game.getState().toString());
+            if (i < games.size()) {
+                GameStatus game = games.get(i);
+                updateSignContent(sign, game);
             } else {
-                sign.setLine(2, ChatColor.RED + game.getState().toString());
+                clearSignContent(sign);
             }
-
-            sign.setLine(3, ChatColor.YELLOW + String.valueOf(game.getPlayerCount()) + " players");
-            sign.update();
         }
+    }
+
+    private void updateSignContent(Sign sign, GameStatus game) {
+        sign.setLine(0, ChatColor.AQUA + "" + ChatColor.BOLD + "Game");
+        sign.setLine(1, ChatColor.GOLD + "" + ChatColor.BOLD + game.getGameName());
+        sign.setLine(2, game.getState() == GameState.OPEN ?
+                ChatColor.GREEN + "" + ChatColor.BOLD + game.getState().toString() :
+                ChatColor.RED + "" + ChatColor.BOLD + game.getState().toString());
+        sign.setLine(3, ChatColor.YELLOW + "" + ChatColor.BOLD + game.getPlayerCount() + " players");
+        sign.update(true); // Force update
+    }
+
+    private void clearSignContent(Sign sign) {
+        for (int i = 0; i < 4; i++) {
+            sign.setLine(i, "");
+        }
+        sign.update(true); // Force update
     }
 
     public void addGameNpc(String gameName, Location location) {
@@ -134,28 +143,35 @@ public class LobbyManager implements Listener {
             return;
         }
         Block clickedBlock = event.getClickedBlock();
-        if (clickedBlock != null && clickedBlock.getState() instanceof Sign sign) {
-            for (GameStatus game : GameManager.getGames()) {
-                if (sign.getLine(1).contains(game.getGameName())) {
-                    if (game.getState() == GameState.OPEN) {
-                        Player player = event.getPlayer();
-                        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-                        if (!cookiePlayer.getState().equals(PlayerState.IN_GAME)) {
-                            joinAvailableGame(cookiePlayer);
-                        }
-                    } else {
-                        event.getPlayer().sendMessage(ChatColor.RED + "This game is not available.");
-                    }
-                    break;
-                }
+        if (clickedBlock != null && clickedBlock.getState() instanceof Sign clickedSign) {
+            GameStatus clickedGame = findGameForSign(clickedSign);
+            if (clickedGame != null) {
+                handleGameSignClick(event.getPlayer(), clickedGame);
             }
         }
+    }
 
+    private GameStatus findGameForSign(Sign clickedSign) {
+        for (GameStatus game : GameManager.getGames()) {
+            if (clickedSign.getLine(1).equals(ChatColor.GOLD + game.getGameName())) {
+                return game;
+            }
+        }
+        return null;
+    }
+
+    private void handleGameSignClick(Player player, GameStatus game) {
+        if (game.getState() == GameState.OPEN) {
+            CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+            if (!cookiePlayer.getState().equals(PlayerState.IN_GAME)) {
+                game.addPlayerToAvailableTeam(cookiePlayer);
+            }
+        } else {
+            player.sendMessage(ChatColor.RED + "This game is not available.");
+        }
     }
 
     public List<GameNPC> getGameNpcs() {
         return gameNpcs;
     }
-
-
 }

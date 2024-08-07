@@ -27,19 +27,18 @@ public class NPCReloadListener implements Listener {
 
     public void registerNPC(String gameName, Location location) {
         npcLocations.put(gameName, location);
+        Chunk chunk = location.getChunk();
+        chunk.setForceLoaded(true);
     }
 
     @EventHandler
     public void onChunkUnload(ChunkUnloadEvent event) {
         Chunk chunk = event.getChunk();
-        for (Entity entity : chunk.getEntities()) {
-            if (entity instanceof Zombie zombie) {
-                for (String gameName : npcLocations.keySet()) {
-                    if (zombie.getPersistentDataContainer().has(new NamespacedKey(plugin, gameName), PersistentDataType.BYTE)) {
-                        zombie.remove();
-                        break;
-                    }
-                }
+        for (Map.Entry<String, Location> entry : npcLocations.entrySet()) {
+            if (isLocationInChunk(entry.getValue(), chunk)) {
+                // If this chunk contains an NPC, keep it loaded
+                chunk.setForceLoaded(true);
+                return;
             }
         }
     }
@@ -48,21 +47,26 @@ public class NPCReloadListener implements Listener {
     public void onChunkLoad(ChunkLoadEvent event) {
         Chunk chunk = event.getChunk();
         for (Map.Entry<String, Location> entry : npcLocations.entrySet()) {
-            Location loc = entry.getValue();
-            if (isLocationInChunk(loc, chunk)) {
-                new GameNPC(entry.getKey(), loc, plugin);
+            if (isLocationInChunk(entry.getValue(), chunk)) {
+                // Respawn the NPC if it's not present
+                if (!isNPCPresent(chunk, entry.getKey())) {
+                    new GameNPC(entry.getKey(), entry.getValue(), plugin);
+                }
             }
         }
     }
 
     private boolean isLocationInChunk(Location location, Chunk chunk) {
-        int blockX = location.getBlockX();
-        int blockZ = location.getBlockZ();
-        int chunkX = chunk.getX() << 4; // Multiply by 16
-        int chunkZ = chunk.getZ() << 4; // Multiply by 16
-
-        return blockX >= chunkX && blockX < chunkX + 16 &&
-                blockZ >= chunkZ && blockZ < chunkZ + 16 &&
-                location.getWorld().equals(chunk.getWorld());
+        return location.getChunk().equals(chunk);
     }
+
+    private boolean isNPCPresent(Chunk chunk, String gameName) {
+        for (Entity entity : chunk.getEntities()) {
+            if (entity instanceof Zombie && entity.getPersistentDataContainer().has(new NamespacedKey(plugin, gameName), PersistentDataType.BYTE)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }
