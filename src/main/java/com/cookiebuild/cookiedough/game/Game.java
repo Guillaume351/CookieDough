@@ -70,16 +70,46 @@ public abstract class Game implements GameStatus {
         return new ArrayList<>(players); // Return a copy to avoid external modification
     }
 
+    protected static final int QUICK_START_DELAY_SECONDS = 5;
+
     public void tick() {
         if (state == GameState.OPEN) {
+            int availablePlayers = GameManager.getAvailablePlayerCount();
             if (players.size() >= 2) {
-                startTimer++;
-                if (startTimer >= START_DELAY_SECONDS) { // TODO: make this configurable
-                    startGame();
-                    startTimer = 0;
+                if (players.size() == availablePlayers || players.size() == capacity) {
+                    // All available players joined or game is at capacity
+                    startTimer++;
+                    if (startTimer >= QUICK_START_DELAY_SECONDS) {
+                        startGame();
+                        startTimer = 0;
+                    }
+                } else {
+                    startTimer++;
+                    if (startTimer >= START_DELAY_SECONDS) {
+                        startGame();
+                        startTimer = 0;
+                    }
                 }
             } else {
                 startTimer = 0; // Reset timer if players are less than 2
+            }
+
+            // Notify players of the countdown
+            if (startTimer > 0) {
+                notifyCountdown();
+            }
+        }
+    }
+
+    private void notifyCountdown() {
+        int remainingTime = (players.size() == GameManager.getAvailablePlayerCount() || players.size() == capacity)
+                ? QUICK_START_DELAY_SECONDS - startTimer
+                : START_DELAY_SECONDS - startTimer;
+
+        if (remainingTime <= 10 && remainingTime > 0) {
+            for (CookiePlayer player : players) {
+                player.getPlayer().sendMessage(ChatColor.YELLOW +
+                        LocaleManager.getMessage("game.countdown", player.getPlayer().locale(), String.valueOf(remainingTime)));
             }
         }
     }

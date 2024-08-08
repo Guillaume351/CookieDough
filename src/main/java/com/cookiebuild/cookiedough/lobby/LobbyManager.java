@@ -28,13 +28,13 @@ import java.util.List;
 
 public class LobbyManager implements Listener {
     private final JavaPlugin plugin;
-    private final List<Sign> gameSigns;
+    private final List<Location> gameSigns;
     private final List<GameNPC> gameNpcs = new ArrayList<>();
 
     // Singleton
     private static LobbyManager instance;
 
-    public LobbyManager(JavaPlugin plugin, List<Sign> gameSigns) {
+    public LobbyManager(JavaPlugin plugin, List<Location> gameSigns) {
         this.plugin = plugin;
         this.gameSigns = gameSigns;
         instance = this;
@@ -66,9 +66,10 @@ public class LobbyManager implements Listener {
     }
 
     private void refreshSigns() {
-        ArrayList<Game> games = GameManager.getGames();
+        ArrayList<Game> games = GameManager.getGames(); // Get all games
         for (int i = 0; i < gameSigns.size(); i++) {
-            Sign sign = gameSigns.get(i);
+            Location signLocation = gameSigns.get(i);
+            Sign sign = (Sign) signLocation.getBlock().getState();
             if (i < games.size()) {
                 GameStatus game = games.get(i);
                 updateSignContent(sign, game);
@@ -133,9 +134,6 @@ public class LobbyManager implements Listener {
         player.getPlayer().sendMessage("No available games. Please wait.");
     }
 
-    public void addGameSign(Sign sign) {
-        gameSigns.add(sign);
-    }
 
     public void addGameNpc(Entity npc) {
         // TODO: add NPCs

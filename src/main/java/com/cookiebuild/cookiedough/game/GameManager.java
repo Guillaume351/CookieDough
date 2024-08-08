@@ -1,6 +1,8 @@
 package com.cookiebuild.cookiedough.game;
 
 import com.cookiebuild.cookiedough.player.CookiePlayer;
+import com.cookiebuild.cookiedough.player.PlayerManager;
+import com.cookiebuild.cookiedough.player.PlayerState;
 import org.bukkit.Bukkit;
 
 import java.util.ArrayList;
@@ -46,5 +48,9 @@ public class GameManager {
             }
         }
         return null;
+    }
+
+    public static int getAvailablePlayerCount() {
+        return (int) PlayerManager.getPlayers().stream().filter(p -> p.getState() == PlayerState.LOBBY).count();
     }
 }

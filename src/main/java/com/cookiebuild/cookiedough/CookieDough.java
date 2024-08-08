@@ -11,7 +11,6 @@ import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.block.Sign;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.hibernate.SessionFactory;
 
@@ -54,9 +53,9 @@ public final class CookieDough extends JavaPlugin {
         RabbitMQInitializer.initialize();
 
         // Initialize lobby manager
-        List<Sign> gameSigns = new ArrayList<>();
-        gameSigns.add(getServer().getWorld("lobby").getBlockAt(0, 8, 12).getState() instanceof Sign ? (Sign) getServer().getWorld("lobby").getBlockAt(0, 8, 12).getState() : null);
-        gameSigns.add(getServer().getWorld("lobby").getBlockAt(0, 9, 12).getState() instanceof Sign ? (Sign) getServer().getWorld("lobby").getBlockAt(0, 9, 12).getState() : null);
+        List<Location> gameSigns = new ArrayList<>();
+        gameSigns.add(getServer().getWorld("lobby").getBlockAt(0, 8, 12).getLocation());
+        gameSigns.add(getServer().getWorld("lobby").getBlockAt(0, 9, 12).getLocation());
         this.getLogger().info("Game signs: " + gameSigns);
 
         lobbyManager = new LobbyManager(this, gameSigns);

@@ -23,4 +23,8 @@ public class PlayerManager {
         }
         return null;
     }
+
+    public static ArrayList<CookiePlayer> getPlayers() {
+        return players;
+    }
 }
