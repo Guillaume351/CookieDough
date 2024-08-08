@@ -85,6 +85,10 @@ public class LobbyManager implements Listener {
                 ChatColor.GREEN + "" + ChatColor.BOLD + game.getState().toString() :
                 ChatColor.RED + "" + ChatColor.BOLD + game.getState().toString());
         sign.setLine(3, ChatColor.YELLOW + "" + ChatColor.BOLD + game.getPlayerCount() + " players");
+
+        sign.setWaxed(true);
+        sign.setGlowingText(true);
+
         sign.update(true); // Force update
     }
 
@@ -153,7 +157,7 @@ public class LobbyManager implements Listener {
 
     private GameStatus findGameForSign(Sign clickedSign) {
         for (GameStatus game : GameManager.getGames()) {
-            if (clickedSign.getLine(1).equals(ChatColor.GOLD + game.getGameName())) {
+            if (clickedSign.getLine(1).equals(ChatColor.GOLD + "" + ChatColor.BOLD + game.getGameName())) {
                 return game;
             }
         }
