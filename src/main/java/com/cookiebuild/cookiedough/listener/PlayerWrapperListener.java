@@ -6,6 +6,7 @@ import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
+import com.cookiebuild.cookiedough.utils.DiscordUtils;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -62,6 +63,12 @@ public class PlayerWrapperListener implements Listener {
                 playerData.setLastLogin(new Date());
                 playerDataDAO.save(playerData);
                 CookieDough.getInstance().getLogger().info("Player " + player.getName() + " created");
+
+                // New player: tell the discord server :)
+                String webhookUrl = System.getenv("DISCORD_NEW_PLAYER_WEBHOOK_URL");
+
+                // Send a message to Discord
+                DiscordUtils.sendDiscordMessage(webhookUrl, "A new player, " + player.getName() + ", has joined the server!");
             } else {
                 playerData.setLastLogin(new Date());
                 playerDataDAO.update(playerData);
