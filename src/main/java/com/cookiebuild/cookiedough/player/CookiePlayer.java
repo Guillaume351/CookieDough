@@ -49,7 +49,7 @@ public class CookiePlayer {
 
     public void resetPlayer() {
         this.player.getInventory().clear();
-        this.player.setGameMode(GameMode.SURVIVAL);
+        this.player.setGameMode(GameMode.ADVENTURE);
         this.player.setHealth(20);
         this.player.setMaxHealth(20);
         this.player.setFoodLevel(20);
