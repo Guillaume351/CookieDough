@@ -96,7 +96,7 @@ public abstract class Game implements GameStatus {
 
             // Notify players of the countdown
             if (startTimer > 0) {
-                notifyCountdown();
+               // notifyCountdown();
             }
         }
     }
