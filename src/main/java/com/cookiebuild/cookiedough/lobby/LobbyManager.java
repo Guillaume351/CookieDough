@@ -114,8 +114,8 @@ public class LobbyManager implements Listener {
             // if player is in a game, remove them from the game
             if (cookiePlayer.getState() == PlayerState.IN_GAME) {
                 GameManager.getGameOfPlayer(cookiePlayer).removePlayer(cookiePlayer);
-                cookiePlayer.setState(PlayerState.LOBBY);
             }
+            cookiePlayer.setState(PlayerState.LOBBY);
 
             Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
             player.teleport(lobbySpawnLocation);
