@@ -20,6 +20,10 @@ public class PlayerStatsService {
         this.entityManager = entityManager;
     }
 
+    public EntityManager getEntityManager() {
+        return entityManager;
+    }
+
     /**
      * Get all game stats for a player
      * 

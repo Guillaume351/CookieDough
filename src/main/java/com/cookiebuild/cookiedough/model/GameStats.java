@@ -1,5 +1,6 @@
 package com.cookiebuild.cookiedough.model;
 
+import java.util.Map;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -157,5 +158,9 @@ public class GameStats {
             return 0;
         }
         return (double) gamesWon / gamesPlayed;
+    }
+
+    public Map<String, String> getFormattedSpecificStats() {
+        return java.util.Collections.emptyMap(); // Default: no specific stats
     }
 }

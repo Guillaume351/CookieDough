@@ -1,26 +1,33 @@
 package com.cookiebuild.cookiedough;
 
-import com.cookiebuild.cookiedough.chat.ChatManager;
-import com.cookiebuild.cookiedough.commands.LobbyCommand;
-import com.cookiebuild.cookiedough.game.GameManager;
-import com.cookiebuild.cookiedough.listener.*;
-import com.cookiebuild.cookiedough.lobby.GameNPC;
-import com.cookiebuild.cookiedough.lobby.LobbyManager;
-import com.cookiebuild.cookiedough.utils.HibernateUtil;
-import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.hibernate.SessionFactory;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.cookiebuild.cookiedough.chat.ChatManager;
+import com.cookiebuild.cookiedough.commands.LobbyCommand;
+import com.cookiebuild.cookiedough.game.GameManager;
+import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
+import com.cookiebuild.cookiedough.listener.NPCReloadListener;
+import com.cookiebuild.cookiedough.listener.PlayerChatListener;
+import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
+import com.cookiebuild.cookiedough.listener.WorldEventListener;
+import com.cookiebuild.cookiedough.lobby.GameNPC;
+import com.cookiebuild.cookiedough.lobby.LobbyManager;
+import com.cookiebuild.cookiedough.service.PlayerStatsService;
+import com.cookiebuild.cookiedough.utils.HibernateUtil;
+import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
 
 public final class CookieDough extends JavaPlugin {
     static CookieDough instance;
     public static SessionFactory sessionFactory;
     private static LobbyManager lobbyManager;
+    private static PlayerStatsService playerStatsService;
 
     public static CookieDough getInstance() {
         return instance;
@@ -40,6 +47,10 @@ public final class CookieDough extends JavaPlugin {
         return lobbyManager;
     }
 
+    public static PlayerStatsService getPlayerStatsService() {
+        return playerStatsService;
+    }
+
     @Override
     public void onEnable() {
         this.getLogger().info("Enabling CookieDough");
@@ -48,6 +59,7 @@ public final class CookieDough extends JavaPlugin {
 
         // Plugin startup logic
         sessionFactory = HibernateUtil.buildSessionFactory();
+        playerStatsService = new PlayerStatsService(sessionFactory.createEntityManager());
 
         // Initialize RabbitMQ
         RabbitMQInitializer.initialize();
@@ -59,7 +71,6 @@ public final class CookieDough extends JavaPlugin {
         this.getLogger().info("Game signs: " + gameSigns);
 
         lobbyManager = new LobbyManager(this, gameSigns);
-
 
         World lobbyWorld = getServer().getWorld("lobby");
         Location npcLocation = new Location(lobbyWorld, 0.5, 8, 12.5);
@@ -92,6 +103,9 @@ public final class CookieDough extends JavaPlugin {
     @Override
     public void onDisable() {
         // Plugin shutdown logic
+        if (playerStatsService != null && playerStatsService.getEntityManager().isOpen()) {
+            playerStatsService.getEntityManager().close();
+        }
         if (sessionFactory != null) {
             sessionFactory.close();
         }
