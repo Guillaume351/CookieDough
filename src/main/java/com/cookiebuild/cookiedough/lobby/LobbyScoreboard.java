@@ -93,7 +93,7 @@ public class LobbyScoreboard {
 
         // Global stats
         setScore(Component.text("GLOBAL STATS").color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD), line--);
-        setScore(Component.text("  Total Matches: ").color(NamedTextColor.GOLD)
+        setScore(Component.text("  Games played: ").color(NamedTextColor.GOLD)
                 .append(Component.text(allPerformances.size()).color(NamedTextColor.WHITE)), line--);
 
         setScore(Component.text(" "), line--);
@@ -138,14 +138,14 @@ public class LobbyScoreboard {
                         .anyMatch(winner -> winner.getId().equals(player.getUniqueId())))
                 .count();
 
-        setScore(Component.text("  Matches Won: ").color(color)
+        setScore(Component.text("  Wins: ").color(color)
                 .append(Component.text(wins).color(NamedTextColor.WHITE))
                 .append(Component.text(" (" + performances.size() + " P)").color(NamedTextColor.GRAY)), line--);
 
         int eliminations = performances.stream()
-                .mapToInt(p -> Integer.parseInt(getMetricFromJson(p.getGameSpecificMetrics(), "eliminations")))
+                .mapToInt(p -> p.getKillsInMatch())
                 .sum();
-        setScore(Component.text("  Players Elim: ").color(color)
+        setScore(Component.text("  Kills: ").color(color)
                 .append(Component.text(eliminations).color(NamedTextColor.WHITE)), line--);
     }
 
