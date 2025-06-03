@@ -112,6 +112,9 @@ public class LobbyManager implements Listener {
         Player player = cookiePlayer.getPlayer();
         World lobbyWorld = Bukkit.getWorld("lobby");
         if (lobbyWorld != null) {
+            // Remove arrows in the player's body
+            player.setArrowsInBody(0);
+
             // if player is in a game, remove them from the game
             if (cookiePlayer.getState() == PlayerState.IN_GAME) {
                 GameManager.getGameOfPlayer(cookiePlayer).removePlayer(cookiePlayer);
