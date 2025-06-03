@@ -17,10 +17,7 @@ public class StatsAggregator {
     }
 
     public void updatePlayerStats(PlayerData player, String gameType) {
-        List<Match> matches = matchRepository.findByPlayerAndGameType(player, gameType);
-        GameStats stats = statsService.getOrCreatePlayerStats(player, gameType, GameStats.class);
-        stats.recalculateFromMatches(matches);
-        statsService.saveStats(stats);
+        // TODO
     }
 
     public void updateAllPlayerStats() {

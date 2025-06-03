@@ -4,8 +4,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.cookiebuild.cookiedough.model.GameStats;
+import com.cookiebuild.cookiedough.model.Match;
 import com.cookiebuild.cookiedough.model.PlayerData;
+import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
@@ -25,33 +26,36 @@ public class PlayerStatsService {
     }
 
     /**
-     * Get all game stats for a player
+     * Get all match performances for a player
      * 
      * @param playerId The UUID of the player
-     * @return List of GameStats for the player
+     * @return List of PlayerMatchPerformance for the player
      */
-    public List<GameStats> getPlayerStats(UUID playerId) {
-        TypedQuery<GameStats> query = entityManager.createQuery(
-                "SELECT gs FROM GameStats gs WHERE gs.player.id = :playerId",
-                GameStats.class);
+    public List<PlayerMatchPerformance> getPlayerPerformances(UUID playerId) {
+        TypedQuery<PlayerMatchPerformance> query = entityManager.createQuery(
+                "SELECT p FROM PlayerMatchPerformance p " +
+                "JOIN FETCH p.match m " +
+                "LEFT JOIN FETCH m.winners " +
+                "WHERE p.player.id = :playerId",
+                PlayerMatchPerformance.class);
         query.setParameter("playerId", playerId);
         return query.getResultList();
     }
 
     /**
-     * Get game stats for a player for a specific game type
+     * Get match performances for a player in a specific match
      * 
      * @param playerId The UUID of the player
-     * @param gameType The type of game
-     * @return Optional containing the GameStats if found
+     * @param matchId  The UUID of the match
+     * @return Optional containing the PlayerMatchPerformance if found
      */
-    public Optional<GameStats> getPlayerStatsByGameType(UUID playerId, String gameType) {
+    public Optional<PlayerMatchPerformance> getPlayerPerformanceInMatch(UUID playerId, UUID matchId) {
         try {
-            TypedQuery<GameStats> query = entityManager.createQuery(
-                    "SELECT gs FROM GameStats gs WHERE gs.player.id = :playerId AND gs.gameType = :gameType",
-                    GameStats.class);
+            TypedQuery<PlayerMatchPerformance> query = entityManager.createQuery(
+                    "SELECT p FROM PlayerMatchPerformance p WHERE p.player.id = :playerId AND p.match.id = :matchId",
+                    PlayerMatchPerformance.class);
             query.setParameter("playerId", playerId);
-            query.setParameter("gameType", gameType);
+            query.setParameter("matchId", matchId);
             return Optional.of(query.getSingleResult());
         } catch (NoResultException e) {
             return Optional.empty();
@@ -59,106 +63,100 @@ public class PlayerStatsService {
     }
 
     /**
-     * Get or create game stats for a player for a specific game type
+     * Get or create match performance for a player in a specific match
      * 
-     * @param player     The player
-     * @param gameType   The type of game
-     * @param statsClass The class of the stats to create if not found
-     * @return The existing or newly created GameStats
+     * @param player The player
+     * @param match  The match
+     * @return The existing or newly created PlayerMatchPerformance
      */
-    public <T extends GameStats> T getOrCreatePlayerStats(PlayerData player, String gameType, Class<T> statsClass) {
-        Optional<GameStats> existingStats = getPlayerStatsByGameType(player.getId(), gameType);
+    public PlayerMatchPerformance getOrCreateMatchPerformance(PlayerData player, Match match) {
+        Optional<PlayerMatchPerformance> existingPerformance = getPlayerPerformanceInMatch(player.getId(),
+                match.getId());
 
-        if (existingStats.isPresent()) {
-            return statsClass.cast(existingStats.get());
+        if (existingPerformance.isPresent()) {
+            return existingPerformance.get();
         }
 
         EntityTransaction transaction = entityManager.getTransaction();
         try {
             transaction.begin();
-            T newStats = statsClass.getDeclaredConstructor(PlayerData.class).newInstance(player);
-            player.addGameStats(newStats);
-            entityManager.persist(newStats);
+            PlayerMatchPerformance newPerformance = new PlayerMatchPerformance(match, player);
+            entityManager.persist(newPerformance);
             transaction.commit();
-            return newStats;
+            return newPerformance;
         } catch (Exception e) {
             if (transaction.isActive()) {
                 transaction.rollback();
             }
-            throw new RuntimeException("Failed to create new stats for player", e);
+            throw new RuntimeException("Failed to create new match performance for player", e);
         }
     }
 
     /**
-     * Save game stats
+     * Save match performance
      * 
-     * @param stats The stats to save
+     * @param performance The performance to save
      */
-    public void saveStats(GameStats stats) {
+    public void savePerformance(PlayerMatchPerformance performance) {
         EntityTransaction transaction = entityManager.getTransaction();
         try {
             transaction.begin();
-            if (stats.getId() == null) {
-                entityManager.persist(stats);
+            if (performance.getId() == null) {
+                entityManager.persist(performance);
             } else {
-                entityManager.merge(stats);
+                entityManager.merge(performance);
             }
             transaction.commit();
         } catch (Exception e) {
             if (transaction.isActive()) {
                 transaction.rollback();
             }
-            throw new RuntimeException("Failed to save stats", e);
+            throw new RuntimeException("Failed to save match performance", e);
         }
     }
 
     /**
-     * Update player stats after a game
+     * Update player performance after a match
      * 
-     * @param player     The player
-     * @param gameType   The type of game
-     * @param won        Whether the player won the game
-     * @param kills      Number of kills
-     * @param deaths     Number of deaths
-     * @param statsClass The class of the stats to update
-     * @return The updated stats
+     * @param player              The player
+     * @param match               The match
+     * @param kills               Number of kills
+     * @param deaths              Number of deaths
+     * @param assists             Number of assists
+     * @param gameSpecificMetrics Game-specific metrics as JSON string
+     * @return The updated performance
      */
-    public <T extends GameStats> T updatePlayerStatsAfterGame(
+    public PlayerMatchPerformance updatePlayerPerformanceAfterMatch(
             PlayerData player,
-            String gameType,
-            boolean won,
+            Match match,
             int kills,
             int deaths,
-            Class<T> statsClass) {
+            int assists,
+            String gameSpecificMetrics) {
 
         EntityTransaction transaction = entityManager.getTransaction();
         try {
             transaction.begin();
-            T stats = getOrCreatePlayerStats(player, gameType, statsClass);
+            PlayerMatchPerformance performance = getOrCreateMatchPerformance(player, match);
 
-            stats.incrementGamesPlayed();
-            if (won) {
-                stats.incrementGamesWon();
+            performance.setKillsInMatch(kills);
+            performance.setDeathsInMatch(deaths);
+            performance.setAssistsInMatch(assists);
+            performance.setGameSpecificMetrics(gameSpecificMetrics);
+
+            if (performance.getId() == null) {
+                entityManager.persist(performance);
             } else {
-                stats.incrementGamesLost();
-            }
-
-            stats.addKills(kills);
-            stats.addDeaths(deaths);
-
-            if (stats.getId() == null) {
-                entityManager.persist(stats);
-            } else {
-                entityManager.merge(stats);
+                entityManager.merge(performance);
             }
 
             transaction.commit();
-            return stats;
+            return performance;
         } catch (Exception e) {
             if (transaction.isActive()) {
                 transaction.rollback();
             }
-            throw new RuntimeException("Failed to update player stats after game", e);
+            throw new RuntimeException("Failed to update player performance after match", e);
         }
     }
 }

@@ -22,7 +22,6 @@ import com.cookiebuild.cookiedough.lobby.LobbyScoreboard;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
-import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.DiscordUtils;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
@@ -111,20 +110,6 @@ public class PlayerWrapperListener implements Listener {
     public void onPlayerTeleport(PlayerTeleportEvent event) {
         Player player = event.getPlayer();
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-
-        if (event.getTo().getWorld().getName().equalsIgnoreCase("lobby")) {
-            if (cookiePlayer != null && cookiePlayer.getState() != PlayerState.LOBBY) {
-                cookiePlayer.setState(PlayerState.LOBBY);
-            }
-            if (!playerLobbyScoreboards.containsKey(player.getUniqueId())) {
-                playerLobbyScoreboards.get(player.getUniqueId()).update();
-            }
-        } else {
-            LobbyScoreboard scoreboard = playerLobbyScoreboards.remove(player.getUniqueId());
-            if (scoreboard != null) {
-                scoreboard.cleanup();
-            }
-        }
 
         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "ocm mode old " + event.getPlayer().getName());
         if (cookiePlayer != null && event.getFrom().getWorld() != event.getTo().getWorld()) {

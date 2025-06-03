@@ -2,11 +2,11 @@ package com.cookiebuild.cookiedough.lobby;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
+import org.bukkit.scoreboard.Criteria;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
@@ -14,18 +14,25 @@ import org.bukkit.scoreboard.ScoreboardManager;
 import org.bukkit.scoreboard.Team;
 
 import com.cookiebuild.cookiedough.CookieDough;
-import com.cookiebuild.cookiedough.model.GameStats;
+import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 
 public class LobbyScoreboard {
-
     private final Player player;
     private final PlayerStatsService playerStatsService;
     private final Scoreboard scoreboard;
     private Objective objective;
     private final String websiteUrl = "www.cookie-build.com";
-    private static final String SCOREBOARD_TITLE = ChatColor.GOLD + "" + ChatColor.BOLD + "Cookie Build"
-            + ChatColor.RESET;
+    private static final Component SCOREBOARD_TITLE = Component.text("Cookie Build")
+            .color(NamedTextColor.GOLD)
+            .decorate(TextDecoration.BOLD);
+    private static final Gson GSON = new Gson();
 
     public LobbyScoreboard(Player player, PlayerStatsService playerStatsService) {
         this.player = player;
@@ -33,11 +40,9 @@ public class LobbyScoreboard {
 
         ScoreboardManager manager = Bukkit.getScoreboardManager();
         if (manager == null) {
-            // Log an error instead of throwing, to prevent disabling plugin part if SB
-            // manager is temp. unavailable
             CookieDough.getInstance().getLogger()
                     .severe("ScoreboardManager is null, cannot create scoreboard for " + player.getName());
-            this.scoreboard = null; // Ensure scoreboard is null so other methods don't try to use it.
+            this.scoreboard = null;
             return;
         }
         this.scoreboard = manager.getNewScoreboard();
@@ -49,136 +54,132 @@ public class LobbyScoreboard {
             return;
         objective = scoreboard.getObjective("lobbyStats");
         if (objective == null) {
-            objective = scoreboard.registerNewObjective("lobbyStats", "dummy", SCOREBOARD_TITLE);
+            objective = scoreboard.registerNewObjective("lobbyStats", Criteria.DUMMY, SCOREBOARD_TITLE);
         }
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
-        update(); // Initial population
+        update();
     }
 
     public void update() {
         if (this.scoreboard == null || objective == null || !player.isOnline()) {
-            return; // Don't update if scoreboard isn't setup or player offline
+            return;
         }
 
-        // Clear old scores using the current teams/entries to avoid issues
+        // Clear old scores
         for (String entry : scoreboard.getEntries()) {
             scoreboard.resetScores(entry);
         }
-        // also unregister teams to be safe, new teams will be created by setScore
         for (Team team : scoreboard.getTeams()) {
             team.unregister();
         }
 
-        // --- Overall Stats --- //
-        List<GameStats> allGameStats = playerStatsService.getPlayerStats(player.getUniqueId());
-        int totalGamesPlayedAll = 0;
-        int totalWinsAll = 0;
-        int totalKillsAll = 0;
-        int totalDeathsAll = 0;
+        // Get all match performances for the player
+        List<PlayerMatchPerformance> allPerformances = playerStatsService.getPlayerPerformances(player.getUniqueId());
 
-        for (GameStats gs : allGameStats) {
-            totalGamesPlayedAll += gs.getGamesPlayed();
-            totalWinsAll += gs.getGamesWon();
-            totalKillsAll += gs.getTotalKills();
-            totalDeathsAll += gs.getTotalDeaths();
-        }
+        // Calculate overall stats
+        int totalKillsAll = allPerformances.stream().mapToInt(PlayerMatchPerformance::getKillsInMatch).sum();
+        int totalDeathsAll = allPerformances.stream().mapToInt(PlayerMatchPerformance::getDeathsInMatch).sum();
         double kdrOverall = (totalDeathsAll == 0) ? totalKillsAll : (double) totalKillsAll / totalDeathsAll;
-        // double winRateOverall = (totalGamesPlayedAll == 0) ? 0 : (double)
-        // totalWinsAll / totalGamesPlayedAll * 100;
 
-        // --- Scoreboard Line Definitions --- //
-        int line = 15; // Start from top
+        // Group performances by game type
+        Map<String, List<PlayerMatchPerformance>> performancesByGame = allPerformances.stream()
+                .collect(Collectors.groupingBy(p -> p.getMatch().getGameType()));
 
-        setScore(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "                 ", line--); // Top separator
-        setScore(ChatColor.YELLOW + "" + ChatColor.BOLD + "GLOBAL STATS", line--);
-        setScore("  " + ChatColor.GOLD + "Total Wins: " + ChatColor.WHITE + totalWinsAll, line--);
-        setScore("  " + ChatColor.GOLD + "K/D Ratio: " + ChatColor.WHITE + String.format("%.2f", kdrOverall), line--);
-        setScore(ChatColor.WHITE + " ", line--); // consume an extra line for spacing
+        int line = 15;
 
-        // --- MicroBattles Stats --- //
-        Optional<GameStats> mbStatsOpt = playerStatsService.getPlayerStatsByGameType(player.getUniqueId(),
-                "MicroBattles");
-        setScore(ChatColor.AQUA + "" + ChatColor.BOLD + "MICROBATTLES", line--);
-        if (mbStatsOpt.isPresent()) {
-            GameStats mbStats = mbStatsOpt.get();
-            Map<String, String> specificMbStats = mbStats.getFormattedSpecificStats();
-            setScore("  " + ChatColor.DARK_AQUA + "Wins: " + ChatColor.WHITE + mbStats.getGamesWon() + ChatColor.GRAY
-                    + " (" + mbStats.getGamesPlayed() + " P)", line--);
-            setScore("  " + ChatColor.DARK_AQUA + "Players Elim: " + ChatColor.WHITE
-                    + specificMbStats.getOrDefault("Players Elim.", "0"), line--);
+        // Decorative separator
+        setScore(Component.text("                 ").color(NamedTextColor.DARK_GRAY)
+                .decorate(TextDecoration.STRIKETHROUGH), line--);
+
+        // Global stats
+        setScore(Component.text("GLOBAL STATS").color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD), line--);
+        setScore(Component.text("  Total Matches: ").color(NamedTextColor.GOLD)
+                .append(Component.text(allPerformances.size()).color(NamedTextColor.WHITE)), line--);
+
+        setScore(Component.text(" "), line--);
+
+        // MicroBattles Stats
+        List<PlayerMatchPerformance> mbPerformances = performancesByGame.getOrDefault("MicroBattles", List.of());
+        setScore(Component.text("MICROBATTLES").color(NamedTextColor.AQUA).decorate(TextDecoration.BOLD), line--);
+        if (!mbPerformances.isEmpty()) {
+            displayGameStats("MicroBattles", mbPerformances, line);
+            line -= 2;
         } else {
-            setScore("  " + ChatColor.GRAY + "Play a game!", line--);
-            setScore(ChatColor.WHITE + " ", line--); // consume an extra line for spacing
+            setScore(Component.text("  Play a game!").color(NamedTextColor.GRAY), line--);
+            setScore(Component.text(" "), line--);
         }
 
-        // --- Pitchout Stats --- //
-        Optional<GameStats> poStatsOpt = playerStatsService.getPlayerStatsByGameType(player.getUniqueId(), "Pitchout");
-        setScore(ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "PITCHOUT", line--);
-        if (poStatsOpt.isPresent()) {
-            GameStats poStats = poStatsOpt.get();
-            Map<String, String> specificPoStats = poStats.getFormattedSpecificStats();
-            setScore("  " + ChatColor.DARK_PURPLE + "Wins: " + ChatColor.WHITE + poStats.getGamesWon() + ChatColor.GRAY
-                    + " (" + poStats.getGamesPlayed() + " P)", line--);
-            setScore("  " + ChatColor.DARK_PURPLE + "Players Elim: " + ChatColor.WHITE
-                    + specificPoStats.getOrDefault("Players Elim.", "0"), line--);
+        // Pitchout Stats
+        List<PlayerMatchPerformance> poPerformances = performancesByGame.getOrDefault("Pitchout", List.of());
+        setScore(Component.text("PITCHOUT").color(NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD), line--);
+        if (!poPerformances.isEmpty()) {
+            displayGameStats("Pitchout", poPerformances, line);
+            line -= 2;
         } else {
-            setScore("  " + ChatColor.GRAY + "Play a game!", line--);
-            setScore(ChatColor.WHITE + " ", line--); // consume an extra line for spacing
+            setScore(Component.text("  Play a game!").color(NamedTextColor.GRAY), line--);
+            setScore(Component.text(" "), line--);
         }
 
-        // Ensure website URL is always displayed
-        setScore(ChatColor.GRAY + "" + ChatColor.ITALIC + websiteUrl, line--);
-        setScore(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "                 ", line--); // Bottom separator
+        // Website and separator
+        setScore(Component.text(websiteUrl).color(NamedTextColor.GRAY).decorate(TextDecoration.ITALIC), line--);
+        setScore(Component.text("                 ").color(NamedTextColor.DARK_GRAY)
+                .decorate(TextDecoration.STRIKETHROUGH), line--);
 
-        // Ensure player has this scoreboard instance set
         if (player.getScoreboard() != this.scoreboard) {
             player.setScoreboard(this.scoreboard);
         }
     }
 
-    private void setScore(String text, int scorePosition) {
-        if (this.scoreboard == null || objective == null || scorePosition < 0)
-            return;
+    private void displayGameStats(String gameType, List<PlayerMatchPerformance> performances, int line) {
+        NamedTextColor color = gameType.equals("MicroBattles") ? NamedTextColor.DARK_AQUA : NamedTextColor.DARK_PURPLE;
 
-        String entryKey = getEntryForScore(scorePosition); // Use a unique invisible entry for each line number
+        int wins = (int) performances.stream()
+                .filter(p -> p.getMatch().getWinners().stream()
+                        .anyMatch(winner -> winner.getId().equals(player.getUniqueId())))
+                .count();
 
-        Team team = scoreboard.getTeam("line" + scorePosition);
-        if (team == null) {
-            team = scoreboard.registerNewTeam("line" + scorePosition);
-        }
+        setScore(Component.text("  Matches Won: ").color(color)
+                .append(Component.text(wins).color(NamedTextColor.WHITE))
+                .append(Component.text(" (" + performances.size() + " P)").color(NamedTextColor.GRAY)), line--);
 
-        // Old way of adding entry might cause issues if entryKey was already part of
-        // another team or scoreboard.
-        // Ensure the entry is only on this team.
-        if (!team.hasEntry(entryKey)) {
-            team.addEntry(entryKey); // Add the unique, invisible entry to the team
-        }
-
-        // Split text for prefix/suffix if too long for one line (Minecraft limit is 40
-        // for prefix/suffix)
-        // However, modern clients usually handle longer team prefixes for sidebar
-        // directly via setPrefix.
-        // Bukkit itself has a limit of 16 chars for entry names if they were visible,
-        // but ours are invisible.
-        // Max length for a line on scoreboard is typically handled by the client, but
-        // prefixes are safer.
-        if (text.length() > 40) {
-            team.setPrefix(text.substring(0, 40));
-            // team.setSuffix(text.substring(40)); // Suffix if needed, but usually prefix
-            // is enough for sidebars
-        } else {
-            team.setPrefix(text);
-            // team.setSuffix(""); // Clear suffix if not used
-        }
-
-        objective.getScore(entryKey).setScore(scorePosition); // Set the score for the unique entry
+        int eliminations = performances.stream()
+                .mapToInt(p -> Integer.parseInt(getMetricFromJson(p.getGameSpecificMetrics(), "eliminations")))
+                .sum();
+        setScore(Component.text("  Players Elim: ").color(color)
+                .append(Component.text(eliminations).color(NamedTextColor.WHITE)), line--);
     }
 
-    // Generates a unique, invisible string for each score line to act as the entry
+    private void setScore(Component text, int score) {
+        if (this.scoreboard == null || objective == null || score < 0)
+            return;
+
+        String entry = getEntryForScore(score);
+        Team team = scoreboard.getTeam("line" + score);
+        if (team == null) {
+            team = scoreboard.registerNewTeam("line" + score);
+        }
+        if (!team.hasEntry(entry)) {
+            team.addEntry(entry);
+        }
+
+        team.prefix(text);
+        objective.getScore(entry).setScore(score);
+    }
+
     private String getEntryForScore(int score) {
-        return ChatColor.values()[score % ChatColor.values().length].toString() +
-                ChatColor.values()[(score / ChatColor.values().length) % ChatColor.values().length].toString() +
-                ChatColor.RESET;
+        // Use section symbol (§) to create invisible unique identifiers
+        return "§" + (score % 16) + "§" + ((score / 16) % 16);
+    }
+
+    private String getMetricFromJson(String json, String key) {
+        try {
+            Map<String, String> metrics = GSON.fromJson(json,
+                    new TypeToken<Map<String, String>>() {
+                    }.getType());
+            return metrics.getOrDefault(key, "0");
+        } catch (Exception e) {
+            return "0";
+        }
     }
 
     public void show() {

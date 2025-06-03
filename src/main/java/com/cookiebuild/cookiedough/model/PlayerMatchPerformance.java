@@ -15,9 +15,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "player_match_performances")
+@Table(name = "player_match_performances", 
+       uniqueConstraints = @UniqueConstraint(columnNames = {"match_id", "player_id"}))
 public class PlayerMatchPerformance {
 
     @Id

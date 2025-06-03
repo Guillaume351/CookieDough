@@ -23,7 +23,7 @@ public class PlayerData {
     private Date createdAt;
 
     @OneToMany(mappedBy = "player", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<GameStats> gameStats = new HashSet<>();
+    private Set<PlayerMatchPerformance> matchPerformances = new HashSet<>();
 
     // Getters and setters
     public PlayerData() {
@@ -61,21 +61,21 @@ public class PlayerData {
         this.createdAt = createdAt;
     }
 
-    public Set<GameStats> getGameStats() {
-        return gameStats;
+    public Set<PlayerMatchPerformance> getMatchPerformances() {
+        return matchPerformances;
     }
 
-    public void setGameStats(Set<GameStats> gameStats) {
-        this.gameStats = gameStats;
+    public void setMatchPerformances(Set<PlayerMatchPerformance> matchPerformances) {
+        this.matchPerformances = matchPerformances;
     }
 
-    public void addGameStats(GameStats stats) {
-        gameStats.add(stats);
-        stats.setPlayer(this);
+    public void addMatchPerformance(PlayerMatchPerformance performance) {
+        matchPerformances.add(performance);
+        performance.setPlayer(this);
     }
 
-    public void removeGameStats(GameStats stats) {
-        gameStats.remove(stats);
-        stats.setPlayer(null);
+    public void removeMatchPerformance(PlayerMatchPerformance performance) {
+        matchPerformances.remove(performance);
+        performance.setPlayer(null);
     }
 }
