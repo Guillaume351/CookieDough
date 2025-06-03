@@ -34,9 +34,9 @@ public class PlayerStatsService {
     public List<PlayerMatchPerformance> getPlayerPerformances(UUID playerId) {
         TypedQuery<PlayerMatchPerformance> query = entityManager.createQuery(
                 "SELECT p FROM PlayerMatchPerformance p " +
-                "JOIN FETCH p.match m " +
-                "LEFT JOIN FETCH m.winners " +
-                "WHERE p.player.id = :playerId",
+                        "JOIN FETCH p.match m " +
+                        "LEFT JOIN FETCH m.winners " +
+                        "WHERE p.player.id = :playerId",
                 PlayerMatchPerformance.class);
         query.setParameter("playerId", playerId);
         return query.getResultList();
