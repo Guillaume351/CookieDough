@@ -84,12 +84,17 @@ public class LobbyScoreboard {
             return;
         }
 
-        // Clear old scores
+        // Clear old scores that are no longer needed
         for (String entry : scoreboard.getEntries()) {
-            scoreboard.resetScores(entry);
+            if (!entry.startsWith("§")) {
+                scoreboard.resetScores(entry);
+            }
         }
+        // Only unregister teams that are no longer used
         for (Team team : scoreboard.getTeams()) {
-            team.unregister();
+            if (team.getEntries().isEmpty()) {
+                team.unregister();
+            }
         }
 
         // Get all match performances for the player
@@ -164,10 +169,6 @@ public class LobbyScoreboard {
         if (player.getScoreboard() != this.scoreboard) {
             player.setScoreboard(this.scoreboard);
         }
-
-        // Force update the scoreboard
-        player.setScoreboard(scoreboard);
-        player.setScoreboard(player.getScoreboard());
     }
 
     private void displayGameStats(String gameType, List<PlayerMatchPerformance> performances, int line) {
