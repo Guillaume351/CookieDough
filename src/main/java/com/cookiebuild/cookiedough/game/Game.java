@@ -1,22 +1,22 @@
 package com.cookiebuild.cookiedough.game;
 
-import com.cookiebuild.cookiedough.CookieDough;
-import com.cookiebuild.cookiedough.player.CookiePlayer;
-import com.cookiebuild.cookiedough.player.PlayerState;
-import com.cookiebuild.cookiedough.utils.LocaleManager;
-import org.bukkit.ChatColor;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
 
+import org.bukkit.ChatColor;
+
+import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.player.CookiePlayer;
+import com.cookiebuild.cookiedough.player.PlayerState;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
+
 public abstract class Game implements GameStatus {
 
     private final String gameName;
 
-
-    protected static final int START_DELAY_SECONDS = 30;
+    protected int START_DELAY_SECONDS = 30;
 
     private final List<CookiePlayer> players;
 
@@ -38,21 +38,23 @@ public abstract class Game implements GameStatus {
     public boolean addPlayer(CookiePlayer player) {
         // if game is running, do not allow players to join
         if (state == GameState.RUNNING) {
-            player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage("game.already_started", player.getPlayer().locale()));
+            player.getPlayer().sendMessage(
+                    ChatColor.RED + LocaleManager.getMessage("game.already_started", player.getPlayer().locale()));
             return false;
         }
-
 
         if (!players.contains(player)) {
             players.add(player);
             player.setState(PlayerState.IN_GAME); // Set player as in game
 
             // send localized message to in game players
-            getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage("player.joined.game", p.getPlayer().locale(), player.getPlayer().getName())));
+            getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager
+                    .getMessage("player.joined.game", p.getPlayer().locale(), player.getPlayer().getName())));
 
         } else {
             // Log error if player is already in the game
-            CookieDough.getInstance().getLogger().log(Level.SEVERE, player.getPlayer().getName() + " was added multiple times to the game!");
+            CookieDough.getInstance().getLogger().log(Level.SEVERE,
+                    player.getPlayer().getName() + " was added multiple times to the game!");
         }
         return true;
     }
@@ -63,7 +65,8 @@ public abstract class Game implements GameStatus {
                 startTimer = 0;
             }
         }
-        getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage("player.left.game", p.getPlayer().locale(), player.getPlayer().getName())));
+        getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.RED
+                + LocaleManager.getMessage("player.left.game", p.getPlayer().locale(), player.getPlayer().getName())));
     }
 
     public List<CookiePlayer> getPlayers() {
@@ -76,9 +79,10 @@ public abstract class Game implements GameStatus {
         if (state == GameState.OPEN) {
             int availablePlayers = GameManager.getAvailablePlayerCount();
             if (players.size() >= 2) {
-                if (players.size() == availablePlayers || players.size() == capacity) {
+                if (availablePlayers == 0 || players.size() == capacity) {
                     // All available players joined or game is at capacity
                     startTimer++;
+                    START_DELAY_SECONDS = QUICK_START_DELAY_SECONDS; // Set to quick start delay
                     if (startTimer >= QUICK_START_DELAY_SECONDS) {
                         startGame();
                         startTimer = 0;
@@ -96,7 +100,7 @@ public abstract class Game implements GameStatus {
 
             // Notify players of the countdown
             if (startTimer > 0) {
-               // notifyCountdown();
+                // notifyCountdown();
             }
         }
     }
@@ -109,7 +113,8 @@ public abstract class Game implements GameStatus {
         if (remainingTime <= 10 && remainingTime > 0) {
             for (CookiePlayer player : players) {
                 player.getPlayer().sendMessage(ChatColor.YELLOW +
-                        LocaleManager.getMessage("game.countdown", player.getPlayer().locale(), String.valueOf(remainingTime)));
+                        LocaleManager.getMessage("game.countdown", player.getPlayer().locale(),
+                                String.valueOf(remainingTime)));
             }
         }
     }
@@ -120,7 +125,8 @@ public abstract class Game implements GameStatus {
         for (CookiePlayer player : players) {
             teleportToGame(player);
             // send localized message
-            player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage("game.started", player.getPlayer().locale()));
+            player.getPlayer().sendMessage(
+                    ChatColor.GREEN + LocaleManager.getMessage("game.started", player.getPlayer().locale()));
         }
 
         registerANewGame();

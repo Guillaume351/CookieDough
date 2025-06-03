@@ -1,15 +1,31 @@
 package com.cookiebuild.cookiedough.utils;
 
-import com.cookiebuild.cookiedough.model.ChatMessage;
-import com.cookiebuild.cookiedough.model.Match;
-import com.cookiebuild.cookiedough.model.PlayerData;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
 
-import java.util.Properties;
+import com.cookiebuild.cookiedough.model.ChatMessage;
+import com.cookiebuild.cookiedough.model.Match;
+import com.cookiebuild.cookiedough.model.PlayerData;
+import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
 
 public class HibernateUtil {
+    private static final List<Class<?>> additionalEntities = new ArrayList<>();
+
+    /**
+     * Register an entity class to be included in the Hibernate configuration.
+     * This method should be called by other modules before the SessionFactory is
+     * built.
+     * 
+     * @param entityClass The entity class to register
+     */
+    public static void registerEntity(Class<?> entityClass) {
+        additionalEntities.add(entityClass);
+    }
 
     public static SessionFactory buildSessionFactory() {
         Configuration configuration = new Configuration();
@@ -28,9 +44,17 @@ public class HibernateUtil {
         properties.put("hibernate.c3p0.max_size", System.getenv("HIBERNATE_C3P0_MAX_SIZE"));
 
         configuration.setProperties(properties);
+
+        // Register core CookieDough entities
         configuration.addAnnotatedClass(PlayerData.class);
         configuration.addAnnotatedClass(ChatMessage.class);
         configuration.addAnnotatedClass(Match.class);
+        configuration.addAnnotatedClass(PlayerMatchPerformance.class);
+
+        // Register additional entities from other modules
+        for (Class<?> entityClass : additionalEntities) {
+            configuration.addAnnotatedClass(entityClass);
+        }
 
         return configuration.buildSessionFactory();
     }
