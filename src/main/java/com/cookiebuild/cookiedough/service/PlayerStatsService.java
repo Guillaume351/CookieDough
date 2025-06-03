@@ -27,7 +27,7 @@ public class PlayerStatsService {
 
     /**
      * Get all match performances for a player
-     * 
+     *
      * @param playerId The UUID of the player
      * @return List of PlayerMatchPerformance for the player
      */
@@ -44,7 +44,7 @@ public class PlayerStatsService {
 
     /**
      * Get match performances for a player in a specific match
-     * 
+     *
      * @param playerId The UUID of the player
      * @param matchId  The UUID of the match
      * @return Optional containing the PlayerMatchPerformance if found
@@ -64,7 +64,7 @@ public class PlayerStatsService {
 
     /**
      * Get or create match performance for a player in a specific match
-     * 
+     *
      * @param player The player
      * @param match  The match
      * @return The existing or newly created PlayerMatchPerformance
@@ -94,7 +94,7 @@ public class PlayerStatsService {
 
     /**
      * Save match performance
-     * 
+     *
      * @param performance The performance to save
      */
     public void savePerformance(PlayerMatchPerformance performance) {
@@ -117,7 +117,7 @@ public class PlayerStatsService {
 
     /**
      * Update player performance after a match
-     * 
+     *
      * @param player              The player
      * @param match               The match
      * @param kills               Number of kills
@@ -157,6 +157,20 @@ public class PlayerStatsService {
                 transaction.rollback();
             }
             throw new RuntimeException("Failed to update player performance after match", e);
+        }
+    }
+
+    /**
+     * Get player data by UUID
+     *
+     * @param playerId The UUID of the player
+     * @return The PlayerData object if found, null otherwise
+     */
+    public PlayerData getPlayerData(UUID playerId) {
+        try {
+            return entityManager.find(PlayerData.class, playerId);
+        } catch (Exception e) {
+            return null;
         }
     }
 }

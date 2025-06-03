@@ -18,15 +18,16 @@ public class PlayerData {
     @Id
     private UUID id;
     private String name;
-
     private Date lastLogin;
     private Date createdAt;
+    private Long playTime = 0L; // Total play time in milliseconds
 
     @OneToMany(mappedBy = "player", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<PlayerMatchPerformance> matchPerformances = new HashSet<>();
 
     // Getters and setters
     public PlayerData() {
+        this.playTime = 0L;
     }
 
     public UUID getId() {
@@ -59,6 +60,21 @@ public class PlayerData {
 
     public void setCreatedAt(Date createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Long getPlayTime() {
+        return playTime;
+    }
+
+    public void setPlayTime(Long playTime) {
+        this.playTime = playTime;
+    }
+
+    public void addPlayTime(Long time) {
+        if (this.playTime == null) {
+            this.playTime = 0L;
+        }
+        this.playTime += time;
     }
 
     public Set<PlayerMatchPerformance> getMatchPerformances() {

@@ -27,12 +27,46 @@ import com.cookiebuild.cookiedough.utils.DiscordUtils;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 public class PlayerWrapperListener implements Listener {
+    private static PlayerWrapperListener instance;
 
     private final Map<UUID, LobbyScoreboard> playerLobbyScoreboards = new HashMap<>();
+    private final Map<UUID, Date> playerLoginTimes = new HashMap<>();
     private final PlayerStatsService playerStatsService;
 
     public PlayerWrapperListener() {
         this.playerStatsService = CookieDough.getPlayerStatsService();
+        instance = this;
+
+        // Schedule regular play time updates
+        Bukkit.getScheduler().runTaskTimerAsynchronously(CookieDough.getInstance(), () -> {
+            for (UUID playerId : playerLoginTimes.keySet()) {
+                Player player = Bukkit.getPlayer(playerId);
+                if (player != null && player.isOnline()) {
+                    long playTime = new Date().getTime() - playerLoginTimes.get(playerId).getTime();
+                    Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
+                        PlayerData playerData = playerStatsService.getPlayerData(playerId);
+                        if (playerData != null) {
+                            playerData.addPlayTime(playTime);
+                            GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
+                            playerDataDAO.update(playerData);
+                        }
+                    });
+                }
+            }
+        }, 20 * 60 * 5, 20 * 60 * 5); // Update every 5 minutes (5 * 60 * 20 ticks)
+    }
+
+    /**
+     * Get the login time for a player
+     *
+     * @param playerId The UUID of the player
+     * @return The login time or null if not found
+     */
+    public static Date getPlayerLoginTime(UUID playerId) {
+        if (instance != null && instance.playerLoginTimes.containsKey(playerId)) {
+            return instance.playerLoginTimes.get(playerId);
+        }
+        return null;
     }
 
     @EventHandler
@@ -63,15 +97,18 @@ public class PlayerWrapperListener implements Listener {
                 10, 60, 10);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
 
+        // Record login time
+        playerLoginTimes.put(player.getUniqueId(), new Date());
+
         Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
-            GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
-            PlayerData playerData = playerDataDAO.findById(player.getUniqueId());
+            PlayerData playerData = playerStatsService.getPlayerData(player.getUniqueId());
             if (playerData == null) {
                 playerData = new PlayerData();
                 playerData.setId(player.getUniqueId());
                 playerData.setName(player.getName());
                 playerData.setCreatedAt(new Date());
                 playerData.setLastLogin(new Date());
+                GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
                 playerDataDAO.save(playerData);
                 CookieDough.getInstance().getLogger().info("Player " + player.getName() + " created");
 
@@ -81,6 +118,7 @@ public class PlayerWrapperListener implements Listener {
                         "A new player, " + player.getName() + ", has joined the server!");
             } else {
                 playerData.setLastLogin(new Date());
+                GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
                 playerDataDAO.update(playerData);
             }
         });
@@ -95,6 +133,20 @@ public class PlayerWrapperListener implements Listener {
             scoreboard.cleanup();
         }
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+
+        // Calculate play time
+        Date loginTime = playerLoginTimes.remove(player.getUniqueId());
+        if (loginTime != null) {
+            long playTime = new Date().getTime() - loginTime.getTime();
+            Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
+                PlayerData playerData = playerStatsService.getPlayerData(player.getUniqueId());
+                if (playerData != null) {
+                    playerData.addPlayTime(playTime);
+                    GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
+                    playerDataDAO.update(playerData);
+                }
+            });
+        }
 
         for (Player p : event.getPlayer().getServer().getOnlinePlayers()) {
             p.sendMessage(

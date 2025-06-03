@@ -1,5 +1,6 @@
 package com.cookiebuild.cookiedough.lobby;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -14,6 +15,8 @@ import org.bukkit.scoreboard.ScoreboardManager;
 import org.bukkit.scoreboard.Team;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
+import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.google.gson.Gson;
@@ -47,6 +50,13 @@ public class LobbyScoreboard {
         }
         this.scoreboard = manager.getNewScoreboard();
         setupScoreboard();
+
+        // Schedule regular scoreboard updates
+        Bukkit.getScheduler().runTaskTimer(CookieDough.getInstance(), () -> {
+            if (this.scoreboard != null && this.objective != null && player.isOnline()) {
+                update();
+            }
+        }, 20 * 5, 20 * 5); // Update every 5 seconds (5 * 20 ticks)
     }
 
     private void setupScoreboard() {
@@ -98,6 +108,23 @@ public class LobbyScoreboard {
 
         setScore(Component.text(" "), line--);
 
+        // Play Time
+        PlayerData playerData = playerStatsService.getPlayerData(player.getUniqueId());
+        Long playTime = (playerData != null && playerData.getPlayTime() != null) ? playerData.getPlayTime() : 0L;
+
+        // Calculate live play time
+        long livePlayTime = 0;
+        Date loginTime = PlayerWrapperListener.getPlayerLoginTime(player.getUniqueId());
+        if (loginTime != null) {
+            livePlayTime = new Date().getTime() - loginTime.getTime();
+        }
+        long totalPlayTime = playTime + livePlayTime;
+
+        setScore(Component.text("PLAY TIME").color(NamedTextColor.GOLD).decorate(TextDecoration.BOLD), line--);
+        setScore(Component.text("  ").append(Component.text(formatPlayTime(totalPlayTime)).color(NamedTextColor.WHITE)),
+                line--);
+        setScore(Component.text(" "), line--);
+
         // MicroBattles Stats
         List<PlayerMatchPerformance> mbPerformances = performancesByGame.getOrDefault("MicroBattles", List.of());
         setScore(Component.text("MICROBATTLES").color(NamedTextColor.AQUA).decorate(TextDecoration.BOLD), line--);
@@ -128,6 +155,10 @@ public class LobbyScoreboard {
         if (player.getScoreboard() != this.scoreboard) {
             player.setScoreboard(this.scoreboard);
         }
+
+        // Force update the scoreboard
+        player.setScoreboard(scoreboard);
+        player.setScoreboard(player.getScoreboard());
     }
 
     private void displayGameStats(String gameType, List<PlayerMatchPerformance> performances, int line) {
@@ -168,7 +199,7 @@ public class LobbyScoreboard {
 
     private String getEntryForScore(int score) {
         // Use section symbol (§) to create invisible unique identifiers
-        return "§" + (score % 16) + "§" + ((score / 16) % 16);
+        return "§" + (score % 10) + "§" + ((score / 10) % 10);
     }
 
     private String getMetricFromJson(String json, String key) {
@@ -180,6 +211,18 @@ public class LobbyScoreboard {
         } catch (Exception e) {
             return "0";
         }
+    }
+
+    private String formatPlayTime(Long milliseconds) {
+        if (milliseconds == null || milliseconds <= 0) {
+            return "00:00";
+        }
+
+        long seconds = milliseconds / 1000;
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+
+        return String.format("%02d:%02d", hours, minutes);
     }
 
     public void show() {
