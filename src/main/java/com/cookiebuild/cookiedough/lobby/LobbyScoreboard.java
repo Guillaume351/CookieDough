@@ -7,7 +7,11 @@ import java.util.Optional;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
-import org.bukkit.scoreboard.*;
+import org.bukkit.scoreboard.DisplaySlot;
+import org.bukkit.scoreboard.Objective;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.ScoreboardManager;
+import org.bukkit.scoreboard.Team;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.model.GameStats;
@@ -148,7 +152,7 @@ public class LobbyScoreboard {
     }
 
     private void setScore(String text, int scorePosition) {
-        if (this.scoreboard == null || objective == null)
+        if (this.scoreboard == null || objective == null || scorePosition < 0)
             return;
 
         String entryKey = getEntryForScore(scorePosition); // Use a unique invisible entry for each line number

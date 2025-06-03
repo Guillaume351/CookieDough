@@ -1,5 +1,7 @@
 package com.cookiebuild.cookiedough.model;
 
+import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -44,6 +46,9 @@ public class GameStats {
 
     @Column(nullable = false)
     private int totalDeaths;
+
+    @Column(name = "last_updated")
+    private Date lastUpdated;
 
     // Constructors
     public GameStats() {
@@ -125,6 +130,14 @@ public class GameStats {
         this.totalDeaths = totalDeaths;
     }
 
+    public Date getLastUpdated() {
+        return lastUpdated;
+    }
+
+    public void setLastUpdated(Date lastUpdated) {
+        this.lastUpdated = lastUpdated;
+    }
+
     // Utility methods
     public void incrementGamesPlayed() {
         this.gamesPlayed++;
@@ -162,5 +175,27 @@ public class GameStats {
 
     public Map<String, String> getFormattedSpecificStats() {
         return java.util.Collections.emptyMap(); // Default: no specific stats
+    }
+
+    public void recalculateFromMatches(List<Match> matches) {
+        this.gamesPlayed = matches.size();
+        this.gamesWon = (int) matches.stream()
+                .filter(m -> m.getWinners().contains(this.player))
+                .count();
+        this.gamesLost = this.gamesPlayed - this.gamesWon;
+
+        this.totalKills = matches.stream()
+                .flatMap(m -> m.getPerformances().stream())
+                .filter(p -> p.getPlayer().equals(this.player))
+                .mapToInt(PlayerMatchPerformance::getKillsInMatch)
+                .sum();
+
+        this.totalDeaths = matches.stream()
+                .flatMap(m -> m.getPerformances().stream())
+                .filter(p -> p.getPlayer().equals(this.player))
+                .mapToInt(PlayerMatchPerformance::getDeathsInMatch)
+                .sum();
+
+        this.lastUpdated = new Date();
     }
 }

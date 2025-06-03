@@ -48,7 +48,17 @@ public final class CookieDough extends JavaPlugin {
     }
 
     public static PlayerStatsService getPlayerStatsService() {
+        if (playerStatsService == null) {
+            playerStatsService = new PlayerStatsService(getSessionFactory().createEntityManager());
+        }
         return playerStatsService;
+    }
+
+    public static synchronized SessionFactory getSessionFactory() {
+        if (sessionFactory == null) {
+            sessionFactory = HibernateUtil.buildSessionFactory();
+        }
+        return sessionFactory;
     }
 
     @Override
@@ -56,10 +66,6 @@ public final class CookieDough extends JavaPlugin {
         this.getLogger().info("Enabling CookieDough");
         // Affect instance
         instance = this;
-
-        // Plugin startup logic
-        sessionFactory = HibernateUtil.buildSessionFactory();
-        playerStatsService = new PlayerStatsService(sessionFactory.createEntityManager());
 
         // Initialize RabbitMQ
         RabbitMQInitializer.initialize();
@@ -73,6 +79,7 @@ public final class CookieDough extends JavaPlugin {
         lobbyManager = new LobbyManager(this, gameSigns);
 
         World lobbyWorld = getServer().getWorld("lobby");
+
         Location npcLocation = new Location(lobbyWorld, 0.5, 8, 12.5);
         npcLocation.setYaw(180);
         lobbyManager.addGameNpc("MicroBattles", npcLocation);
@@ -110,5 +117,4 @@ public final class CookieDough extends JavaPlugin {
             sessionFactory.close();
         }
     }
-
 }
