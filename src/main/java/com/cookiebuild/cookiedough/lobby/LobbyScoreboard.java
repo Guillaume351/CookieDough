@@ -18,6 +18,9 @@ import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
+import com.cookiebuild.cookiedough.player.CookiePlayer;
+import com.cookiebuild.cookiedough.player.PlayerManager;
+import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -72,6 +75,12 @@ public class LobbyScoreboard {
 
     public void update() {
         if (this.scoreboard == null || objective == null || !player.isOnline()) {
+            return;
+        }
+
+        // Check if player is in lobby state
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        if (cookiePlayer == null || cookiePlayer.getState() != PlayerState.LOBBY) {
             return;
         }
 
