@@ -1,9 +1,5 @@
 package com.cookiebuild.cookiedough.service;
 
-import java.util.List;
-
-import com.cookiebuild.cookiedough.model.GameStats;
-import com.cookiebuild.cookiedough.model.Match;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.repository.MatchRepository;
 

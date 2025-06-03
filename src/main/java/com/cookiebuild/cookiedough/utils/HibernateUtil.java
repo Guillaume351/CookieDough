@@ -9,7 +9,6 @@ import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
 
 import com.cookiebuild.cookiedough.model.ChatMessage;
-import com.cookiebuild.cookiedough.model.GameStats;
 import com.cookiebuild.cookiedough.model.Match;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
@@ -50,7 +49,6 @@ public class HibernateUtil {
         configuration.addAnnotatedClass(PlayerData.class);
         configuration.addAnnotatedClass(ChatMessage.class);
         configuration.addAnnotatedClass(Match.class);
-        configuration.addAnnotatedClass(GameStats.class);
         configuration.addAnnotatedClass(PlayerMatchPerformance.class);
 
         // Register additional entities from other modules
