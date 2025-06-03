@@ -23,7 +23,7 @@ public class LobbyScoreboard {
     private final PlayerStatsService playerStatsService;
     private final Scoreboard scoreboard;
     private Objective objective;
-    private final String websiteUrl = "www.cookie-build.com"; // Updated URL
+    private final String websiteUrl = "www.cookie-build.com";
     private static final String SCOREBOARD_TITLE = ChatColor.GOLD + "" + ChatColor.BOLD + "Cookie Build"
             + ChatColor.RESET;
 
@@ -93,7 +93,7 @@ public class LobbyScoreboard {
         setScore(ChatColor.YELLOW + "" + ChatColor.BOLD + "GLOBAL STATS", line--);
         setScore("  " + ChatColor.GOLD + "Total Wins: " + ChatColor.WHITE + totalWinsAll, line--);
         setScore("  " + ChatColor.GOLD + "K/D Ratio: " + ChatColor.WHITE + String.format("%.2f", kdrOverall), line--);
-        setScore(ChatColor.WHITE + " ", line--); // Spacer
+        setScore(ChatColor.WHITE + " ", line--); // consume an extra line for spacing
 
         // --- MicroBattles Stats --- //
         Optional<GameStats> mbStatsOpt = playerStatsService.getPlayerStatsByGameType(player.getUniqueId(),
@@ -106,15 +106,10 @@ public class LobbyScoreboard {
                     + " (" + mbStats.getGamesPlayed() + " P)", line--);
             setScore("  " + ChatColor.DARK_AQUA + "Players Elim: " + ChatColor.WHITE
                     + specificMbStats.getOrDefault("Players Elim.", "0"), line--);
-            setScore("  " + ChatColor.DARK_AQUA + "Teams Elim: " + ChatColor.WHITE
-                    + specificMbStats.getOrDefault("Teams Elim.", "0"), line--);
         } else {
             setScore("  " + ChatColor.GRAY + "Play a game!", line--);
             setScore(ChatColor.WHITE + " ", line--); // consume an extra line for spacing
-            setScore(ChatColor.WHITE + "  ", line--); // consume another line for spacing
         }
-        setScore(ChatColor.WHITE + " ", line--); // Spacer, adjusted from " " to " " to save one line for Pitchout if
-                                                 // needed
 
         // --- Pitchout Stats --- //
         Optional<GameStats> poStatsOpt = playerStatsService.getPlayerStatsByGameType(player.getUniqueId(), "Pitchout");
@@ -126,22 +121,12 @@ public class LobbyScoreboard {
                     + " (" + poStats.getGamesPlayed() + " P)", line--);
             setScore("  " + ChatColor.DARK_PURPLE + "Players Elim: " + ChatColor.WHITE
                     + specificPoStats.getOrDefault("Players Elim.", "0"), line--);
-            setScore("  " + ChatColor.DARK_PURPLE + "Knockbacks: " + ChatColor.WHITE
-                    + specificPoStats.getOrDefault("Total Knockbacks", "0"), line--);
-            setScore("  " + ChatColor.DARK_PURPLE + "Max Combo: " + ChatColor.WHITE
-                    + specificPoStats.getOrDefault("Max Combo", "0"), line--);
         } else {
             setScore("  " + ChatColor.GRAY + "Play a game!", line--);
             setScore(ChatColor.WHITE + " ", line--); // consume an extra line for spacing
-            setScore(ChatColor.WHITE + "  ", line--); // consume another line for spacing
-            setScore(ChatColor.WHITE + "   ", line--); // consume a third line to match potential height of populated
-                                                       // stats
         }
-        // Removed the extra spacer here to ensure everything fits if both sections have
-        // data
-        // setScore(ChatColor.WHITE + " ", line--); // This line was already commented
-        // out, keeping as such.
 
+        // Ensure website URL is always displayed
         setScore(ChatColor.GRAY + "" + ChatColor.ITALIC + websiteUrl, line--);
         setScore(ChatColor.DARK_GRAY + "" + ChatColor.STRIKETHROUGH + "                 ", line--); // Bottom separator
 

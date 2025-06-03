@@ -54,12 +54,6 @@ public class PlayerWrapperListener implements Listener {
 
         LobbyManager.teleportPlayerToLobby(cookiePlayer);
 
-        if (cookiePlayer.getState() == PlayerState.LOBBY) {
-            LobbyScoreboard scoreboard = new LobbyScoreboard(player, playerStatsService);
-            scoreboard.show();
-            playerLobbyScoreboards.put(player.getUniqueId(), scoreboard);
-        }
-
         player.sendMessage(
                 ChatColor.GREEN + LocaleManager.getMessage("welcome.message", player.locale(), player.getName()));
 
@@ -123,10 +117,6 @@ public class PlayerWrapperListener implements Listener {
                 cookiePlayer.setState(PlayerState.LOBBY);
             }
             if (!playerLobbyScoreboards.containsKey(player.getUniqueId())) {
-                LobbyScoreboard scoreboard = new LobbyScoreboard(player, playerStatsService);
-                scoreboard.show();
-                playerLobbyScoreboards.put(player.getUniqueId(), scoreboard);
-            } else {
                 playerLobbyScoreboards.get(player.getUniqueId()).update();
             }
         } else {

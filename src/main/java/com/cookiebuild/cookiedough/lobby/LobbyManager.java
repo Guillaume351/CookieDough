@@ -1,13 +1,8 @@
 package com.cookiebuild.cookiedough.lobby;
 
-import com.cookiebuild.cookiedough.CookieDough;
-import com.cookiebuild.cookiedough.game.Game;
-import com.cookiebuild.cookiedough.game.GameManager;
-import com.cookiebuild.cookiedough.game.GameState;
-import com.cookiebuild.cookiedough.game.GameStatus;
-import com.cookiebuild.cookiedough.player.CookiePlayer;
-import com.cookiebuild.cookiedough.player.PlayerManager;
-import com.cookiebuild.cookiedough.player.PlayerState;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -23,8 +18,14 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.game.Game;
+import com.cookiebuild.cookiedough.game.GameManager;
+import com.cookiebuild.cookiedough.game.GameState;
+import com.cookiebuild.cookiedough.game.GameStatus;
+import com.cookiebuild.cookiedough.player.CookiePlayer;
+import com.cookiebuild.cookiedough.player.PlayerManager;
+import com.cookiebuild.cookiedough.player.PlayerState;
 
 public class LobbyManager implements Listener {
     private final JavaPlugin plugin;
@@ -82,9 +83,9 @@ public class LobbyManager implements Listener {
     private void updateSignContent(Sign sign, GameStatus game) {
         sign.setLine(0, ChatColor.AQUA + "" + ChatColor.BOLD + "Game");
         sign.setLine(1, ChatColor.GOLD + "" + ChatColor.BOLD + game.getGameName());
-        sign.setLine(2, game.getState() == GameState.OPEN ?
-                ChatColor.GREEN + "" + ChatColor.BOLD + game.getState().toString() :
-                ChatColor.RED + "" + ChatColor.BOLD + game.getState().toString());
+        sign.setLine(2,
+                game.getState() == GameState.OPEN ? ChatColor.GREEN + "" + ChatColor.BOLD + game.getState().toString()
+                        : ChatColor.RED + "" + ChatColor.BOLD + game.getState().toString());
         sign.setLine(3, ChatColor.YELLOW + "" + ChatColor.BOLD + game.getPlayerCount() + " players");
 
         sign.setWaxed(true);
@@ -120,6 +121,10 @@ public class LobbyManager implements Listener {
             Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
             player.teleport(lobbySpawnLocation);
             CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
+
+            // Initialize LobbyScoreboard
+            LobbyScoreboard scoreboard = new LobbyScoreboard(player, CookieDough.getPlayerStatsService());
+            scoreboard.show();
         } else {
             CookieDough.getInstance().getLogger().severe("Lobby world 'lobby' is not loaded!");
         }
@@ -133,7 +138,6 @@ public class LobbyManager implements Listener {
         }
         player.getPlayer().sendMessage("No available games. Please wait.");
     }
-
 
     public void addGameNpc(Entity npc) {
         // TODO: add NPCs
