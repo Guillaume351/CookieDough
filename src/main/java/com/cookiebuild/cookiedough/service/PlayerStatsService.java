@@ -1,5 +1,8 @@
 package com.cookiebuild.cookiedough.service;
 
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -40,6 +43,42 @@ public class PlayerStatsService {
                 PlayerMatchPerformance.class);
         query.setParameter("playerId", playerId);
         return query.getResultList();
+    }
+
+    /**
+     * Get the top player for a specific game mode this week
+     *
+     * @param gameMode The game mode to check
+     * @return PlayerData of the top player, or null if none found
+     */
+    public PlayerData getTopPlayerThisWeek(String gameMode) {
+        // Calculate start of week (Monday)
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startOfWeek = cal.getTime();
+
+        // Query to get the player with the most wins in the specified game mode this
+        // week
+        TypedQuery<PlayerData> query = entityManager.createQuery(
+                "SELECT p.player FROM PlayerMatchPerformance p " +
+                        "JOIN p.match m " +
+                        "WHERE m.gameType = :gameType AND m.endTime >= :startOfWeek " +
+                        "GROUP BY p.player " +
+                        "ORDER BY SUM(CASE WHEN p.player IN (SELECT w FROM m.winners w) THEN 1 ELSE 0 END) DESC",
+                PlayerData.class);
+        query.setParameter("gameType", gameMode);
+        query.setParameter("startOfWeek", startOfWeek);
+        query.setMaxResults(1);
+
+        try {
+            return query.getSingleResult();
+        } catch (jakarta.persistence.NoResultException e) {
+            return null;
+        }
     }
 
     /**
@@ -171,6 +210,112 @@ public class PlayerStatsService {
             return entityManager.find(PlayerData.class, playerId);
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    /**
+     * Get the number of wins for a player in a specific game mode this week
+     *
+     * @param playerId The UUID of the player
+     * @param gameMode The game mode to check
+     * @return Number of wins
+     */
+    public int getWinsThisWeek(UUID playerId, String gameMode) {
+        // Calculate start of week (Monday)
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startOfWeek = cal.getTime();
+
+        // Query to count wins for the player in the specified game mode this week
+        TypedQuery<Long> query = entityManager.createQuery(
+                "SELECT COUNT(m) FROM Match m " +
+                        "JOIN m.winners w " +
+                        "WHERE m.gameType = :gameType AND m.endTime >= :startOfWeek AND w.id = :playerId",
+                Long.class);
+        query.setParameter("gameType", gameMode);
+        query.setParameter("startOfWeek", startOfWeek);
+        query.setParameter("playerId", playerId);
+
+        try {
+            return query.getSingleResult().intValue();
+        } catch (jakarta.persistence.NoResultException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Get the top players for a specific game mode this month
+     *
+     * @param gameMode The game mode to check
+     * @param limit    The maximum number of players to return
+     * @return List of PlayerData of the top players
+     */
+    public List<PlayerData> getTopPlayersThisMonth(String gameMode, int limit) {
+        // Calculate start of month
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.DAY_OF_MONTH, 1);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startOfMonth = cal.getTime();
+
+        // Query to get players with the most wins in the specified game mode this month
+        TypedQuery<PlayerData> query = entityManager.createQuery(
+                "SELECT p.player FROM PlayerMatchPerformance p " +
+                        "JOIN p.match m " +
+                        "WHERE m.gameType = :gameType AND m.endTime >= :startOfMonth " +
+                        "GROUP BY p.player " +
+                        "ORDER BY SUM(CASE WHEN p.player IN (SELECT w FROM m.winners w) THEN 1 ELSE 0 END) DESC",
+                PlayerData.class);
+        query.setParameter("gameType", gameMode);
+        query.setParameter("startOfMonth", startOfMonth);
+        query.setMaxResults(limit);
+
+        try {
+            return query.getResultList();
+        } catch (jakarta.persistence.NoResultException e) {
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Get the number of wins for a player in a specific game mode this month
+     *
+     * @param playerId The UUID of the player
+     * @param gameMode The game mode to check
+     * @return Number of wins
+     */
+    public int getWinsThisMonth(UUID playerId, String gameMode) {
+        // Calculate start of month
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.DAY_OF_MONTH, 1);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startOfMonth = cal.getTime();
+
+        // Query to count wins for the player in the specified game mode this month
+        TypedQuery<Long> query = entityManager.createQuery(
+                "SELECT COUNT(DISTINCT m) FROM Match m " +
+                        "JOIN m.winners w " +
+                        "WHERE m.gameType = :gameMode " +
+                        "AND m.endTime >= :startOfMonth " +
+                        "AND w.id = :playerId",
+                Long.class);
+        query.setParameter("gameMode", gameMode);
+        query.setParameter("startOfMonth", startOfMonth);
+        query.setParameter("playerId", playerId);
+
+        try {
+            return query.getSingleResult().intValue();
+        } catch (jakarta.persistence.NoResultException e) {
+            return 0;
         }
     }
 }

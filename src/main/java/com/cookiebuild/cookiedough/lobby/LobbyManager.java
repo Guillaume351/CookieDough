@@ -26,11 +26,13 @@ import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
+import com.cookiebuild.cookiedough.service.PlayerStatsService;
 
 public class LobbyManager implements Listener {
     private final JavaPlugin plugin;
     private final List<Location> gameSigns;
     private final List<GameNPC> gameNpcs = new ArrayList<>();
+    private final StatueManager statueManager;
 
     // Singleton
     private static LobbyManager instance;
@@ -39,6 +41,10 @@ public class LobbyManager implements Listener {
         this.plugin = plugin;
         this.gameSigns = gameSigns;
         instance = this;
+
+        // Initialize StatueManager
+        PlayerStatsService playerStatsService = CookieDough.getPlayerStatsService();
+        this.statueManager = new StatueManager(playerStatsService, plugin);
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
         startSignRefreshTask();
@@ -50,7 +56,7 @@ public class LobbyManager implements Listener {
         }
 
         // enable NPC listeners
-        Bukkit.getPluginManager().registerEvents(new NPCListener(), plugin);
+        Bukkit.getPluginManager().registerEvents(new NPCListener(playerStatsService), plugin);
     }
 
     public static LobbyManager getInstance() {
@@ -106,6 +112,10 @@ public class LobbyManager implements Listener {
         gameNpcs.add(npc);
         // keep chunk loaded
         npc.getNPC().getLocation().getChunk().load(true);
+
+        // Create statue next to NPC (offset by 2 blocks in x direction)
+        Location statueLocation = location.clone().add(2, 0, 0);
+        statueManager.createStatue(gameName, statueLocation);
     }
 
     public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {
@@ -182,5 +192,9 @@ public class LobbyManager implements Listener {
 
     public List<GameNPC> getGameNpcs() {
         return gameNpcs;
+    }
+
+    public StatueManager getStatueManager() {
+        return statueManager;
     }
 }
