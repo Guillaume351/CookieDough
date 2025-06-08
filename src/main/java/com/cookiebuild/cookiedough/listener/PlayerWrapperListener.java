@@ -20,6 +20,7 @@ import com.cookiebuild.cookiedough.dao.GenericDAOImpl;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.lobby.LobbyScoreboard;
 import com.cookiebuild.cookiedough.model.PlayerData;
+import com.cookiebuild.cookiedough.model.PlayerSession;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
@@ -30,41 +31,57 @@ public class PlayerWrapperListener implements Listener {
     private static PlayerWrapperListener instance;
 
     private final Map<UUID, LobbyScoreboard> playerLobbyScoreboards = new HashMap<>();
-    private final Map<UUID, Date> playerLoginTimes = new HashMap<>();
+    private final Map<UUID, PlayerSession> activePlayerSessions = new HashMap<>();
     private final PlayerStatsService playerStatsService;
 
     public PlayerWrapperListener() {
         this.playerStatsService = CookieDough.getPlayerStatsService();
         instance = this;
 
-        // Schedule regular play time updates
+        // Schedule regular play time updates for active sessions
         Bukkit.getScheduler().runTaskTimerAsynchronously(CookieDough.getInstance(), () -> {
-            for (UUID playerId : playerLoginTimes.keySet()) {
+            long currentTime = new Date().getTime();
+            for (Map.Entry<UUID, PlayerSession> entry : activePlayerSessions.entrySet()) {
+                UUID playerId = entry.getKey();
+                PlayerSession currentSession = entry.getValue();
                 Player player = Bukkit.getPlayer(playerId);
-                if (player != null && player.isOnline()) {
-                    long playTime = new Date().getTime() - playerLoginTimes.get(playerId).getTime();
+
+                if (player != null && player.isOnline() && currentSession != null
+                        && currentSession.getStartTime() != null) {
+                    currentSession.setDuration(currentTime - currentSession.getStartTime().getTime());
+                    currentSession.setServerCrash(true); // Mark as crash until player quits normally
+
                     Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
+                        // We need to update PlayerData to cascade the session update
                         PlayerData playerData = playerStatsService.getPlayerData(playerId);
                         if (playerData != null) {
-                            playerData.addPlayTime(playTime);
+                            // Ensure the session is managed by playerData if it's not already
+                            if (!playerData.getPlayerSessions().contains(currentSession)) {
+                                // This case should ideally not happen if join logic is correct
+                                // but as a safeguard:
+                                playerData.addPlayerSession(currentSession);
+                            }
                             GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
                             playerDataDAO.update(playerData);
                         }
                     });
                 }
             }
-        }, 20 * 60 * 5, 20 * 60 * 5); // Update every 5 minutes (5 * 60 * 20 ticks)
+        }, 20 * 60 * 1, 20 * 60 * 1); // Update every 1 minute for crash recovery
     }
 
     /**
-     * Get the login time for a player
+     * Get the login time (start time of current session) for a player
      *
      * @param playerId The UUID of the player
-     * @return The login time or null if not found
+     * @return The login time or null if not found or session not active
      */
     public static Date getPlayerLoginTime(UUID playerId) {
-        if (instance != null && instance.playerLoginTimes.containsKey(playerId)) {
-            return instance.playerLoginTimes.get(playerId);
+        if (instance != null && instance.activePlayerSessions.containsKey(playerId)) {
+            PlayerSession session = instance.activePlayerSessions.get(playerId);
+            if (session != null) {
+                return session.getStartTime();
+            }
         }
         return null;
     }
@@ -97,29 +114,40 @@ public class PlayerWrapperListener implements Listener {
                 10, 60, 10);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
 
-        // Record login time
-        playerLoginTimes.put(player.getUniqueId(), new Date());
+        // Player session handling
+        Date joinTime = new Date();
 
         Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
             PlayerData playerData = playerStatsService.getPlayerData(player.getUniqueId());
+            boolean newPlayer = false;
             if (playerData == null) {
                 playerData = new PlayerData();
                 playerData.setId(player.getUniqueId());
                 playerData.setName(player.getName());
-                playerData.setCreatedAt(new Date());
-                playerData.setLastLogin(new Date());
-                GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
+                playerData.setCreatedAt(joinTime);
+                newPlayer = true;
+            }
+            playerData.setLastLogin(joinTime);
+
+            PlayerSession newSession = new PlayerSession();
+            newSession.setPlayerData(playerData);
+            newSession.setStartTime(joinTime);
+            newSession.setDuration(0L); // Initial duration
+            newSession.setServerCrash(true); // Assume crash until normal quit
+
+            playerData.addPlayerSession(newSession);
+            activePlayerSessions.put(player.getUniqueId(), newSession);
+
+            GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
+            if (newPlayer) {
                 playerDataDAO.save(playerData);
-                CookieDough.getInstance().getLogger().info("Player " + player.getName() + " created");
-
+                CookieDough.getInstance().getLogger().info("Player " + player.getName() + " created with new session.");
                 String webhookUrl = System.getenv("DISCORD_NEW_PLAYER_WEBHOOK_URL");
-
                 DiscordUtils.sendDiscordMessage(webhookUrl,
                         "A new player, " + player.getName() + ", has joined the server!");
             } else {
-                playerData.setLastLogin(new Date());
-                GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
                 playerDataDAO.update(playerData);
+                CookieDough.getInstance().getLogger().info("Player " + player.getName() + " started new session.");
             }
         });
 
@@ -142,18 +170,34 @@ public class PlayerWrapperListener implements Listener {
         }
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
 
-        // Calculate play time
-        Date loginTime = playerLoginTimes.remove(player.getUniqueId());
-        if (loginTime != null) {
-            long playTime = new Date().getTime() - loginTime.getTime();
+        // Finalize player session
+        PlayerSession finishedSession = activePlayerSessions.remove(player.getUniqueId());
+        Date quitTime = new Date();
+
+        if (finishedSession != null) {
+            finishedSession.setEndTime(quitTime);
+            if (finishedSession.getStartTime() != null) {
+                finishedSession.setDuration(quitTime.getTime() - finishedSession.getStartTime().getTime());
+            } else {
+                // Should not happen if join logic is correct
+                finishedSession.setDuration(0L);
+            }
+            finishedSession.setServerCrash(false); // Normal quit
+
             Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
                 PlayerData playerData = playerStatsService.getPlayerData(player.getUniqueId());
                 if (playerData != null) {
-                    playerData.addPlayTime(playTime);
+                    // The session should already be in playerData.getPlayerSessions()
+                    // and managed by JPA. Updating playerData will cascade the changes.
                     GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
                     playerDataDAO.update(playerData);
+                    CookieDough.getInstance().getLogger().info("Player " + player.getName()
+                            + " session ended. Duration: " + finishedSession.getDuration() + "ms");
                 }
             });
+        } else {
+            CookieDough.getInstance().getLogger()
+                    .warning("No active session found for player " + player.getName() + " on quit.");
         }
 
         for (Player p : event.getPlayer().getServer().getOnlinePlayers()) {

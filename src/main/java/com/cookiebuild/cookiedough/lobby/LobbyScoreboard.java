@@ -124,15 +124,20 @@ public class LobbyScoreboard {
 
         // Play Time
         PlayerData playerData = playerStatsService.getPlayerData(player.getUniqueId());
-        Long playTime = (playerData != null && playerData.getPlayTime() != null) ? playerData.getPlayTime() : 0L;
-
-        // Calculate live play time
-        long livePlayTime = 0;
-        Date loginTime = PlayerWrapperListener.getPlayerLoginTime(player.getUniqueId());
-        if (loginTime != null) {
-            livePlayTime = new Date().getTime() - loginTime.getTime();
+        Long pastSessionsPlayTime = 0L;
+        if (playerData != null) {
+            pastSessionsPlayTime = playerData.getTotalPlayTime(); // This now sums completed sessions
         }
-        long totalPlayTime = playTime + livePlayTime;
+
+        // Calculate current session's live play time
+        long currentSessionLivePlayTime = 0;
+        Date currentSessionStartTime = PlayerWrapperListener.getPlayerLoginTime(player.getUniqueId()); // This gets
+                                                                                                       // current
+                                                                                                       // session start
+        if (currentSessionStartTime != null) {
+            currentSessionLivePlayTime = new Date().getTime() - currentSessionStartTime.getTime();
+        }
+        long totalPlayTime = pastSessionsPlayTime + currentSessionLivePlayTime;
 
         setScore(Component.text("PLAY TIME").color(NamedTextColor.GOLD).decorate(TextDecoration.BOLD), line--);
         setScore(Component.text("  ").append(Component.text(formatPlayTime(totalPlayTime)).color(NamedTextColor.WHITE)),

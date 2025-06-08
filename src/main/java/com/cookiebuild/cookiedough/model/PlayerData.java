@@ -20,14 +20,15 @@ public class PlayerData {
     private String name;
     private Date lastLogin;
     private Date createdAt;
-    private Long playTime = 0L; // Total play time in milliseconds
+
+    @OneToMany(mappedBy = "playerData", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<PlayerSession> playerSessions = new HashSet<>();
 
     @OneToMany(mappedBy = "player", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<PlayerMatchPerformance> matchPerformances = new HashSet<>();
 
     // Getters and setters
     public PlayerData() {
-        this.playTime = 0L;
     }
 
     public UUID getId() {
@@ -62,19 +63,40 @@ public class PlayerData {
         this.createdAt = createdAt;
     }
 
-    public Long getPlayTime() {
-        return playTime;
+    public Set<PlayerSession> getPlayerSessions() {
+        return playerSessions;
     }
 
-    public void setPlayTime(Long playTime) {
-        this.playTime = playTime;
+    public void setPlayerSessions(Set<PlayerSession> playerSessions) {
+        this.playerSessions = playerSessions;
     }
 
-    public void addPlayTime(Long time) {
-        if (this.playTime == null) {
-            this.playTime = 0L;
+    public void addPlayerSession(PlayerSession session) {
+        playerSessions.add(session);
+        session.setPlayerData(this);
+    }
+
+    public void removePlayerSession(PlayerSession session) {
+        playerSessions.remove(session);
+        session.setPlayerData(null);
+    }
+
+    /**
+     * Calculates the total play time by summing the duration of all sessions.
+     * This does not include the current, ongoing session if the player is online.
+     * For live total play time, the LobbyScoreboard will handle adding the current
+     * session's duration.
+     * 
+     * @return Total play time in milliseconds from completed sessions.
+     */
+    public Long getTotalPlayTime() {
+        if (playerSessions == null) {
+            return 0L;
         }
-        this.playTime += time;
+        return playerSessions.stream()
+                .filter(session -> session.getDuration() != null)
+                .mapToLong(PlayerSession::getDuration)
+                .sum();
     }
 
     public Set<PlayerMatchPerformance> getMatchPerformances() {

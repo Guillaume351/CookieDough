@@ -12,6 +12,7 @@ import com.cookiebuild.cookiedough.model.ChatMessage;
 import com.cookiebuild.cookiedough.model.Match;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
+import com.cookiebuild.cookiedough.model.PlayerSession;
 
 public class HibernateUtil {
     private static final List<Class<?>> additionalEntities = new ArrayList<>();
@@ -50,6 +51,7 @@ public class HibernateUtil {
         configuration.addAnnotatedClass(ChatMessage.class);
         configuration.addAnnotatedClass(Match.class);
         configuration.addAnnotatedClass(PlayerMatchPerformance.class);
+        configuration.addAnnotatedClass(PlayerSession.class); // Add PlayerSession entity
 
         // Register additional entities from other modules
         for (Class<?> entityClass : additionalEntities) {
