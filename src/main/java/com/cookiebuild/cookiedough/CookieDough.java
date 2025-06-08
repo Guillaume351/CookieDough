@@ -116,5 +116,12 @@ public final class CookieDough extends JavaPlugin {
         if (sessionFactory != null) {
             sessionFactory.close();
         }
+
+        // Make sure to prevent players from connecting to the server
+        Bukkit.getOnlinePlayers().forEach(player -> {
+            player.kickPlayer("Server is shutting down. Please try again later.");
+        });
+        this.getLogger().info("CookieDough disabled!");
+        Bukkit.setMaxPlayers(0); // Prevent new players from joining
     }
 }

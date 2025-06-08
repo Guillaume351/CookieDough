@@ -122,6 +122,14 @@ public class PlayerWrapperListener implements Listener {
                 playerDataDAO.update(playerData);
             }
         });
+
+        // Send Discord notification for player join
+        String playerStatusWebhookUrl = System.getenv("DISCORD_PLAYER_STATUS_WEBHOOK_URL");
+        if (playerStatusWebhookUrl != null && !playerStatusWebhookUrl.isEmpty()) {
+            int playerCount = Bukkit.getServer().getOnlinePlayers().size();
+            String message = player.getName() + " has joined the server. Online players: " + playerCount;
+            DiscordUtils.sendDiscordMessage(playerStatusWebhookUrl, message);
+        }
     }
 
     @EventHandler
@@ -149,12 +157,25 @@ public class PlayerWrapperListener implements Listener {
         }
 
         for (Player p : event.getPlayer().getServer().getOnlinePlayers()) {
-            p.sendMessage(
-                    ChatColor.GREEN + LocaleManager.getMessage("player.left.server", p.locale(), player.getName()));
+            // Make sure to exclude the quitting player from the list before sending the
+            // message
+            if (!p.getUniqueId().equals(player.getUniqueId())) {
+                p.sendMessage(
+                        ChatColor.GREEN + LocaleManager.getMessage("player.left.server", p.locale(), player.getName()));
+            }
         }
 
         if (cookiePlayer != null) {
             cookiePlayer.disconnect();
+        }
+
+        // Send Discord notification for player quit
+        String playerStatusWebhookUrl = System.getenv("DISCORD_PLAYER_STATUS_WEBHOOK_URL");
+        if (playerStatusWebhookUrl != null && !playerStatusWebhookUrl.isEmpty()) {
+            // Subtract 1 because the player has already left at this point for the count
+            int playerCount = Bukkit.getServer().getOnlinePlayers().size() - 1;
+            String message = player.getName() + " has left the server. Online players: " + playerCount;
+            DiscordUtils.sendDiscordMessage(playerStatusWebhookUrl, message);
         }
     }
 
