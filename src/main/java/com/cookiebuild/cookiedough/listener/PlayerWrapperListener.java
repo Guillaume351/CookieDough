@@ -1,20 +1,5 @@
 package com.cookiebuild.cookiedough.listener;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.Sound;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerTeleportEvent;
-
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.dao.GenericDAOImpl;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
@@ -26,6 +11,20 @@ import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.DiscordUtils;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Sound;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 public class PlayerWrapperListener implements Listener {
     private static PlayerWrapperListener instance;
@@ -48,26 +47,30 @@ public class PlayerWrapperListener implements Listener {
 
                 if (player != null && player.isOnline() && currentSession != null
                         && currentSession.getStartTime() != null) {
-                    currentSession.setDuration(currentTime - currentSession.getStartTime().getTime());
-                    currentSession.setServerCrash(true); // Mark as crash until player quits normally
+                    long duration = currentTime - currentSession.getStartTime().getTime();
 
                     Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
-                        // We need to update PlayerData to cascade the session update
+                        // Get a fresh copy of PlayerData for this update
                         PlayerData playerData = playerStatsService.getPlayerData(playerId);
                         if (playerData != null) {
-                            // Ensure the session is managed by playerData if it's not already
-                            if (!playerData.getPlayerSessions().contains(currentSession)) {
-                                // This case should ideally not happen if join logic is correct
-                                // but as a safeguard:
-                                playerData.addPlayerSession(currentSession);
+                            // Find the current session in the fresh PlayerData instance
+                            PlayerSession sessionToUpdate = playerData.getPlayerSessions().stream()
+                                    .filter(s -> s.getStartTime() != null
+                                            && s.getStartTime().equals(currentSession.getStartTime()))
+                                    .findFirst()
+                                    .orElse(null);
+
+                            if (sessionToUpdate != null) {
+                                sessionToUpdate.setDuration(duration);
+                                sessionToUpdate.setServerCrash(true); // Mark as crash until player quits normally
+                                GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
+                                playerDataDAO.update(playerData);
                             }
-                            GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
-                            playerDataDAO.update(playerData);
                         }
                     });
                 }
             }
-        }, 20 * 60 * 1, 20 * 60 * 1); // Update every 1 minute for crash recovery
+        }, 20 * 60, 20 * 60); // Update every 1 minute for crash recovery
     }
 
     /**
@@ -185,14 +188,25 @@ public class PlayerWrapperListener implements Listener {
             finishedSession.setServerCrash(false); // Normal quit
 
             Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
+                // Get a fresh copy of PlayerData for this update
                 PlayerData playerData = playerStatsService.getPlayerData(player.getUniqueId());
                 if (playerData != null) {
-                    // The session should already be in playerData.getPlayerSessions()
-                    // and managed by JPA. Updating playerData will cascade the changes.
-                    GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
-                    playerDataDAO.update(playerData);
-                    CookieDough.getInstance().getLogger().info("Player " + player.getName()
-                            + " session ended. Duration: " + finishedSession.getDuration() + "ms");
+                    // Find the current session in the fresh PlayerData instance
+                    PlayerSession sessionToUpdate = playerData.getPlayerSessions().stream()
+                            .filter(s -> s.getStartTime() != null
+                                    && s.getStartTime().equals(finishedSession.getStartTime()))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (sessionToUpdate != null) {
+                        sessionToUpdate.setEndTime(quitTime);
+                        sessionToUpdate.setDuration(quitTime.getTime() - sessionToUpdate.getStartTime().getTime());
+                        sessionToUpdate.setServerCrash(false); // Normal quit
+                        GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
+                        playerDataDAO.update(playerData);
+                        CookieDough.getInstance().getLogger().info("Player " + player.getName()
+                                + " session ended. Duration: " + sessionToUpdate.getDuration() + "ms");
+                    }
                 }
             });
         } else {
