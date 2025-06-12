@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -76,28 +77,59 @@ public class LeaderboardManager {
         return stand;
     }
 
-    public void updateLeaderboard(String gameMode) {
-        List<PlayerData> topPlayers = playerStatsService.getTopPlayersThisMonth(gameMode, 10);
-        List<ArmorStand> lines = leaderboardLines.get(gameMode);
+    private void updateLeaderboardWithRetry(String gameMode, int maxRetries) {
+        int retryCount = 0;
+        long waitTime = 1000; // Start with 1 second
 
-        if (lines == null || lines.size() < 2)
-            return; // Title + at least one entry
+        while (retryCount < maxRetries) {
+            try {
+                List<PlayerData> topPlayers = playerStatsService.getTopPlayersThisMonth(gameMode, 10);
+                List<ArmorStand> lines = leaderboardLines.get(gameMode);
 
-        // Skip title (index 0)
-        for (int i = 0; i < Math.min(topPlayers.size(), lines.size() - 1); i++) {
-            PlayerData player = topPlayers.get(i);
-            int wins = playerStatsService.getWinsThisMonth(player.getId(), gameMode);
+                if (lines == null || lines.size() < 2) {
+                    return; // Title + at least one entry
+                }
 
-            ArmorStand line = lines.get(i + 1);
-            Component text = Component.text()
-                    .append(Component.text("#" + (i + 1) + " ")
-                            .color(i < 3 ? NamedTextColor.GOLD : NamedTextColor.GRAY))
-                    .append(Component.text(player.getName()).color(NamedTextColor.YELLOW))
-                    .append(Component.text(" - " + wins + " wins").color(NamedTextColor.WHITE))
-                    .build();
+                // Skip title (index 0)
+                for (int i = 0; i < Math.min(topPlayers.size(), lines.size() - 1); i++) {
+                    PlayerData player = topPlayers.get(i);
+                    int wins = playerStatsService.getWinsThisMonth(player.getId(), gameMode);
 
-            line.customName(text);
+                    ArmorStand line = lines.get(i + 1);
+                    Component text = Component.text()
+                            .append(Component.text("#" + (i + 1) + " ")
+                                    .color(i < 3 ? NamedTextColor.GOLD : NamedTextColor.GRAY))
+                            .append(Component.text(player.getName()).color(NamedTextColor.YELLOW))
+                            .append(Component.text(" - " + wins + " wins").color(NamedTextColor.WHITE))
+                            .build();
+
+                    line.customName(text);
+                }
+                // If we get here, the update was successful
+                return;
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount >= maxRetries) {
+                    plugin.getLogger().severe("Failed to update leaderboard for " + gameMode + " after " + maxRetries + " attempts: " + e.getMessage());
+                    return;
+                }
+                plugin.getLogger().warning("Failed to update leaderboard for " + gameMode + ", attempt " + retryCount + " of " + maxRetries + ": " + e.getMessage());
+                try {
+                    Thread.sleep(waitTime);
+                    waitTime *= 2; // Exponential backoff
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
         }
+    }
+
+    public void updateLeaderboard(String gameMode) {
+        // Run the update with retries in an async task to avoid blocking
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            updateLeaderboardWithRetry(gameMode, 3);
+        });
     }
 
     public void removeLeaderboard(String gameMode) {
@@ -112,7 +144,10 @@ public class LeaderboardManager {
         new BukkitRunnable() {
             @Override
             public void run() {
-                for (String gameMode : leaderboardLines.keySet()) {
+                // Get a snapshot of the current game modes to avoid concurrent modification
+                List<String> gameModes = new ArrayList<>(leaderboardLines.keySet());
+                for (String gameMode : gameModes) {
+                    // Each game mode update is already run async in updateLeaderboard
                     updateLeaderboard(gameMode);
                 }
             }
