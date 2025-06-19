@@ -1,0 +1,209 @@
+package com.cookiebuild.cookiedough.model;
+
+import java.util.UUID;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "minigame_stats")
+@IdClass(MinigameStatsId.class)
+public class MinigameStats {
+
+    @Id
+    @Column(name = "player_id")
+    private UUID playerId;
+
+    @Id
+    @Column(name = "minigame")
+    private String minigame;
+
+    @Column(name = "level", nullable = false)
+    private int level = 1;
+
+    @Column(name = "coins", nullable = false)
+    private int coins = 100;
+
+    @Column(name = "experience", nullable = false)
+    private int experience = 0;
+
+    @Column(name = "unlocked_kits", columnDefinition = "TEXT")
+    private String unlockedKits = "[]";
+
+    @Column(name = "wins", nullable = false)
+    private int wins = 0;
+
+    @Column(name = "losses", nullable = false)
+    private int losses = 0;
+
+    @Column(name = "kills", nullable = false)
+    private int kills = 0;
+
+    @Column(name = "deaths", nullable = false)
+    private int deaths = 0;
+
+    // Constructeurs
+    public MinigameStats() {
+    }
+
+    public MinigameStats(UUID playerId, String minigame) {
+        this.playerId = playerId;
+        this.minigame = minigame;
+    }
+
+    // Getters et Setters
+    public UUID getPlayerId() {
+        return playerId;
+    }
+
+    public void setPlayerId(UUID playerId) {
+        this.playerId = playerId;
+    }
+
+    public String getMinigame() {
+        return minigame;
+    }
+
+    public void setMinigame(String minigame) {
+        this.minigame = minigame;
+    }
+
+    public int getLevel() {
+        return level;
+    }
+
+    public void setLevel(int level) {
+        this.level = level;
+    }
+
+    public int getCoins() {
+        return coins;
+    }
+
+    public void setCoins(int coins) {
+        this.coins = coins;
+    }
+
+    public boolean removeCoins(int amount) {
+        if (this.coins >= amount) {
+            this.coins -= amount;
+            return true;
+        }
+        return false;
+    }
+
+    public void addCoins(int amount) {
+        this.coins += amount;
+    }
+
+    public int getExperience() {
+        return experience;
+    }
+
+    public void setExperience(int experience) {
+        this.experience = experience;
+        // Calculer le niveau basé sur l'expérience
+        updateLevelFromExperience();
+    }
+
+    public void addExperience(int amount) {
+        this.experience += amount;
+        updateLevelFromExperience();
+    }
+
+    private void updateLevelFromExperience() {
+        // Formule simple : niveau = sqrt(experience / 100) + 1
+        // Niveau 1: 0-99 XP, Niveau 2: 100-399 XP, Niveau 3: 400-899 XP, etc.
+        this.level = (int) Math.sqrt(this.experience / 100.0) + 1;
+    }
+
+    public int getExperienceForNextLevel() {
+        int nextLevel = this.level + 1;
+        return (nextLevel - 1) * (nextLevel - 1) * 100;
+    }
+
+    public int getExperienceToNextLevel() {
+        return getExperienceForNextLevel() - this.experience;
+    }
+
+    public String getUnlockedKits() {
+        return unlockedKits;
+    }
+
+    public void setUnlockedKits(String unlockedKits) {
+        this.unlockedKits = unlockedKits;
+    }
+
+    public boolean hasUnlockedKit(String kitName) {
+        return unlockedKits != null && unlockedKits.contains("\"" + kitName + "\"");
+    }
+
+    public void unlockKit(String kitName) {
+        if (unlockedKits == null || unlockedKits.equals("[]")) {
+            unlockedKits = "[\"" + kitName + "\"]";
+        } else if (!hasUnlockedKit(kitName)) {
+            // Ajouter le kit à la liste JSON
+            unlockedKits = unlockedKits.substring(0, unlockedKits.length() - 1) + ",\"" + kitName + "\"]";
+        }
+    }
+
+    public int getWins() {
+        return wins;
+    }
+
+    public void setWins(int wins) {
+        this.wins = wins;
+    }
+
+    public void addWin() {
+        this.wins++;
+    }
+
+    public int getLosses() {
+        return losses;
+    }
+
+    public void setLosses(int losses) {
+        this.losses = losses;
+    }
+
+    public void addLoss() {
+        this.losses++;
+    }
+
+    public int getKills() {
+        return kills;
+    }
+
+    public void setKills(int kills) {
+        this.kills = kills;
+    }
+
+    public void addKill() {
+        this.kills++;
+    }
+
+    public int getDeaths() {
+        return deaths;
+    }
+
+    public void setDeaths(int deaths) {
+        this.deaths = deaths;
+    }
+
+    public void addDeath() {
+        this.deaths++;
+    }
+
+    public double getKDRatio() {
+        return deaths > 0 ? (double) kills / deaths : kills;
+    }
+
+    public double getWinRate() {
+        int totalGames = wins + losses;
+        return totalGames > 0 ? (double) wins / totalGames * 100 : 0;
+    }
+}

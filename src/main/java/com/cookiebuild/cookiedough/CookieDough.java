@@ -19,6 +19,7 @@ import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.listener.WorldEventListener;
 import com.cookiebuild.cookiedough.lobby.GameNPC;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
+import com.cookiebuild.cookiedough.service.MinigameStatsService;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
@@ -52,6 +53,10 @@ public final class CookieDough extends JavaPlugin {
             playerStatsService = new PlayerStatsService(getSessionFactory().createEntityManager());
         }
         return playerStatsService;
+    }
+
+    public static MinigameStatsService createMinigameStatsService() {
+        return new MinigameStatsService(getSessionFactory().createEntityManager());
     }
 
     public static synchronized SessionFactory getSessionFactory() {
