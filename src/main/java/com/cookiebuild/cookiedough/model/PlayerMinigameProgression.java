@@ -13,6 +13,9 @@ import jakarta.persistence.Table;
 @IdClass(PlayerMinigameProgressionId.class)
 public class PlayerMinigameProgression {
 
+    // Niveau maximum pour éviter que les joueurs débloquent tous les kits d'avance
+    public static final int MAX_LEVEL = 10;
+
     @Id
     @Column(name = "player_id")
     private UUID playerId;
@@ -110,17 +113,30 @@ public class PlayerMinigameProgression {
     }
 
     public int getExperienceForNextLevel() {
+        if (level >= MAX_LEVEL) {
+            return experience; // Au niveau max, on retourne l'XP actuelle pour éviter la division par zéro
+        }
         return level * 1000; // 1000 XP par niveau
     }
 
     public int getExperienceToNextLevel() {
+        if (level >= MAX_LEVEL) {
+            return 0; // Niveau maximum atteint
+        }
         return getExperienceForNextLevel() - experience;
     }
 
     private void checkLevelUp() {
-        while (experience >= getExperienceForNextLevel()) {
+        while (experience >= getExperienceForNextLevel() && level < MAX_LEVEL) {
             experience -= getExperienceForNextLevel();
             level++;
+        }
+
+        // Si on a atteint le niveau maximum, on plafonne l'XP
+        if (level >= MAX_LEVEL) {
+            level = MAX_LEVEL;
+            // On peut garder l'XP excédentaire pour plus tard quand le niveau max sera
+            // augmenté
         }
     }
 
