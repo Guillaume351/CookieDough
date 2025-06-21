@@ -11,3 +11,7 @@ commands:
     description: Teleport to the lobby
     usage: /<command>
     aliases: [ hub ]
+  messagetest:
+    description: Test the automatic message scheduler
+    usage: /<command> [send|status|info]
+    permission: cookiedough.admin

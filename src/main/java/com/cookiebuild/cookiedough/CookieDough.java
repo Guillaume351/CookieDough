@@ -11,6 +11,7 @@ import org.hibernate.SessionFactory;
 
 import com.cookiebuild.cookiedough.chat.ChatManager;
 import com.cookiebuild.cookiedough.commands.LobbyCommand;
+import com.cookiebuild.cookiedough.commands.MessageTestCommand;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
 import com.cookiebuild.cookiedough.listener.NPCReloadListener;
@@ -19,9 +20,11 @@ import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.listener.WorldEventListener;
 import com.cookiebuild.cookiedough.lobby.GameNPC;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
+import com.cookiebuild.cookiedough.scheduler.MessageScheduler;
 import com.cookiebuild.cookiedough.service.MinigameStatsService;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
 
 public final class CookieDough extends JavaPlugin {
@@ -29,6 +32,8 @@ public final class CookieDough extends JavaPlugin {
     public static SessionFactory sessionFactory;
     private static LobbyManager lobbyManager;
     private static PlayerStatsService playerStatsService;
+    private static LocaleManager localeManager;
+    private static MessageScheduler messageScheduler;
 
     public static CookieDough getInstance() {
         return instance;
@@ -64,6 +69,17 @@ public final class CookieDough extends JavaPlugin {
             sessionFactory = HibernateUtil.buildSessionFactory();
         }
         return sessionFactory;
+    }
+
+    public static LocaleManager getLocaleManager() {
+        if (localeManager == null) {
+            localeManager = new LocaleManager();
+        }
+        return localeManager;
+    }
+
+    public static MessageScheduler getMessageScheduler() {
+        return messageScheduler;
     }
 
     @Override
@@ -102,6 +118,12 @@ public final class CookieDough extends JavaPlugin {
 
         registerCommands();
 
+        // Initialize LocaleManager and MessageScheduler
+        getLocaleManager(); // Initialize LocaleManager
+        messageScheduler = new MessageScheduler(this, getLocaleManager());
+        messageScheduler.start();
+        this.getLogger().info("MessageScheduler initialized and started");
+
         NPCReloadListener npcReloadListener = new NPCReloadListener(this);
         getServer().getPluginManager().registerEvents(npcReloadListener, this);
         GameNPC.setReloadListener(npcReloadListener);
@@ -110,10 +132,16 @@ public final class CookieDough extends JavaPlugin {
     public void registerCommands() {
         this.getCommand("lobby").setExecutor(new LobbyCommand(lobbyManager));
         this.getCommand("hub").setExecutor(new LobbyCommand(lobbyManager));
+        this.getCommand("messagetest").setExecutor(new MessageTestCommand());
     }
 
     @Override
     public void onDisable() {
+        // Stop MessageScheduler
+        if (messageScheduler != null) {
+            messageScheduler.stop();
+        }
+
         // Plugin shutdown logic
         if (playerStatsService != null && playerStatsService.getEntityManager().isOpen()) {
             playerStatsService.getEntityManager().close();
