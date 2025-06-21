@@ -1,5 +1,20 @@
 package com.cookiebuild.cookiedough.listener;
 
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Sound;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
+
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.dao.GenericDAOImpl;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
@@ -11,20 +26,6 @@ import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.DiscordUtils;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.Sound;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerTeleportEvent;
-
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 
 public class PlayerWrapperListener implements Listener {
     private static PlayerWrapperListener instance;
@@ -116,6 +117,19 @@ public class PlayerWrapperListener implements Listener {
                 "",
                 10, 60, 10);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
+
+        // Check if server was empty before this player joined
+        int onlinePlayerCount = Bukkit.getOnlinePlayers().size();
+        if (onlinePlayerCount == 1) { // Only this player is online
+            // Send Discord invitation message after a short delay to let the player settle
+            // in
+            Bukkit.getScheduler().runTaskLater(CookieDough.getInstance(), () -> {
+                if (player.isOnline()) {
+                    player.sendMessage(
+                            ChatColor.YELLOW + LocaleManager.getMessage("server.empty_join_discord", player.locale()));
+                }
+            }, 60L); // 3 seconds delay (60 ticks)
+        }
 
         // Player session handling
         Date joinTime = new Date();
