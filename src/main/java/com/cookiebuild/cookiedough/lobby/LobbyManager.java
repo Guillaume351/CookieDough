@@ -56,7 +56,7 @@ public class LobbyManager implements Listener {
         }
 
         // enable NPC listeners
-        Bukkit.getPluginManager().registerEvents(new NPCListener(playerStatsService), plugin);
+        Bukkit.getPluginManager().registerEvents(new NPCListener(), plugin);
     }
 
     public static LobbyManager getInstance() {
@@ -125,6 +125,10 @@ public class LobbyManager implements Listener {
             // Remove arrows in the player's body
             player.setArrowsInBody(0);
 
+            // Reset player display name to original name (remove kit display)
+            player.setDisplayName(player.getName());
+            player.setPlayerListName(player.getName());
+
             // if player is in a game, remove them from the game
             if (cookiePlayer.getState() == PlayerState.IN_GAME) {
                 GameManager.getGameOfPlayer(cookiePlayer).removePlayer(cookiePlayer);
@@ -192,6 +196,15 @@ public class LobbyManager implements Listener {
 
     public List<GameNPC> getGameNpcs() {
         return gameNpcs;
+    }
+
+    public GameNPC getGameNpcByName(String gameName) {
+        for (GameNPC npc : gameNpcs) {
+            if (npc.getGameName().equalsIgnoreCase(gameName)) {
+                return npc;
+            }
+        }
+        return null;
     }
 
     public StatueManager getStatueManager() {

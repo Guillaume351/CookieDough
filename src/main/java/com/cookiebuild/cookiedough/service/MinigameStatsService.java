@@ -1,5 +1,6 @@
 package com.cookiebuild.cookiedough.service;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.cookiebuild.cookiedough.model.MinigameStats;
@@ -7,6 +8,7 @@ import com.cookiebuild.cookiedough.model.MinigameStatsId;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
+import jakarta.persistence.TypedQuery;
 
 public class MinigameStatsService {
 
@@ -148,5 +150,56 @@ public class MinigameStatsService {
     public int getCoins(UUID playerId, String minigame) {
         MinigameStats stats = getOrCreateStats(playerId, minigame);
         return stats.getCoins();
+    }
+
+    /**
+     * Récupère le meilleur joueur de la semaine pour un mini-jeu spécifique
+     * basé sur le nombre de victoires dans les 7 derniers jours
+     */
+    public UUID getTopPlayerOfWeek(String minigame) {
+        try {
+            // Requête pour obtenir le joueur avec le plus de victoires cette semaine
+            // Pour l'instant, nous allons utiliser le joueur avec le plus de victoires au
+            // total
+            TypedQuery<UUID> query = entityManager.createQuery(
+                    "SELECT ms.playerId FROM MinigameStats ms " +
+                            "WHERE ms.minigame = :minigame " +
+                            "ORDER BY ms.wins DESC",
+                    UUID.class);
+            query.setParameter("minigame", minigame);
+            query.setMaxResults(1);
+
+            List<UUID> results = query.getResultList();
+            return results.isEmpty() ? null : results.get(0);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Récupère le nom du joueur à partir de son UUID
+     * Cette méthode nécessite d'accéder aux données des joueurs
+     */
+    public String getPlayerName(UUID playerId) {
+        try {
+            // Pour l'instant, nous retournons juste l'UUID en string
+            // Dans une implémentation complète, nous devrions chercher dans PlayerData
+            TypedQuery<String> query = entityManager.createQuery(
+                    "SELECT pd.playerName FROM PlayerData pd WHERE pd.playerId = :playerId",
+                    String.class);
+            query.setParameter("playerId", playerId);
+            query.setMaxResults(1);
+
+            List<String> results = query.getResultList();
+            return results.isEmpty() ? playerId.toString().substring(0, 8) : results.get(0);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return playerId.toString().substring(0, 8);
+        }
+    }
+
+    public EntityManager getEntityManager() {
+        return entityManager;
     }
 }

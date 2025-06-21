@@ -255,28 +255,27 @@ public class PlayerStatsService {
      * @return List of PlayerData of the top players
      */
     public List<PlayerData> getTopPlayersThisMonth(String gameMode, int limit) {
-        // Calculate start of month
-        Calendar cal = Calendar.getInstance();
-        cal.set(Calendar.DAY_OF_MONTH, 1);
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        Date startOfMonth = cal.getTime();
-
-        // Query to get players with the most wins in the specified game mode this month
-        TypedQuery<PlayerData> query = entityManager.createQuery(
-                "SELECT p.player FROM PlayerMatchPerformance p " +
-                        "JOIN p.match m " +
-                        "WHERE m.gameType = :gameType AND m.endTime >= :startOfMonth " +
-                        "GROUP BY p.player " +
-                        "ORDER BY SUM(CASE WHEN p.player IN (SELECT w FROM m.winners w) THEN 1 ELSE 0 END) DESC",
-                PlayerData.class);
-        query.setParameter("gameType", gameMode);
-        query.setParameter("startOfMonth", startOfMonth);
-        query.setMaxResults(limit);
+        // Pour l'instant, nous retournons les meilleurs joueurs de tous les temps
+        // car nous n'avons pas encore de système de suivi mensuel avec MinigameStats
+        // TODO: Implémenter un vrai système de statistiques mensuelles
 
         try {
+            // Récupérer les joueurs avec le plus de victoires pour ce mode de jeu
+            TypedQuery<PlayerData> query = entityManager.createQuery(
+                    "SELECT pd FROM PlayerData pd " +
+                            "WHERE pd.id IN (" +
+                            "  SELECT ms.id.playerId FROM MinigameStats ms " +
+                            "  WHERE ms.id.minigame = :gameMode " +
+                            "  ORDER BY ms.wins DESC" +
+                            ") " +
+                            "ORDER BY (" +
+                            "  SELECT ms2.wins FROM MinigameStats ms2 " +
+                            "  WHERE ms2.id.playerId = pd.id AND ms2.id.minigame = :gameMode" +
+                            ") DESC",
+                    PlayerData.class);
+            query.setParameter("gameMode", gameMode);
+            query.setMaxResults(limit);
+
             return query.getResultList();
         } catch (jakarta.persistence.NoResultException e) {
             return new ArrayList<>();
