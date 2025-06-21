@@ -66,6 +66,14 @@ public class PlayerWrapperListener implements Listener {
                                 sessionToUpdate.setServerCrash(true); // Mark as crash until player quits normally
                                 GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
                                 playerDataDAO.update(playerData);
+
+                                // Log duration update every 5 minutes to avoid spam
+                                if (duration % (5 * 60 * 1000) < 30000) { // Within 30 seconds of 5-minute mark
+                                    CookieDough.getInstance().getLogger()
+                                            .info("Updated session duration for " + player.getName() +
+                                                    " (Session ID: " + sessionToUpdate.getId() + ") - Duration: "
+                                                    + (duration / 1000 / 60) + " minutes");
+                                }
                             }
                         }
                     });
@@ -158,13 +166,17 @@ public class PlayerWrapperListener implements Listener {
             GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
             if (newPlayer) {
                 playerDataDAO.save(playerData);
-                CookieDough.getInstance().getLogger().info("Player " + player.getName() + " created with new session.");
+                CookieDough.getInstance().getLogger().info("Player " + player.getName() + " (" + player.getUniqueId()
+                        + ") created with new session ID: " + newSession.getId());
                 String webhookUrl = System.getenv("DISCORD_NEW_PLAYER_WEBHOOK_URL");
                 DiscordUtils.sendDiscordMessage(webhookUrl,
                         "A new player, " + player.getName() + ", has joined the server!");
             } else {
                 playerDataDAO.update(playerData);
-                CookieDough.getInstance().getLogger().info("Player " + player.getName() + " started new session.");
+                CookieDough.getInstance().getLogger()
+                        .info("Player " + player.getName() + " (" + player.getUniqueId() + ") started new session ID: "
+                                + newSession.getId() + " (Total sessions: " + playerData.getPlayerSessions().size()
+                                + ")");
             }
         });
 
@@ -218,9 +230,21 @@ public class PlayerWrapperListener implements Listener {
                         sessionToUpdate.setServerCrash(false); // Normal quit
                         GenericDAOImpl<PlayerData> playerDataDAO = new GenericDAOImpl<>(PlayerData.class);
                         playerDataDAO.update(playerData);
-                        CookieDough.getInstance().getLogger().info("Player " + player.getName()
-                                + " session ended. Duration: " + sessionToUpdate.getDuration() + "ms");
+
+                        long durationMinutes = sessionToUpdate.getDuration() / 1000 / 60;
+                        CookieDough.getInstance().getLogger()
+                                .info("Player " + player.getName() + " (" + player.getUniqueId() +
+                                        ") session ended normally. Session ID: " + sessionToUpdate.getId() +
+                                        ", Duration: " + sessionToUpdate.getDuration() + "ms (" + durationMinutes
+                                        + " minutes)" +
+                                        ", Total sessions: " + playerData.getPlayerSessions().size());
+                    } else {
+                        CookieDough.getInstance().getLogger().warning("Could not find session to update for player " +
+                                player.getName() + " (" + player.getUniqueId() + ") in database on quit!");
                     }
+                } else {
+                    CookieDough.getInstance().getLogger().warning("Could not find PlayerData for player " +
+                            player.getName() + " (" + player.getUniqueId() + ") in database on quit!");
                 }
             });
         } else {

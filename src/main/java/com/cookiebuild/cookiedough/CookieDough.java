@@ -12,6 +12,7 @@ import org.hibernate.SessionFactory;
 import com.cookiebuild.cookiedough.chat.ChatManager;
 import com.cookiebuild.cookiedough.commands.LobbyCommand;
 import com.cookiebuild.cookiedough.commands.MessageTestCommand;
+import com.cookiebuild.cookiedough.commands.SessionDiagnosticCommand;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
 import com.cookiebuild.cookiedough.listener.NPCReloadListener;
@@ -133,6 +134,7 @@ public final class CookieDough extends JavaPlugin {
         this.getCommand("lobby").setExecutor(new LobbyCommand(lobbyManager));
         this.getCommand("hub").setExecutor(new LobbyCommand(lobbyManager));
         this.getCommand("messagetest").setExecutor(new MessageTestCommand());
+        this.getCommand("sessiondiag").setExecutor(new SessionDiagnosticCommand());
     }
 
     @Override
