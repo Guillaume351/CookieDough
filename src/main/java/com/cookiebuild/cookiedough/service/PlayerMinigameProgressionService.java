@@ -103,7 +103,8 @@ public class PlayerMinigameProgressionService {
     /**
      * Récompense un joueur après un match
      */
-    public void rewardPlayer(UUID playerId, String minigame, boolean won, int kills, int deaths) {
+    public void rewardPlayer(UUID playerId, String minigame, boolean won, int kills, int deaths, int assists,
+            int teamsEliminated) {
         PlayerMinigameProgression progression = getOrCreateProgression(playerId, minigame);
 
         // Calculer les récompenses
@@ -120,7 +121,12 @@ public class PlayerMinigameProgressionService {
 
         xpGained += kills * XP_PER_KILL;
         xpGained += deaths * XP_PER_DEATH;
+        xpGained += assists * 5; // 5 XP per assist
+        xpGained += teamsEliminated * 20; // 20 XP per team eliminated
+
         coinsGained += kills * COINS_PER_KILL;
+        coinsGained += assists * 2; // 2 Coins per assist
+        coinsGained += teamsEliminated * 10; // 10 Coins per team eliminated
 
         // Appliquer les récompenses
         progression.addExperience(xpGained);
