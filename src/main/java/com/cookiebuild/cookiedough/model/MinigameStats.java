@@ -33,18 +33,6 @@ public class MinigameStats {
     @Column(name = "unlocked_kits", columnDefinition = "TEXT")
     private String unlockedKits = "[]";
 
-    @Column(name = "wins", nullable = false)
-    private int wins = 0;
-
-    @Column(name = "losses", nullable = false)
-    private int losses = 0;
-
-    @Column(name = "kills", nullable = false)
-    private int kills = 0;
-
-    @Column(name = "deaths", nullable = false)
-    private int deaths = 0;
-
     // Constructeurs
     public MinigameStats() {
     }
@@ -150,60 +138,4 @@ public class MinigameStats {
         }
     }
 
-    public int getWins() {
-        return wins;
-    }
-
-    public void setWins(int wins) {
-        this.wins = wins;
-    }
-
-    public void addWin() {
-        this.wins++;
-    }
-
-    public int getLosses() {
-        return losses;
-    }
-
-    public void setLosses(int losses) {
-        this.losses = losses;
-    }
-
-    public void addLoss() {
-        this.losses++;
-    }
-
-    public int getKills() {
-        return kills;
-    }
-
-    public void setKills(int kills) {
-        this.kills = kills;
-    }
-
-    public void addKill() {
-        this.kills++;
-    }
-
-    public int getDeaths() {
-        return deaths;
-    }
-
-    public void setDeaths(int deaths) {
-        this.deaths = deaths;
-    }
-
-    public void addDeath() {
-        this.deaths++;
-    }
-
-    public double getKDRatio() {
-        return deaths > 0 ? (double) kills / deaths : kills;
-    }
-
-    public double getWinRate() {
-        int totalGames = wins + losses;
-        return totalGames > 0 ? (double) wins / totalGames * 100 : 0;
-    }
 }

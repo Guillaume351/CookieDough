@@ -9,6 +9,14 @@
         <property name="hibernate.connection.username">${hibernate.connection.username}</property>
         <property name="hibernate.connection.password">${hibernate.connection.password}</property>
 
+        <!-- Use HikariCP for connection pooling -->
+        <property name="hibernate.connection.provider_class">org.hibernate.hikaricp.internal.HikariCPConnectionProvider</property>
+        <property name="hibernate.hikari.connectionTimeout">20000</property>
+        <property name="hibernate.hikari.idleTimeout">300000</property> <!-- 5 minutes -->
+        <property name="hibernate.hikari.maxLifetime">900000</property> <!-- 15 minutes -->
+        <property name="hibernate.hikari.maximumPoolSize">20</property>
+        <property name="hibernate.hikari.minimumIdle">5</property>
+        <property name="hibernate.hikari.connectionTestQuery">SELECT 1</property>
 
         <!-- Echo all executed SQL to stdout -->
         <property name="hibernate.show_sql">${hibernate.show_sql}</property>

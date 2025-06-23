@@ -13,7 +13,6 @@ import com.cookiebuild.cookiedough.model.Match;
 import com.cookiebuild.cookiedough.model.MinigameStats;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
-import com.cookiebuild.cookiedough.model.PlayerMinigameProgression;
 import com.cookiebuild.cookiedough.model.PlayerSession;
 
 public class HibernateUtil {
@@ -54,7 +53,6 @@ public class HibernateUtil {
         configuration.addAnnotatedClass(Match.class);
         configuration.addAnnotatedClass(PlayerMatchPerformance.class);
         configuration.addAnnotatedClass(PlayerSession.class); // Add PlayerSession entity
-        configuration.addAnnotatedClass(PlayerMinigameProgression.class); // Add PlayerMinigameProgression entity
         configuration.addAnnotatedClass(MinigameStats.class); // Add MinigameStats entity
 
         // Register additional entities from other modules

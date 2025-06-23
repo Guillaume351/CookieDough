@@ -33,7 +33,14 @@ public class PlayerStatsService {
      *
      * @param playerId The UUID of the player
      * @return List of PlayerMatchPerformance for the player
+     * @deprecated This method can cause performance issues for players with a large
+     *             match history. It fetches all performances and associated data,
+     *             which can lead to long query times and high memory usage.
+     *             Consider using
+     *             {@link #getRecentPlayerPerformances(UUID, int)} or methods that
+     *             aggregate stats, like {@link #getTotalKills(UUID)}.
      */
+    @Deprecated
     public List<PlayerMatchPerformance> getPlayerPerformances(UUID playerId) {
         TypedQuery<PlayerMatchPerformance> query = entityManager.createQuery(
                 "SELECT p FROM PlayerMatchPerformance p " +
@@ -316,5 +323,71 @@ public class PlayerStatsService {
         } catch (jakarta.persistence.NoResultException e) {
             return 0;
         }
+    }
+
+    /**
+     * Get recent match performances for a player, sorted by match end time
+     * descending.
+     *
+     * @param playerId The UUID of the player
+     * @param limit    The maximum number of performances to return
+     * @return List of recent PlayerMatchPerformance for the player
+     */
+    public List<PlayerMatchPerformance> getRecentPlayerPerformances(UUID playerId, int limit) {
+        TypedQuery<PlayerMatchPerformance> query = entityManager.createQuery(
+                "SELECT p FROM PlayerMatchPerformance p " +
+                        "JOIN FETCH p.match m " +
+                        "LEFT JOIN FETCH m.winners " +
+                        "WHERE p.player.id = :playerId " +
+                        "ORDER BY m.endTime DESC",
+                PlayerMatchPerformance.class);
+        query.setParameter("playerId", playerId);
+        query.setMaxResults(limit);
+        return query.getResultList();
+    }
+
+    /**
+     * Get total kills for a player across all matches.
+     *
+     * @param playerId The UUID of the player
+     * @return Total number of kills
+     */
+    public long getTotalKills(UUID playerId) {
+        TypedQuery<Long> query = entityManager.createQuery(
+                "SELECT SUM(p.killsInMatch) FROM PlayerMatchPerformance p WHERE p.player.id = :playerId",
+                Long.class);
+        query.setParameter("playerId", playerId);
+        Long result = query.getSingleResult();
+        return result != null ? result : 0;
+    }
+
+    /**
+     * Get total deaths for a player across all matches.
+     *
+     * @param playerId The UUID of the player
+     * @return Total number of deaths
+     */
+    public long getTotalDeaths(UUID playerId) {
+        TypedQuery<Long> query = entityManager.createQuery(
+                "SELECT SUM(p.deathsInMatch) FROM PlayerMatchPerformance p WHERE p.player.id = :playerId",
+                Long.class);
+        query.setParameter("playerId", playerId);
+        Long result = query.getSingleResult();
+        return result != null ? result : 0;
+    }
+
+    /**
+     * Get total assists for a player across all matches.
+     *
+     * @param playerId The UUID of the player
+     * @return Total number of assists
+     */
+    public long getTotalAssists(UUID playerId) {
+        TypedQuery<Long> query = entityManager.createQuery(
+                "SELECT SUM(p.assistsInMatch) FROM PlayerMatchPerformance p WHERE p.player.id = :playerId",
+                Long.class);
+        query.setParameter("playerId", playerId);
+        Long result = query.getSingleResult();
+        return result != null ? result : 0;
     }
 }
