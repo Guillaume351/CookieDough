@@ -1,10 +1,6 @@
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '7.1.2'
-}
-
-configurations {
-    shadow
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = 'com.cookie-build'
@@ -69,11 +65,20 @@ processResources {
     }
 }
 
+// Disable the regular jar task since we're using shadowJar
+jar {
+    enabled = false
+}
+
 shadowJar {
     archiveClassifier.set('')
     mergeServiceFiles()
+    
+    // Include all implementation dependencies
+    configurations = [project.configurations.runtimeClasspath]
 }
 
-artifacts {
-    shadow(shadowJar)
+// Make sure the build task uses shadowJar
+build {
+    dependsOn shadowJar
 }
