@@ -42,9 +42,6 @@ public class HibernateUtil {
         properties.put(Environment.SHOW_SQL, System.getenv("HIBERNATE_SHOW_SQL"));
         properties.put(Environment.HBM2DDL_AUTO, System.getenv("HIBERNATE_HBM2DDL_AUTO"));
 
-        properties.put("hibernate.c3p0.min_size", System.getenv("HIBERNATE_C3P0_MIN_SIZE"));
-        properties.put("hibernate.c3p0.max_size", System.getenv("HIBERNATE_C3P0_MAX_SIZE"));
-
         configuration.setProperties(properties);
 
         // Register core CookieDough entities

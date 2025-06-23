@@ -3,6 +3,10 @@ plugins {
     id 'com.github.johnrengelman.shadow' version '7.1.2'
 }
 
+configurations {
+    shadow
+}
+
 group = 'com.cookie-build'
 version = '1.0-SNAPSHOT'
 
@@ -68,4 +72,8 @@ processResources {
 shadowJar {
     archiveClassifier.set('')
     mergeServiceFiles()
+}
+
+artifacts {
+    shadow(shadowJar)
 }
