@@ -126,14 +126,12 @@ public class LobbyScoreboard {
         PlayerData playerData = playerStatsService.getPlayerData(player.getUniqueId());
         Long pastSessionsPlayTime = 0L;
         if (playerData != null) {
-            pastSessionsPlayTime = playerData.getTotalPlayTime(); // This now sums completed sessions
+            pastSessionsPlayTime = playerData.getTotalPlayTime();
         }
 
         // Calculate current session's live play time
         long currentSessionLivePlayTime = 0;
-        Date currentSessionStartTime = PlayerWrapperListener.getPlayerLoginTime(player.getUniqueId()); // This gets
-                                                                                                       // current
-                                                                                                       // session start
+        Date currentSessionStartTime = PlayerWrapperListener.getPlayerLoginTime(player.getUniqueId());
         if (currentSessionStartTime != null) {
             currentSessionLivePlayTime = new Date().getTime() - currentSessionStartTime.getTime();
         }
