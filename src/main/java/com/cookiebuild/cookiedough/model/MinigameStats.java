@@ -25,7 +25,7 @@ public class MinigameStats {
     private int level = 1;
 
     @Column(name = "coins", nullable = false)
-    private int coins = 100;
+    private int coins = 0;
 
     @Column(name = "experience", nullable = false)
     private int experience = 0;
