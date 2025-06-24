@@ -12,7 +12,6 @@ import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -20,27 +19,23 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import com.cookiebuild.cookiedough.CookieDough;
-import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
 import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
-import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 
 public class LobbyManager implements Listener {
     private final JavaPlugin plugin;
-    private final List<Location> gameSigns;
     private final List<GameNPC> gameNpcs = new ArrayList<>();
     private final StatueManager statueManager;
 
     // Singleton
     private static LobbyManager instance;
 
-    public LobbyManager(JavaPlugin plugin, List<Location> gameSigns) {
+    public LobbyManager(JavaPlugin plugin) {
         this.plugin = plugin;
-        this.gameSigns = gameSigns;
         instance = this;
 
         // Initialize StatueManager
@@ -48,12 +43,16 @@ public class LobbyManager implements Listener {
         this.statueManager = new StatueManager(playerStatsService, plugin);
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
-        startSignRefreshTask();
 
         // Get lobby world, remove all entities
         World lobbyWorld = Bukkit.getWorld("lobby");
-        for (Entity entity : lobbyWorld.getEntities()) {
-            entity.remove();
+        if (lobbyWorld != null) {
+            for (Entity entity : lobbyWorld.getEntities()) {
+                // We should only remove non-player entities that are not part of the game.
+                if (!(entity instanceof Player)) {
+                    entity.remove();
+                }
+            }
         }
 
         // enable NPC listeners
@@ -74,17 +73,9 @@ public class LobbyManager implements Listener {
     }
 
     private void refreshSigns() {
-        ArrayList<Game> games = GameManager.getGames(); // Get all games
-        for (int i = 0; i < gameSigns.size(); i++) {
-            Location signLocation = gameSigns.get(i);
-            Sign sign = (Sign) signLocation.getBlock().getState();
-            if (i < games.size()) {
-                GameStatus game = games.get(i);
-                updateSignContent(sign, game);
-            } else {
-                clearSignContent(sign);
-            }
-        }
+        // This functionality is currently disabled as it depends on a fixed list of
+        // signs.
+        // A more dynamic system should be implemented in the future.
     }
 
     private void updateSignContent(Sign sign, GameStatus game) {
@@ -167,17 +158,14 @@ public class LobbyManager implements Listener {
         // TODO: add NPCs
     }
 
-    @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
         Block clickedBlock = event.getClickedBlock();
-        if (clickedBlock != null && clickedBlock.getState() instanceof Sign clickedSign) {
-            GameStatus clickedGame = findGameForSign(clickedSign);
-            if (clickedGame != null) {
-                handleGameSignClick(event.getPlayer(), clickedGame);
-            }
+        if (clickedBlock != null && clickedBlock.getState() instanceof Sign) {
+            // Sign-based game joining is temporarily disabled.
+            // Players should join via NPCs.
         }
     }
 
@@ -188,17 +176,6 @@ public class LobbyManager implements Listener {
             }
         }
         return null;
-    }
-
-    private void handleGameSignClick(Player player, GameStatus game) {
-        if (game.getState() == GameState.OPEN) {
-            CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-            if (!cookiePlayer.getState().equals(PlayerState.IN_GAME)) {
-                game.addPlayerToAvailableTeam(cookiePlayer);
-            }
-        } else {
-            player.sendMessage(ChatColor.RED + "This game is not available.");
-        }
     }
 
     public List<GameNPC> getGameNpcs() {

@@ -1,6 +1,5 @@
 package com.cookiebuild.cookiedough.service;
 
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -259,34 +258,30 @@ public class PlayerStatsService {
      *
      * @param gameMode The game mode to check
      * @param limit    The maximum number of players to return
-     * @return List of PlayerData of the top players
+     * @return List of top PlayerData
      */
     public List<PlayerData> getTopPlayersThisMonth(String gameMode, int limit) {
-        // Pour l'instant, nous retournons les meilleurs joueurs de tous les temps
-        // car nous n'avons pas encore de système de suivi mensuel avec MinigameStats
-        // TODO: Implémenter un vrai système de statistiques mensuelles
+        // Calculate start of month
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.DAY_OF_MONTH, 1);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startOfMonth = cal.getTime();
 
-        try {
-            // Récupérer les joueurs avec le plus de victoires pour ce mode de jeu
-            TypedQuery<PlayerData> query = entityManager.createQuery(
-                    "SELECT pd FROM PlayerData pd " +
-                            "WHERE pd.id IN (" +
-                            "  SELECT ms.id.playerId FROM MinigameStats ms " +
-                            "  WHERE ms.id.minigame = :gameMode " +
-                            "  ORDER BY ms.wins DESC" +
-                            ") " +
-                            "ORDER BY (" +
-                            "  SELECT ms2.wins FROM MinigameStats ms2 " +
-                            "  WHERE ms2.id.playerId = pd.id AND ms2.id.minigame = :gameMode" +
-                            ") DESC",
-                    PlayerData.class);
-            query.setParameter("gameMode", gameMode);
-            query.setMaxResults(limit);
+        TypedQuery<PlayerData> query = entityManager.createQuery(
+                "SELECT p FROM PlayerData p JOIN PlayerMatchPerformance pmp ON p.id = pmp.player.id JOIN pmp.match m " +
+                        "WHERE m.gameType = :gameMode AND m.endTime >= :startOfMonth AND p MEMBER OF m.winners " +
+                        "GROUP BY p.id, p.name, p.lastLogin, p.createdAt " +
+                        "ORDER BY COUNT(m) DESC",
+                PlayerData.class);
 
-            return query.getResultList();
-        } catch (jakarta.persistence.NoResultException e) {
-            return new ArrayList<>();
-        }
+        query.setParameter("gameMode", gameMode);
+        query.setParameter("startOfMonth", startOfMonth);
+        query.setMaxResults(limit);
+
+        return query.getResultList();
     }
 
     /**

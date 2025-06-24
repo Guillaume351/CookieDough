@@ -38,6 +38,10 @@ dependencies {
     implementation 'io.github.cdimascio:java-dotenv:5.2.2'
 }
 
+configurations {
+    shadow
+}
+
 def targetJavaVersion = 21
 java {
     def javaVersion = JavaVersion.toVersion(targetJavaVersion)
@@ -81,4 +85,8 @@ shadowJar {
 // Make sure the build task uses shadowJar
 build {
     dependsOn shadowJar
+}
+
+artifacts {
+    shadow(shadowJar)
 }

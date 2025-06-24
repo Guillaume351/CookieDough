@@ -30,7 +30,7 @@ public class MessageTestCommand implements CommandExecutor {
             return true;
         }
 
-        MessageScheduler scheduler = CookieDough.getMessageScheduler();
+        MessageScheduler scheduler = CookieDough.getInstance().getMessageScheduler();
 
         if (scheduler == null) {
             player.sendMessage("§cErreur: MessageScheduler n'est pas initialisé.");
