@@ -13,19 +13,18 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
+import com.cookiebuild.cookiedough.utils.HibernateUtil;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 public class LeaderboardManager {
-    private final PlayerStatsService playerStatsService;
     private final JavaPlugin plugin;
     private final Map<String, List<ArmorStand>> leaderboardLines = new HashMap<>();
     private static final double LINE_SPACING = 0.3; // Space between lines
 
-    public LeaderboardManager(PlayerStatsService playerStatsService, JavaPlugin plugin) {
-        this.playerStatsService = playerStatsService;
+    public LeaderboardManager(JavaPlugin plugin) {
         this.plugin = plugin;
         startMonthlyUpdateTask();
     }
@@ -34,34 +33,42 @@ public class LeaderboardManager {
         // Remove existing leaderboard if any
         removeLeaderboard(gameMode);
 
-        List<PlayerData> topPlayers = playerStatsService.getTopPlayersThisMonth(gameMode, 10);
-        List<ArmorStand> lines = new ArrayList<>();        // Title
-        Location titleLoc = baseLocation.clone().add(0, 2.5, 0); // Above the statue
-        ArmorStand titleStand = spawnHologram(titleLoc, Component.text()
-            .append(Component.text(gameMode).color(NamedTextColor.AQUA))
-            .append(Component.text(" - Monthly Leaderboard").color(NamedTextColor.GOLD))
-            .decorate(TextDecoration.BOLD)
-            .build());
-        lines.add(titleStand);
+        // Create a new EntityManager for this operation
+        try (var entityManager = HibernateUtil.createEntityManager()) {
+            PlayerStatsService playerStatsService = new PlayerStatsService(entityManager);
+            List<PlayerData> topPlayers = playerStatsService.getTopPlayersThisMonth(gameMode, 10);
+            List<ArmorStand> lines = new ArrayList<>();
 
-        // Player entries
-        for (int i = 0; i < topPlayers.size(); i++) {
-            PlayerData player = topPlayers.get(i);
-            int wins = playerStatsService.getWinsThisMonth(player.getId(), gameMode);
+            // Title
+            Location titleLoc = baseLocation.clone().add(0, 2.5, 0); // Above the statue
+            ArmorStand titleStand = spawnHologram(titleLoc, Component.text()
+                    .append(Component.text(gameMode).color(NamedTextColor.AQUA))
+                    .append(Component.text(" - Monthly Leaderboard").color(NamedTextColor.GOLD))
+                    .decorate(TextDecoration.BOLD)
+                    .build());
+            lines.add(titleStand);
 
-            Location lineLoc = titleLoc.clone().subtract(0, (i + 1) * LINE_SPACING, 0);
-            Component text = Component.text()
-                    .append(Component.text("#" + (i + 1) + " ")
-                            .color(i < 3 ? NamedTextColor.GOLD : NamedTextColor.GRAY))
-                    .append(Component.text(player.getName()).color(NamedTextColor.YELLOW))
-                    .append(Component.text(" - " + wins + " wins").color(NamedTextColor.WHITE))
-                    .build();
+            // Player entries
+            for (int i = 0; i < topPlayers.size(); i++) {
+                PlayerData player = topPlayers.get(i);
+                int wins = playerStatsService.getWinsThisMonth(player.getId(), gameMode);
 
-            ArmorStand line = spawnHologram(lineLoc, text);
-            lines.add(line);
+                Location lineLoc = titleLoc.clone().subtract(0, (i + 1) * LINE_SPACING, 0);
+                Component text = Component.text()
+                        .append(Component.text("#" + (i + 1) + " ")
+                                .color(i < 3 ? NamedTextColor.GOLD : NamedTextColor.GRAY))
+                        .append(Component.text(player.getName()).color(NamedTextColor.YELLOW))
+                        .append(Component.text(" - " + wins + " wins").color(NamedTextColor.WHITE))
+                        .build();
+
+                ArmorStand line = spawnHologram(lineLoc, text);
+                lines.add(line);
+            }
+
+            leaderboardLines.put(gameMode, lines);
+        } catch (Exception e) {
+            plugin.getLogger().severe("Failed to create leaderboard for " + gameMode + ": " + e.getMessage());
         }
-
-        leaderboardLines.put(gameMode, lines);
     }
 
     private ArmorStand spawnHologram(Location location, Component text) {
@@ -82,7 +89,10 @@ public class LeaderboardManager {
         long waitTime = 1000; // Start with 1 second
 
         while (retryCount < maxRetries) {
-            try {
+            try (var entityManager = HibernateUtil.createEntityManager()) {
+                // Create a new PlayerStatsService with its own EntityManager for this operation
+                PlayerStatsService playerStatsService = new PlayerStatsService(entityManager);
+
                 List<PlayerData> topPlayers = playerStatsService.getTopPlayersThisMonth(gameMode, 10);
                 List<ArmorStand> lines = leaderboardLines.get(gameMode);
 
@@ -110,10 +120,12 @@ public class LeaderboardManager {
             } catch (Exception e) {
                 retryCount++;
                 if (retryCount >= maxRetries) {
-                    plugin.getLogger().severe("Failed to update leaderboard for " + gameMode + " after " + maxRetries + " attempts: " + e.getMessage());
+                    plugin.getLogger().severe("Failed to update leaderboard for " + gameMode + " after " + maxRetries
+                            + " attempts: " + e.getMessage());
                     return;
                 }
-                plugin.getLogger().warning("Failed to update leaderboard for " + gameMode + ", attempt " + retryCount + " of " + maxRetries + ": " + e.getMessage());
+                plugin.getLogger().warning("Failed to update leaderboard for " + gameMode + ", attempt " + retryCount
+                        + " of " + maxRetries + ": " + e.getMessage());
                 try {
                     Thread.sleep(waitTime);
                     waitTime *= 2; // Exponential backoff

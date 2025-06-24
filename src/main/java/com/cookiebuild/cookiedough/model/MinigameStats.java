@@ -33,6 +33,12 @@ public class MinigameStats {
     @Column(name = "unlocked_kits", columnDefinition = "TEXT")
     private String unlockedKits = "[]";
 
+    @Column(name = "last_selected_kit_name")
+    private String lastSelectedKitName;
+
+    @Column(name = "last_selected_kit_level", nullable = false, columnDefinition = "integer default 0")
+    private int lastSelectedKitLevel = 0;
+
     // Constructeurs
     public MinigameStats() {
     }
@@ -136,6 +142,22 @@ public class MinigameStats {
             // Ajouter le kit à la liste JSON
             unlockedKits = unlockedKits.substring(0, unlockedKits.length() - 1) + ",\"" + kitName + "\"]";
         }
+    }
+
+    public String getLastSelectedKitName() {
+        return lastSelectedKitName;
+    }
+
+    public void setLastSelectedKitName(String lastSelectedKitName) {
+        this.lastSelectedKitName = lastSelectedKitName;
+    }
+
+    public int getLastSelectedKitLevel() {
+        return lastSelectedKitLevel;
+    }
+
+    public void setLastSelectedKitLevel(int lastSelectedKitLevel) {
+        this.lastSelectedKitLevel = lastSelectedKitLevel;
     }
 
 }

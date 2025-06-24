@@ -108,4 +108,27 @@ public class MinigameStatsService {
     public EntityManager getEntityManager() {
         return entityManager;
     }
+
+    public void setLastSelectedKit(UUID playerId, String minigame, String kitName, int level) {
+        MinigameStats stats = getOrCreateStats(playerId, minigame);
+        stats.setLastSelectedKitName(kitName);
+        stats.setLastSelectedKitLevel(level);
+        saveStats(stats);
+    }
+
+    public void save(MinigameStats stats) {
+        EntityTransaction transaction = entityManager.getTransaction();
+        try {
+            if (!transaction.isActive()) {
+                transaction.begin();
+            }
+            entityManager.merge(stats);
+            transaction.commit();
+        } catch (Exception e) {
+            if (transaction.isActive()) {
+                transaction.rollback();
+            }
+            e.printStackTrace();
+        }
+    }
 }

@@ -24,18 +24,28 @@ public class StatueManager {
     public StatueManager(PlayerStatsService playerStatsService, JavaPlugin plugin) {
         this.playerStatsService = playerStatsService;
         this.plugin = plugin;
-        this.leaderboardManager = new LeaderboardManager(playerStatsService, plugin);
+        this.leaderboardManager = new LeaderboardManager(plugin);
         startWeeklyUpdateTask();
     }
 
     public void createStatue(String gameMode, Location location) {
-        // Get top player for this game mode
-        PlayerData topPlayer = playerStatsService.getTopPlayerThisWeek(gameMode);
-        if (topPlayer == null)
-            return;
+        // Get top player for this game mode using a fresh EntityManager
+        PlayerData topPlayer;
+        int wins;
 
-        // Get win count for the top player
-        int wins = playerStatsService.getWinsThisWeek(topPlayer.getId(), gameMode);
+        try (var entityManager = com.cookiebuild.cookiedough.utils.HibernateUtil.createEntityManager()) {
+            PlayerStatsService freshStatsService = new PlayerStatsService(entityManager);
+            topPlayer = freshStatsService.getTopPlayerThisWeek(gameMode);
+            if (topPlayer == null)
+                return;
+
+            // Get win count for the top player
+            wins = freshStatsService.getWinsThisWeek(topPlayer.getId(), gameMode);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to get top player data for " + gameMode + ": " + e.getMessage());
+            return;
+        }
+
         winCounts.put(gameMode, wins);
 
         // Create armor stand for statue
@@ -87,11 +97,21 @@ public class StatueManager {
         if (!statues.containsKey(gameMode))
             return;
 
-        PlayerData topPlayer = playerStatsService.getTopPlayerThisWeek(gameMode);
-        if (topPlayer == null)
-            return;
+        PlayerData topPlayer;
+        int wins;
 
-        int wins = playerStatsService.getWinsThisWeek(topPlayer.getId(), gameMode);
+        try (var entityManager = com.cookiebuild.cookiedough.utils.HibernateUtil.createEntityManager()) {
+            PlayerStatsService freshStatsService = new PlayerStatsService(entityManager);
+            topPlayer = freshStatsService.getTopPlayerThisWeek(gameMode);
+            if (topPlayer == null)
+                return;
+
+            wins = freshStatsService.getWinsThisWeek(topPlayer.getId(), gameMode);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to update statue data for " + gameMode + ": " + e.getMessage());
+            return;
+        }
+
         winCounts.put(gameMode, wins);
 
         ArmorStand statue = statues.get(gameMode);
@@ -132,10 +152,15 @@ public class StatueManager {
         new BukkitRunnable() {
             @Override
             public void run() {
-                for (String gameMode : statues.keySet()) {
-                    updateStatue(gameMode);
-                    // Also update the leaderboard when updating the statue
-                    leaderboardManager.updateLeaderboard(gameMode);
+                // Create a defensive copy to avoid ConcurrentModificationException
+                for (String gameMode : new HashMap<>(statues).keySet()) {
+                    try {
+                        updateStatue(gameMode);
+                        // Also update the leaderboard when updating the statue
+                        leaderboardManager.updateLeaderboard(gameMode);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Failed to update statue for " + gameMode + ": " + e.getMessage());
+                    }
                 }
             }
         }.runTaskTimer(plugin, 0, 20 * 60 * 60 * 24 * 7); // Update weekly
