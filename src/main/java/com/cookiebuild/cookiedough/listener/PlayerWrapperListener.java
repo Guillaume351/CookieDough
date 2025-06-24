@@ -12,6 +12,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 
@@ -218,5 +219,13 @@ public class PlayerWrapperListener implements Listener {
     public void onPlayerTeleport(PlayerTeleportEvent event) {
         // Here you can handle scoreboard display logic based on world or game state
         // For example, hide lobby scoreboard if player teleports to a game world
+    }
+
+    // Player move event : if in lobby and < height 0, teleport to lobby
+    @EventHandler
+    public void onPlayerMove(PlayerMoveEvent event) {
+        if (event.getPlayer().getWorld().getName().equals("lobby") && event.getPlayer().getLocation().getY() < 0) {
+            LobbyManager.teleportPlayerToLobby(PlayerManager.getPlayer(event.getPlayer()));
+        }
     }
 }
