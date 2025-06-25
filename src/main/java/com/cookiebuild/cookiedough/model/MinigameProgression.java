@@ -9,9 +9,9 @@ import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "minigame_stats")
-@IdClass(MinigameStatsId.class)
-public class MinigameStats {
+@Table(name = "minigame_progression")
+@IdClass(MinigameProgressionId.class)
+public class MinigameProgression {
 
     @Id
     @Column(name = "player_id")
@@ -37,10 +37,10 @@ public class MinigameStats {
     private int lastSelectedKitLevel = 0;
 
     // Constructeurs
-    public MinigameStats() {
+    public MinigameProgression() {
     }
 
-    public MinigameStats(UUID playerId, String minigame) {
+    public MinigameProgression(UUID playerId, String minigame) {
         this.playerId = playerId;
         this.minigame = minigame;
     }

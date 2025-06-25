@@ -18,7 +18,7 @@ import com.cookiebuild.cookiedough.listener.WorldEventListener;
 import com.cookiebuild.cookiedough.lobby.GameNPC;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.scheduler.MessageScheduler;
-import com.cookiebuild.cookiedough.service.MinigameStatsService;
+import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
@@ -50,8 +50,8 @@ public final class CookieDough extends JavaPlugin {
         return new PlayerStatsService(HibernateUtil.createEntityManager());
     }
 
-    public static MinigameStatsService createMinigameStatsService() {
-        return new MinigameStatsService(HibernateUtil.createEntityManager());
+    public static MinigameProgressionService createMinigameProgressionService() {
+        return new MinigameProgressionService(HibernateUtil.createEntityManager());
     }
 
     public LocaleManager getLocaleManager() {

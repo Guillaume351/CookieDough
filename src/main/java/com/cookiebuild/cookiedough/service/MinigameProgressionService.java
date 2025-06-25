@@ -3,38 +3,38 @@ package com.cookiebuild.cookiedough.service;
 import java.util.List;
 import java.util.UUID;
 
-import com.cookiebuild.cookiedough.model.MinigameStats;
-import com.cookiebuild.cookiedough.model.MinigameStatsId;
+import com.cookiebuild.cookiedough.model.MinigameProgression;
+import com.cookiebuild.cookiedough.model.MinigameProgressionId;
 import com.cookiebuild.cookiedough.model.PlayerData;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.TypedQuery;
 
-public class MinigameStatsService {
+public class MinigameProgressionService {
 
     private final EntityManager entityManager;
 
-    public MinigameStatsService(EntityManager entityManager) {
+    public MinigameProgressionService(EntityManager entityManager) {
         this.entityManager = entityManager;
     }
 
     public static final String MICROBATTLES = "microbattles";
     public static final String PITCHOUT = "pitchout";
 
-    public MinigameStats getOrCreateStats(UUID playerId, String minigame) {
-        MinigameStatsId id = new MinigameStatsId(playerId, minigame);
-        MinigameStats stats = entityManager.find(MinigameStats.class, id);
+    public MinigameProgression getOrCreateStats(UUID playerId, String minigame) {
+        MinigameProgressionId id = new MinigameProgressionId(playerId, minigame);
+        MinigameProgression stats = entityManager.find(MinigameProgression.class, id);
 
         if (stats == null) {
-            stats = new MinigameStats(playerId, minigame);
+            stats = new MinigameProgression(playerId, minigame);
             saveStats(stats);
         }
 
         return stats;
     }
 
-    public void saveStats(MinigameStats stats) {
+    public void saveStats(MinigameProgression stats) {
         EntityTransaction transaction = entityManager.getTransaction();
         try {
             if (!transaction.isActive()) {
@@ -83,18 +83,18 @@ public class MinigameStatsService {
     }
 
     public void unlockKit(UUID playerId, String minigame, String kitName) {
-        MinigameStats stats = getOrCreateStats(playerId, minigame);
+        MinigameProgression stats = getOrCreateStats(playerId, minigame);
         stats.unlockKit(kitName);
         saveStats(stats);
     }
 
     public boolean hasUnlockedKit(UUID playerId, String minigame, String kitName) {
-        MinigameStats stats = getOrCreateStats(playerId, minigame);
+        MinigameProgression stats = getOrCreateStats(playerId, minigame);
         return stats.hasUnlockedKit(kitName);
     }
 
     public int getLevel(UUID playerId, String minigame) {
-        MinigameStats stats = getOrCreateStats(playerId, minigame);
+        MinigameProgression stats = getOrCreateStats(playerId, minigame);
         return stats.getLevel();
     }
 
@@ -107,7 +107,7 @@ public class MinigameStatsService {
     }
 
     public int getExperience(UUID playerId, String minigame) {
-        MinigameStats stats = getOrCreateStats(playerId, minigame);
+        MinigameProgression stats = getOrCreateStats(playerId, minigame);
         return stats.getExperience();
     }
 
@@ -132,13 +132,13 @@ public class MinigameStatsService {
     }
 
     public void setLastSelectedKit(UUID playerId, String minigame, String kitName, int level) {
-        MinigameStats stats = getOrCreateStats(playerId, minigame);
+        MinigameProgression stats = getOrCreateStats(playerId, minigame);
         stats.setLastSelectedKitName(kitName);
         stats.setLastSelectedKitLevel(level);
         saveStats(stats);
     }
 
-    public void save(MinigameStats stats) {
+    public void save(MinigameProgression stats) {
         EntityTransaction transaction = entityManager.getTransaction();
         try {
             if (!transaction.isActive()) {

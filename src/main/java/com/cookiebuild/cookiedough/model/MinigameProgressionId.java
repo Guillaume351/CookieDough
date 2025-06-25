@@ -4,17 +4,17 @@ import java.io.Serializable;
 import java.util.Objects;
 import java.util.UUID;
 
-public class MinigameStatsId implements Serializable {
+public class MinigameProgressionId implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private UUID playerId;
     private String minigame;
 
     // Constructeur par défaut requis
-    public MinigameStatsId() {
+    public MinigameProgressionId() {
     }
 
-    public MinigameStatsId(UUID playerId, String minigame) {
+    public MinigameProgressionId(UUID playerId, String minigame) {
         this.playerId = playerId;
         this.minigame = minigame;
     }
@@ -43,7 +43,7 @@ public class MinigameStatsId implements Serializable {
             return true;
         if (o == null || getClass() != o.getClass())
             return false;
-        MinigameStatsId that = (MinigameStatsId) o;
+        MinigameProgressionId that = (MinigameProgressionId) o;
         return Objects.equals(playerId, that.playerId) &&
                 Objects.equals(minigame, that.minigame);
     }
@@ -55,7 +55,7 @@ public class MinigameStatsId implements Serializable {
 
     @Override
     public String toString() {
-        return "MinigameStatsId{" +
+        return "MinigameProgressionId{" +
                 "playerId=" + playerId +
                 ", minigame='" + minigame + '\'' +
                 '}';
