@@ -14,33 +14,30 @@ import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.SkinUtils;
 
 public class StatueManager {
-    private final PlayerStatsService playerStatsService;
     private final JavaPlugin plugin;
     private final Map<String, ArmorStand> statues = new HashMap<>();
     private final Map<String, ArmorStand> textDisplays = new HashMap<>();
     private final Map<String, Integer> winCounts = new HashMap<>();
     private final LeaderboardManager leaderboardManager;
 
-    public StatueManager(PlayerStatsService playerStatsService, JavaPlugin plugin) {
-        this.playerStatsService = playerStatsService;
+    public StatueManager(JavaPlugin plugin) {
         this.plugin = plugin;
         this.leaderboardManager = new LeaderboardManager(plugin);
         startWeeklyUpdateTask();
     }
 
     public void createStatue(String gameMode, Location location) {
-        // Get top player for this game mode using a fresh EntityManager
+        // Get top player for this game mode using static methods
         PlayerData topPlayer;
         int wins;
 
-        try (var entityManager = com.cookiebuild.cookiedough.utils.HibernateUtil.createEntityManager()) {
-            PlayerStatsService freshStatsService = new PlayerStatsService(entityManager);
-            topPlayer = freshStatsService.getTopPlayerThisWeek(gameMode);
+        try {
+            topPlayer = PlayerStatsService.getTopPlayerThisWeekStatic(gameMode);
             if (topPlayer == null)
                 return;
 
             // Get win count for the top player
-            wins = freshStatsService.getWinsThisWeek(topPlayer.getId(), gameMode);
+            wins = PlayerStatsService.getWinsThisWeekStatic(topPlayer.getId(), gameMode);
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to get top player data for " + gameMode + ": " + e.getMessage());
             return;
@@ -100,13 +97,12 @@ public class StatueManager {
         PlayerData topPlayer;
         int wins;
 
-        try (var entityManager = com.cookiebuild.cookiedough.utils.HibernateUtil.createEntityManager()) {
-            PlayerStatsService freshStatsService = new PlayerStatsService(entityManager);
-            topPlayer = freshStatsService.getTopPlayerThisWeek(gameMode);
+        try {
+            topPlayer = PlayerStatsService.getTopPlayerThisWeekStatic(gameMode);
             if (topPlayer == null)
                 return;
 
-            wins = freshStatsService.getWinsThisWeek(topPlayer.getId(), gameMode);
+            wins = PlayerStatsService.getWinsThisWeekStatic(topPlayer.getId(), gameMode);
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to update statue data for " + gameMode + ": " + e.getMessage());
             return;

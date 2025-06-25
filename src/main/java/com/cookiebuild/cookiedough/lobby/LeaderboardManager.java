@@ -13,7 +13,6 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
-import com.cookiebuild.cookiedough.utils.HibernateUtil;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -33,10 +32,9 @@ public class LeaderboardManager {
         // Remove existing leaderboard if any
         removeLeaderboard(gameMode);
 
-        // Create a new EntityManager for this operation
-        try (var entityManager = HibernateUtil.createEntityManager()) {
-            PlayerStatsService playerStatsService = new PlayerStatsService(entityManager);
-            List<PlayerData> topPlayers = playerStatsService.getTopPlayersThisMonth(gameMode, 10);
+        // Use static methods for better resource management
+        try {
+            List<PlayerData> topPlayers = PlayerStatsService.getTopPlayersThisMonthStatic(gameMode, 10);
             List<ArmorStand> lines = new ArrayList<>();
 
             // Title
@@ -51,7 +49,7 @@ public class LeaderboardManager {
             // Player entries
             for (int i = 0; i < topPlayers.size(); i++) {
                 PlayerData player = topPlayers.get(i);
-                int wins = playerStatsService.getWinsThisMonth(player.getId(), gameMode);
+                int wins = PlayerStatsService.getWinsThisMonthStatic(player.getId(), gameMode);
 
                 Location lineLoc = titleLoc.clone().subtract(0, (i + 1) * LINE_SPACING, 0);
                 Component text = Component.text()
@@ -89,11 +87,8 @@ public class LeaderboardManager {
         long waitTime = 1000; // Start with 1 second
 
         while (retryCount < maxRetries) {
-            try (var entityManager = HibernateUtil.createEntityManager()) {
-                // Create a new PlayerStatsService with its own EntityManager for this operation
-                PlayerStatsService playerStatsService = new PlayerStatsService(entityManager);
-
-                List<PlayerData> topPlayers = playerStatsService.getTopPlayersThisMonth(gameMode, 10);
+            try {
+                List<PlayerData> topPlayers = PlayerStatsService.getTopPlayersThisMonthStatic(gameMode, 10);
                 List<ArmorStand> lines = leaderboardLines.get(gameMode);
 
                 if (lines == null || lines.size() < 2) {
@@ -103,7 +98,7 @@ public class LeaderboardManager {
                 // Skip title (index 0)
                 for (int i = 0; i < Math.min(topPlayers.size(), lines.size() - 1); i++) {
                     PlayerData player = topPlayers.get(i);
-                    int wins = playerStatsService.getWinsThisMonth(player.getId(), gameMode);
+                    int wins = PlayerStatsService.getWinsThisMonthStatic(player.getId(), gameMode);
 
                     ArmorStand line = lines.get(i + 1);
                     Component text = Component.text()

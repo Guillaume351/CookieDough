@@ -9,6 +9,7 @@ import java.util.UUID;
 import com.cookiebuild.cookiedough.model.Match;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
+import com.cookiebuild.cookiedough.utils.HibernateUtil;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
@@ -19,8 +20,179 @@ public class PlayerStatsService {
 
     private final EntityManager entityManager;
 
+    // Constructor for backward compatibility - prefer static methods for better
+    // resource
+    // management
     public PlayerStatsService(EntityManager entityManager) {
         this.entityManager = entityManager;
+    }
+
+    // Static helper methods with proper EntityManager lifecycle management
+
+    /**
+     * Get player performances with proper resource management
+     */
+    public static List<PlayerMatchPerformance> getPlayerPerformancesStatic(UUID playerId) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            TypedQuery<PlayerMatchPerformance> query = em.createQuery(
+                    "SELECT p FROM PlayerMatchPerformance p " +
+                            "JOIN FETCH p.match m " +
+                            "LEFT JOIN FETCH m.winners " +
+                            "WHERE p.player.id = :playerId",
+                    PlayerMatchPerformance.class);
+            query.setParameter("playerId", playerId);
+            return query.getResultList();
+        }
+    }
+
+    /**
+     * Get player data with proper resource management
+     */
+    public static PlayerData getPlayerDataStatic(UUID playerId) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            return em.find(PlayerData.class, playerId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get top players this month with proper resource management
+     */
+    public static List<PlayerData> getTopPlayersThisMonthStatic(String gameMode, int limit) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            // Calculate start of month
+            Calendar cal = Calendar.getInstance();
+            cal.set(Calendar.DAY_OF_MONTH, 1);
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+            Date startOfMonth = cal.getTime();
+
+            // Use HQL with proper field names
+            TypedQuery<PlayerData> query = em.createQuery(
+                    "SELECT p.player FROM PlayerMatchPerformance p " +
+                            "JOIN p.match m " +
+                            "WHERE m.gameType = :gameType AND m.endTime >= :startOfMonth " +
+                            "GROUP BY p.player " +
+                            "ORDER BY COUNT(CASE WHEN p.player MEMBER OF m.winners THEN 1 END) DESC",
+                    PlayerData.class);
+            query.setParameter("gameType", gameMode);
+            query.setParameter("startOfMonth", startOfMonth);
+            query.setMaxResults(limit);
+            return query.getResultList();
+        }
+    }
+
+    /**
+     * Get top player this week with proper resource management
+     */
+    public static PlayerData getTopPlayerThisWeekStatic(String gameMode) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            // Calculate start of week (Monday)
+            Calendar cal = Calendar.getInstance();
+            cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+            Date startOfWeek = cal.getTime();
+
+            // Query to get the player with the most wins in the specified game mode this
+            // week
+            TypedQuery<PlayerData> query = em.createQuery(
+                    "SELECT p.player FROM PlayerMatchPerformance p " +
+                            "JOIN p.match m " +
+                            "WHERE m.gameType = :gameType AND m.endTime >= :startOfWeek " +
+                            "GROUP BY p.player " +
+                            "ORDER BY SUM(CASE WHEN p.player IN (SELECT w FROM m.winners w) THEN 1 ELSE 0 END) DESC",
+                    PlayerData.class);
+            query.setParameter("gameType", gameMode);
+            query.setParameter("startOfWeek", startOfWeek);
+            query.setMaxResults(1);
+
+            try {
+                return query.getSingleResult();
+            } catch (jakarta.persistence.NoResultException e) {
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Get wins this week with proper resource management
+     */
+    public static int getWinsThisWeekStatic(UUID playerId, String gameMode) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            // Calculate start of week (Monday)
+            Calendar cal = Calendar.getInstance();
+            cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+            Date startOfWeek = cal.getTime();
+
+            // Query to count wins for the player in the specified game mode this week
+            TypedQuery<Long> query = em.createQuery(
+                    "SELECT COUNT(m) FROM PlayerMatchPerformance p " +
+                            "JOIN p.match m " +
+                            "WHERE p.player.id = :playerId AND m.gameType = :gameType " +
+                            "AND m.endTime >= :startOfWeek AND p.player IN (SELECT w FROM m.winners w)",
+                    Long.class);
+            query.setParameter("playerId", playerId);
+            query.setParameter("gameType", gameMode);
+            query.setParameter("startOfWeek", startOfWeek);
+
+            return query.getSingleResult().intValue();
+        }
+    }
+
+    /**
+     * Get wins this month with proper resource management
+     */
+    public static int getWinsThisMonthStatic(UUID playerId, String gameMode) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            // Calculate start of month
+            Calendar cal = Calendar.getInstance();
+            cal.set(Calendar.DAY_OF_MONTH, 1);
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+            Date startOfMonth = cal.getTime();
+
+            // Query to count wins for the player in the specified game mode this month
+            TypedQuery<Long> query = em.createQuery(
+                    "SELECT COUNT(m) FROM PlayerMatchPerformance p " +
+                            "JOIN p.match m " +
+                            "WHERE p.player.id = :playerId AND m.gameType = :gameType " +
+                            "AND m.endTime >= :startOfMonth AND p.player IN (SELECT w FROM m.winners w)",
+                    Long.class);
+            query.setParameter("playerId", playerId);
+            query.setParameter("gameType", gameMode);
+            query.setParameter("startOfMonth", startOfMonth);
+
+            return query.getSingleResult().intValue();
+        }
+    }
+
+    /**
+     * Get total play time with proper resource management
+     */
+    public static Long getTotalPlayTimeStatic(UUID playerId) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            // Query to sum the duration of all completed sessions for the player
+            TypedQuery<Long> query = em.createQuery(
+                    "SELECT COALESCE(SUM(ps.duration), 0) FROM PlayerSession ps " +
+                            "WHERE ps.playerData.id = :playerId AND ps.duration IS NOT NULL",
+                    Long.class);
+            query.setParameter("playerId", playerId);
+            return query.getSingleResult();
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     public EntityManager getEntityManager() {
@@ -28,16 +200,27 @@ public class PlayerStatsService {
     }
 
     /**
-     * Get all match performances for a player
-     *
-     * @param playerId The UUID of the player
-     * @return List of PlayerMatchPerformance for the player
-     * @deprecated This method can cause performance issues for players with a large
-     *             match history. It fetches all performances and associated data,
-     *             which can lead to long query times and high memory usage.
-     *             Consider using
-     *             {@link #getRecentPlayerPerformances(UUID, int)} or methods that
-     *             aggregate stats, like {@link #getTotalKills(UUID)}.
+     * Get player data by UUID (legacy method)
+     * 
+     * @deprecated Use {@link #getPlayerDataStatic(UUID)} instead for better
+     *             resource management
+     */
+    @Deprecated
+    public PlayerData getPlayerData(UUID playerId) {
+        try {
+            return entityManager.find(PlayerData.class, playerId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get all match performances for a player. Used for legacy compatibility.
+     * 
+     * @deprecated Use {@link #getPlayerPerformancesStatic(UUID)} instead for better
+     *             resource management.
+     *             This method will keep a connection open until the service is
+     *             disposed.
      */
     @Deprecated
     public List<PlayerMatchPerformance> getPlayerPerformances(UUID playerId) {
@@ -206,20 +389,6 @@ public class PlayerStatsService {
     }
 
     /**
-     * Get player data by UUID
-     *
-     * @param playerId The UUID of the player
-     * @return The PlayerData object if found, null otherwise
-     */
-    public PlayerData getPlayerData(UUID playerId) {
-        try {
-            return entityManager.find(PlayerData.class, playerId);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
      * Get the number of wins for a player in a specific game mode this week
      *
      * @param playerId The UUID of the player
@@ -251,37 +420,6 @@ public class PlayerStatsService {
         } catch (jakarta.persistence.NoResultException e) {
             return 0;
         }
-    }
-
-    /**
-     * Get the top players for a specific game mode this month
-     *
-     * @param gameMode The game mode to check
-     * @param limit    The maximum number of players to return
-     * @return List of top PlayerData
-     */
-    public List<PlayerData> getTopPlayersThisMonth(String gameMode, int limit) {
-        // Calculate start of month
-        Calendar cal = Calendar.getInstance();
-        cal.set(Calendar.DAY_OF_MONTH, 1);
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        Date startOfMonth = cal.getTime();
-
-        TypedQuery<PlayerData> query = entityManager.createQuery(
-                "SELECT p FROM PlayerData p JOIN PlayerMatchPerformance pmp ON p.id = pmp.player.id JOIN pmp.match m " +
-                        "WHERE m.gameType = :gameMode AND m.endTime >= :startOfMonth AND p MEMBER OF m.winners " +
-                        "GROUP BY p.id, p.name, p.lastLogin, p.createdAt " +
-                        "ORDER BY COUNT(m) DESC",
-                PlayerData.class);
-
-        query.setParameter("gameMode", gameMode);
-        query.setParameter("startOfMonth", startOfMonth);
-        query.setMaxResults(limit);
-
-        return query.getResultList();
     }
 
     /**

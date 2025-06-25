@@ -16,7 +16,6 @@ import org.bukkit.scoreboard.Team;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
-import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
@@ -31,7 +30,6 @@ import net.kyori.adventure.text.format.TextDecoration;
 
 public class LobbyScoreboard {
     private final Player player;
-    private final PlayerStatsService playerStatsService;
     private final Scoreboard scoreboard;
     private Objective objective;
     private final String websiteUrl = "www.cookie-build.com";
@@ -40,9 +38,8 @@ public class LobbyScoreboard {
             .decorate(TextDecoration.BOLD);
     private static final Gson GSON = new Gson();
 
-    public LobbyScoreboard(Player player, PlayerStatsService playerStatsService) {
+    public LobbyScoreboard(Player player) {
         this.player = player;
-        this.playerStatsService = playerStatsService;
 
         ScoreboardManager manager = Bukkit.getScoreboardManager();
         if (manager == null) {
@@ -98,7 +95,8 @@ public class LobbyScoreboard {
         }
 
         // Get all match performances for the player
-        List<PlayerMatchPerformance> allPerformances = playerStatsService.getPlayerPerformances(player.getUniqueId());
+        List<PlayerMatchPerformance> allPerformances = PlayerStatsService
+                .getPlayerPerformancesStatic(player.getUniqueId());
 
         // Calculate overall stats
         int totalKillsAll = allPerformances.stream().mapToInt(PlayerMatchPerformance::getKillsInMatch).sum();
@@ -122,12 +120,8 @@ public class LobbyScoreboard {
 
         setScore(Component.text(" "), line--);
 
-        // Play Time
-        PlayerData playerData = playerStatsService.getPlayerData(player.getUniqueId());
-        Long pastSessionsPlayTime = 0L;
-        if (playerData != null) {
-            pastSessionsPlayTime = playerData.getTotalPlayTime();
-        }
+        // Play Time - use static method to avoid lazy loading issues
+        Long pastSessionsPlayTime = PlayerStatsService.getTotalPlayTimeStatic(player.getUniqueId());
 
         // Calculate current session's live play time
         long currentSessionLivePlayTime = 0;

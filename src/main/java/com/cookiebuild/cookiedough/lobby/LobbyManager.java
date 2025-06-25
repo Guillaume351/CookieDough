@@ -27,7 +27,6 @@ import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
-import com.cookiebuild.cookiedough.service.PlayerStatsService;
 
 public class LobbyManager implements Listener {
     private final JavaPlugin plugin;
@@ -43,8 +42,7 @@ public class LobbyManager implements Listener {
         instance = this;
 
         // Initialize StatueManager
-        PlayerStatsService playerStatsService = CookieDough.getPlayerStatsService();
-        this.statueManager = new StatueManager(playerStatsService, plugin);
+        this.statueManager = new StatueManager(plugin);
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
 
@@ -159,7 +157,7 @@ public class LobbyManager implements Listener {
             CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
 
             // Initialize LobbyScoreboard
-            LobbyScoreboard scoreboard = new LobbyScoreboard(player, CookieDough.getPlayerStatsService());
+            LobbyScoreboard scoreboard = new LobbyScoreboard(player);
             scoreboard.show();
         } else {
             CookieDough.getInstance().getLogger().severe("Lobby world 'lobby' is not loaded!");
