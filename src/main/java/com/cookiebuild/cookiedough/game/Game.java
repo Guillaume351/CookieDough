@@ -197,4 +197,12 @@ public abstract class Game implements GameStatus {
     public String getGameName() {
         return gameName;
     }
+
+    public int getPlayerCount() {
+        return players.size();
+    }
+
+    public boolean addPlayerToAvailableTeam(CookiePlayer player) {
+        return addPlayer(player);
+    }
 }

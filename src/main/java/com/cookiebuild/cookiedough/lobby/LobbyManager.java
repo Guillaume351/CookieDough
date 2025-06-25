@@ -12,6 +12,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -19,16 +20,19 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
 import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
+import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 
 public class LobbyManager implements Listener {
     private final JavaPlugin plugin;
     private final List<GameNPC> gameNpcs = new ArrayList<>();
+    private final List<Sign> gameSigns = new ArrayList<>();
     private final StatueManager statueManager;
 
     // Singleton
@@ -57,6 +61,9 @@ public class LobbyManager implements Listener {
 
         // enable NPC listeners
         Bukkit.getPluginManager().registerEvents(new NPCListener(), plugin);
+
+        // Start sign refresh task
+        startSignRefreshTask();
     }
 
     public static LobbyManager getInstance() {
@@ -69,22 +76,26 @@ public class LobbyManager implements Listener {
             public void run() {
                 refreshSigns();
             }
-        }.runTaskTimer(plugin, 0, 10); // Refresh every 0.5 seconds (10 ticks)
+        }.runTaskTimer(plugin, 0, 20); // Refresh every second (20 ticks)
     }
 
     private void refreshSigns() {
-        // This functionality is currently disabled as it depends on a fixed list of
-        // signs.
-        // A more dynamic system should be implemented in the future.
+        ArrayList<Game> games = GameManager.getGames();
+        for (int i = 0; i < games.size() && i < gameSigns.size(); i++) {
+            Game game = games.get(i);
+            Sign sign = gameSigns.get(i);
+
+            updateSignContent(sign, game);
+        }
     }
 
-    private void updateSignContent(Sign sign, GameStatus game) {
-        sign.setLine(0, ChatColor.AQUA + "" + ChatColor.BOLD + "Game");
-        sign.setLine(1, ChatColor.GOLD + "" + ChatColor.BOLD + game.getGameName());
+    private void updateSignContent(Sign sign, Game game) {
+        sign.setLine(0, ChatColor.BLUE + "Game");
+        sign.setLine(1, ChatColor.GOLD + game.getGameName());
         sign.setLine(2,
-                game.getState() == GameState.OPEN ? ChatColor.GREEN + "" + ChatColor.BOLD + game.getState().toString()
-                        : ChatColor.RED + "" + ChatColor.BOLD + game.getState().toString());
-        sign.setLine(3, ChatColor.YELLOW + "" + ChatColor.BOLD + game.getPlayerCount() + " players");
+                game.getState() == GameState.OPEN ? ChatColor.GREEN + game.getState().toString()
+                        : ChatColor.RED + game.getState().toString());
+        sign.setLine(3, ChatColor.YELLOW + String.valueOf(game.getPlayerCount()) + " players");
 
         sign.setWaxed(true);
         sign.setGlowingText(true);
@@ -97,6 +108,10 @@ public class LobbyManager implements Listener {
             sign.setLine(i, "");
         }
         sign.update(true); // Force update
+    }
+
+    public void addGameSign(Sign sign) {
+        gameSigns.add(sign);
     }
 
     public void addGameNpc(String gameName, Location location) {
@@ -114,7 +129,7 @@ public class LobbyManager implements Listener {
         Player player = cookiePlayer.getPlayer();
         World lobbyWorld = Bukkit.getWorld("lobby");
         if (lobbyWorld != null) {
-            // Set gamemode to adventyre
+            // Set gamemode to adventure
             player.setGameMode(GameMode.ADVENTURE);
 
             // Empty inventory
@@ -129,7 +144,13 @@ public class LobbyManager implements Listener {
 
             // if player is in a game, remove them from the game
             if (cookiePlayer.getState() == PlayerState.IN_GAME) {
-                GameManager.getGameOfPlayer(cookiePlayer).removePlayer(cookiePlayer);
+                Game game = GameManager.getGameOfPlayer(cookiePlayer);
+                if (game != null) {
+                    game.removePlayer(cookiePlayer);
+                } else {
+                    CookieDough.getInstance().getLogger().severe("Player " + cookiePlayer.getPlayer().getName()
+                            + " is in a game but no game was found.");
+                }
             }
             cookiePlayer.setState(PlayerState.LOBBY);
 
@@ -158,14 +179,27 @@ public class LobbyManager implements Listener {
         // TODO: add NPCs
     }
 
+    @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
         Block clickedBlock = event.getClickedBlock();
-        if (clickedBlock != null && clickedBlock.getState() instanceof Sign) {
-            // Sign-based game joining is temporarily disabled.
-            // Players should join via NPCs.
+        if (clickedBlock != null && clickedBlock.getState() instanceof Sign sign) {
+            for (GameStatus game : GameManager.getGames()) {
+                if (sign.getLine(1).contains(game.getGameName())) {
+                    if (game.getState() == GameState.OPEN) {
+                        Player player = event.getPlayer();
+                        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+                        if (!cookiePlayer.getState().equals(PlayerState.IN_GAME)) {
+                            joinAvailableGame(cookiePlayer);
+                        }
+                    } else {
+                        event.getPlayer().sendMessage(ChatColor.RED + "This game is not available.");
+                    }
+                    break;
+                }
+            }
         }
     }
 
@@ -193,5 +227,9 @@ public class LobbyManager implements Listener {
 
     public StatueManager getStatueManager() {
         return statueManager;
+    }
+
+    public List<Sign> getGameSigns() {
+        return gameSigns;
     }
 }
