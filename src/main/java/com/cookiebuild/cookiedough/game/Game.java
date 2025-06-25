@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.logging.Level;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Sound;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
@@ -17,6 +18,7 @@ public abstract class Game implements GameStatus {
     private final String gameName;
 
     protected int START_DELAY_SECONDS = 30;
+    protected int QUICK_START_DELAY_SECONDS = 10;
 
     private final List<CookiePlayer> players;
 
@@ -25,6 +27,7 @@ public abstract class Game implements GameStatus {
     private int startTimer;
     private GameState state;
     private boolean isFilling;
+    private boolean inQuickStart = false;
 
     private int capacity = 8;
 
@@ -63,6 +66,7 @@ public abstract class Game implements GameStatus {
         if (players.remove(player)) {
             if (startTimer > 0 && players.size() < 2) {
                 startTimer = 0;
+                inQuickStart = false;
             }
         }
         getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.RED
@@ -73,48 +77,51 @@ public abstract class Game implements GameStatus {
         return new ArrayList<>(players); // Return a copy to avoid external modification
     }
 
-    protected static final int QUICK_START_DELAY_SECONDS = 5;
-
     public void tick() {
         if (state == GameState.OPEN) {
             int availablePlayers = GameManager.getAvailablePlayerCount();
             if (players.size() >= 2) {
-                if (availablePlayers == 0 || players.size() == capacity) {
-                    // All available players joined or game is at capacity
-                    startTimer++;
-                    START_DELAY_SECONDS = QUICK_START_DELAY_SECONDS; // Set to quick start delay
-                    if (startTimer >= QUICK_START_DELAY_SECONDS) {
-                        startGame();
-                        startTimer = 0;
-                    }
-                } else {
-                    startTimer++;
-                    if (startTimer >= START_DELAY_SECONDS) {
-                        startGame();
-                        startTimer = 0;
-                    }
+                boolean quickStartCondition = availablePlayers == 0 || players.size() == capacity;
+
+                if (quickStartCondition && !inQuickStart) {
+                    // Transitioning to quick start
+                    inQuickStart = true;
+                    startTimer = 0; // Reset timer to start quick start countdown
+                } else if (!quickStartCondition) {
+                    // Not in quick start (or transitioning out)
+                    inQuickStart = false;
+                }
+
+                startTimer++;
+                int delay = inQuickStart ? QUICK_START_DELAY_SECONDS : START_DELAY_SECONDS;
+
+                if (startTimer >= delay) {
+                    startGame();
+                    startTimer = 0;
+                    inQuickStart = false;
                 }
             } else {
                 startTimer = 0; // Reset timer if players are less than 2
+                inQuickStart = false;
             }
 
             // Notify players of the countdown
             if (startTimer > 0) {
-                // notifyCountdown();
+                notifyCountdown();
             }
         }
     }
 
     private void notifyCountdown() {
-        int remainingTime = (players.size() == GameManager.getAvailablePlayerCount() || players.size() == capacity)
-                ? QUICK_START_DELAY_SECONDS - startTimer
-                : START_DELAY_SECONDS - startTimer;
+        int delay = inQuickStart ? QUICK_START_DELAY_SECONDS : START_DELAY_SECONDS;
+        int remainingTime = delay - startTimer;
 
-        if (remainingTime <= 10 && remainingTime > 0) {
+        if (remainingTime <= 5 && remainingTime > 0) {
             for (CookiePlayer player : players) {
                 player.getPlayer().sendMessage(ChatColor.YELLOW +
                         LocaleManager.getMessage("game.countdown", player.getPlayer().locale(),
                                 String.valueOf(remainingTime)));
+                player.getPlayer().playSound(player.getPlayer().getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1, 1);
             }
         }
     }
@@ -127,6 +134,7 @@ public abstract class Game implements GameStatus {
             // send localized message
             player.getPlayer().sendMessage(
                     ChatColor.GREEN + LocaleManager.getMessage("game.started", player.getPlayer().locale()));
+            player.getPlayer().playSound(player.getPlayer().getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
         }
 
         registerANewGame();
@@ -145,6 +153,7 @@ public abstract class Game implements GameStatus {
         time = 0;
         startTimer = 0;
         players.clear();
+        inQuickStart = false;
     }
 
     public abstract boolean isGameEnded();
