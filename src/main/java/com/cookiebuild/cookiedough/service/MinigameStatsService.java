@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.cookiebuild.cookiedough.model.MinigameStats;
 import com.cookiebuild.cookiedough.model.MinigameStatsId;
+import com.cookiebuild.cookiedough.model.PlayerData;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
@@ -49,16 +50,34 @@ public class MinigameStatsService {
         }
     }
 
+    /**
+     * Check if player can afford a purchase (uses PlayerData coins)
+     */
     public boolean canAfford(UUID playerId, String minigame, int cost) {
-        MinigameStats stats = getOrCreateStats(playerId, minigame);
-        return stats.getCoins() >= cost;
+        PlayerData playerData = entityManager.find(PlayerData.class, playerId);
+        return playerData != null && playerData.getCoins() >= cost;
     }
 
+    /**
+     * Purchase an item using PlayerData coins
+     */
     public boolean purchase(UUID playerId, String minigame, int cost) {
-        MinigameStats stats = getOrCreateStats(playerId, minigame);
-        if (stats.removeCoins(cost)) {
-            saveStats(stats);
-            return true;
+        PlayerData playerData = entityManager.find(PlayerData.class, playerId);
+        if (playerData != null && playerData.removeCoins(cost)) {
+            EntityTransaction transaction = entityManager.getTransaction();
+            try {
+                if (!transaction.isActive()) {
+                    transaction.begin();
+                }
+                entityManager.merge(playerData);
+                transaction.commit();
+                return true;
+            } catch (Exception e) {
+                if (transaction.isActive()) {
+                    transaction.rollback();
+                }
+                e.printStackTrace();
+            }
         }
         return false;
     }
@@ -79,9 +98,12 @@ public class MinigameStatsService {
         return stats.getLevel();
     }
 
+    /**
+     * Get player coins from PlayerData (global coins, not minigame-specific)
+     */
     public int getCoins(UUID playerId, String minigame) {
-        MinigameStats stats = getOrCreateStats(playerId, minigame);
-        return stats.getCoins();
+        PlayerData playerData = entityManager.find(PlayerData.class, playerId);
+        return playerData != null ? playerData.getCoins() : 0;
     }
 
     public int getExperience(UUID playerId, String minigame) {

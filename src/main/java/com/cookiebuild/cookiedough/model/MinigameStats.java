@@ -24,9 +24,6 @@ public class MinigameStats {
     @Column(name = "level", nullable = false)
     private int level = 1;
 
-    @Column(name = "coins", nullable = false)
-    private int coins = 0;
-
     @Column(name = "experience", nullable = false)
     private int experience = 0;
 
@@ -71,26 +68,6 @@ public class MinigameStats {
 
     public void setLevel(int level) {
         this.level = level;
-    }
-
-    public int getCoins() {
-        return coins;
-    }
-
-    public void setCoins(int coins) {
-        this.coins = coins;
-    }
-
-    public boolean removeCoins(int amount) {
-        if (this.coins >= amount) {
-            this.coins -= amount;
-            return true;
-        }
-        return false;
-    }
-
-    public void addCoins(int amount) {
-        this.coins += amount;
     }
 
     public int getExperience() {
