@@ -27,7 +27,7 @@ public abstract class Game implements GameStatus {
     private int startTimer;
     private GameState state;
     private boolean isFilling;
-    private boolean inQuickStart = false;
+    protected boolean inQuickStart = false;
 
     private int capacity = 8;
 
@@ -69,8 +69,11 @@ public abstract class Game implements GameStatus {
                 inQuickStart = false;
             }
         }
-        getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.RED
-                + LocaleManager.getMessage("player.left.game", p.getPlayer().locale(), player.getPlayer().getName())));
+        if (this.state != GameState.FINISHED) {
+            getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.RED
+                    + LocaleManager.getMessage("player.left.game", p.getPlayer().locale(),
+                            player.getPlayer().getName())));
+        }
     }
 
     public List<CookiePlayer> getPlayers() {

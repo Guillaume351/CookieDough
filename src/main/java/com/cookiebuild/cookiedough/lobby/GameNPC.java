@@ -1,12 +1,5 @@
 package com.cookiebuild.cookiedough.lobby;
 
-import com.cookiebuild.cookiedough.CookieDough;
-import com.cookiebuild.cookiedough.game.GameManager;
-import com.cookiebuild.cookiedough.game.GameState;
-import com.cookiebuild.cookiedough.game.GameStatus;
-import com.cookiebuild.cookiedough.listener.NPCReloadListener;
-import com.cookiebuild.cookiedough.player.CookiePlayer;
-import com.cookiebuild.cookiedough.player.PlayerManager;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -17,6 +10,14 @@ import org.bukkit.entity.Zombie;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
+
+import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.game.GameManager;
+import com.cookiebuild.cookiedough.game.GameState;
+import com.cookiebuild.cookiedough.game.GameStatus;
+import com.cookiebuild.cookiedough.listener.NPCReloadListener;
+import com.cookiebuild.cookiedough.player.CookiePlayer;
+import com.cookiebuild.cookiedough.player.PlayerManager;
 
 public class GameNPC {
     private final String gameName;

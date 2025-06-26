@@ -189,8 +189,15 @@ public class LobbyManager implements Listener {
                     if (game.getState() == GameState.OPEN) {
                         Player player = event.getPlayer();
                         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-                        if (!cookiePlayer.getState().equals(PlayerState.IN_GAME)) {
-                            joinAvailableGame(cookiePlayer);
+                        if (cookiePlayer != null) {
+                            if (cookiePlayer.getState() != PlayerState.IN_GAME) {
+                                if (!game.addPlayerToAvailableTeam(cookiePlayer)) {
+                                    player.sendMessage(ChatColor.RED + "Failed to join " + game.getGameName()
+                                            + ". The game might be full.");
+                                }
+                            }
+                        } else {
+                            player.sendMessage(ChatColor.RED + "Could not find your player data. Please try again.");
                         }
                     } else {
                         event.getPlayer().sendMessage(ChatColor.RED + "This game is not available.");

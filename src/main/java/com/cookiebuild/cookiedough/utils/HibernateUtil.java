@@ -77,7 +77,8 @@ public class HibernateUtil {
             throw new IllegalStateException(
                     "Hibernate has not been initialized. Call HibernateUtil.initialize() first.");
         }
-        return sessionFactory.createEntityManager();
+        EntityManager entityManager = sessionFactory.createEntityManager();
+        return entityManager;
     }
 
     public static void shutdown() {
