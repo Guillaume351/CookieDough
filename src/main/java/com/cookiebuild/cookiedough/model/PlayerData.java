@@ -25,8 +25,6 @@ public class PlayerData {
     private String name;
     private Date lastLogin;
     private Date createdAt;
-    @Column(columnDefinition = "integer default 1")
-    private int level = 1;
 
     @Column(columnDefinition = "integer default 0")
     private int coins = 0;
@@ -130,14 +128,6 @@ public class PlayerData {
     public void removeMatchPerformance(PlayerMatchPerformance performance) {
         matchPerformances.remove(performance);
         performance.setPlayer(null);
-    }
-
-    public int getLevel() {
-        return level;
-    }
-
-    public void setLevel(int level) {
-        this.level = level;
     }
 
     public int getCoins() {

@@ -79,33 +79,70 @@ public class LobbyManager implements Listener {
 
     private void refreshSigns() {
         ArrayList<Game> games = GameManager.getGames();
-        for (int i = 0; i < games.size() && i < gameSigns.size(); i++) {
-            Game game = games.get(i);
-            Sign sign = gameSigns.get(i);
 
-            updateSignContent(sign, game);
+        // Remove any invalid signs (destroyed blocks)
+        gameSigns.removeIf(sign -> sign == null || !sign.getBlock().getType().name().contains("SIGN"));
+
+        // Update existing signs
+        for (int i = 0; i < gameSigns.size(); i++) {
+            Sign sign = gameSigns.get(i);
+            if (sign != null && sign.getBlock().getType().name().contains("SIGN")) {
+                if (i < games.size()) {
+                    Game game = games.get(i);
+                    updateSignContent(sign, game);
+                } else {
+                    // Clear sign if no corresponding game
+                    clearSignContent(sign);
+                }
+            }
         }
     }
 
     private void updateSignContent(Sign sign, Game game) {
-        sign.setLine(0, ChatColor.BLUE + "Game");
-        sign.setLine(1, ChatColor.GOLD + game.getGameName());
-        sign.setLine(2,
-                game.getState() == GameState.OPEN ? ChatColor.GREEN + game.getState().toString()
-                        : ChatColor.RED + game.getState().toString());
-        sign.setLine(3, ChatColor.YELLOW + String.valueOf(game.getPlayerCount()) + " players");
+        try {
+            sign.setLine(0, ChatColor.BLUE + "Game");
+            sign.setLine(1, ChatColor.GOLD + game.getGameName());
 
-        sign.setWaxed(true);
-        sign.setGlowingText(true);
+            String stateColor;
+            String stateText = game.getState().toString();
+            switch (game.getState()) {
+                case OPEN:
+                    stateColor = ChatColor.GREEN.toString();
+                    break;
+                case RUNNING:
+                    stateColor = ChatColor.YELLOW.toString();
+                    break;
+                case FINISHED:
+                    stateColor = ChatColor.RED.toString();
+                    break;
+                default:
+                    stateColor = ChatColor.GRAY.toString();
+            }
 
-        sign.update(true); // Force update
+            sign.setLine(2, stateColor + stateText);
+            sign.setLine(3, ChatColor.YELLOW + "" + game.getPlayerCount() + "/" + game.getCapacity() + " players");
+
+            sign.setWaxed(true);
+            sign.setGlowingText(true);
+            sign.update(true); // Force update
+        } catch (Exception e) {
+            // Sign might have been destroyed, remove it from our list
+            CookieDough.getInstance().getLogger().warning("Failed to update sign: " + e.getMessage());
+            gameSigns.remove(sign);
+        }
     }
 
     private void clearSignContent(Sign sign) {
-        for (int i = 0; i < 4; i++) {
-            sign.setLine(i, "");
+        try {
+            for (int i = 0; i < 4; i++) {
+                sign.setLine(i, "");
+            }
+            sign.update(true); // Force update
+        } catch (Exception e) {
+            // Sign might have been destroyed, remove it from our list
+            CookieDough.getInstance().getLogger().warning("Failed to clear sign: " + e.getMessage());
+            gameSigns.remove(sign);
         }
-        sign.update(true); // Force update
     }
 
     public void addGameSign(Sign sign) {

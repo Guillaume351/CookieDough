@@ -1,11 +1,12 @@
 package com.cookiebuild.cookiedough.game;
 
+import java.util.ArrayList;
+
+import org.bukkit.Bukkit;
+
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
-import org.bukkit.Bukkit;
-
-import java.util.ArrayList;
 
 public class GameManager {
     static ArrayList<Game> games = new ArrayList<>();
