@@ -160,29 +160,37 @@ public class PlayerWrapperListener implements Listener {
         // Finalize player session
         PlayerSession finishedSession = activePlayerSessions.remove(player.getUniqueId());
         Date quitTime = new Date();
-
         if (finishedSession != null) {
-            if (finishedSession.getStartTime() != null) {
-                finishedSession.setDuration(quitTime.getTime() - finishedSession.getStartTime().getTime());
-            } else {
-                finishedSession.setDuration(0L);
-            }
             finishedSession.setEndTime(quitTime);
-            finishedSession.setServerCrash(false); // Normal quit
+            finishedSession.setDuration(quitTime.getTime() - finishedSession.getStartTime().getTime());
 
-            Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
-                GenericDAOImpl<PlayerSession> sessionDAO = new GenericDAOImpl<>(PlayerSession.class);
-                sessionDAO.update(finishedSession);
+            try {
+                PlayerSession finalSession = finishedSession;
+                Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
+                    try {
+                        GenericDAOImpl<PlayerSession> sessionDAO = new GenericDAOImpl<>(PlayerSession.class);
+                        sessionDAO.update(finalSession);
 
-                long durationMinutes = finishedSession.getDuration() / 1000 / 60;
+                        long durationMinutes = finalSession.getDuration() / 1000 / 60;
+                        CookieDough.getInstance().getLogger()
+                                .info("Player " + player.getName() + " (" + player.getUniqueId() +
+                                        ") session ended. Duration: " + durationMinutes + " minutes.");
+                    } catch (Exception e) {
+                        CookieDough.getInstance().getLogger()
+                                .severe("Failed to save player session for " + player.getName() + ": "
+                                        + e.getMessage());
+                        e.printStackTrace();
+                    }
+                });
+            } catch (Exception e) {
                 CookieDough.getInstance().getLogger()
-                        .info("Player " + player.getName() + " (" + player.getUniqueId() +
-                                ") session ended. Duration: " + durationMinutes + " minutes.");
-            });
-        } else {
-            CookieDough.getInstance().getLogger()
-                    .warning("No active session found for player " + player.getName() + " on quit.");
+                        .severe("Error scheduling session save for " + player.getName() + ": " + e.getMessage());
+                e.printStackTrace();
+            }
         }
+
+        // Clean up lobby scoreboard cache
+        com.cookiebuild.cookiedough.lobby.LobbyScoreboard.invalidatePlayerCache(player.getUniqueId());
 
         for (Player p : event.getPlayer().getServer().getOnlinePlayers()) {
             // Make sure to exclude the quitting player from the list before sending the

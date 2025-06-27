@@ -3,10 +3,12 @@ package com.cookiebuild.cookiedough.lobby;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.Criteria;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
@@ -38,6 +40,27 @@ public class LobbyScoreboard {
             .decorate(TextDecoration.BOLD);
     private static final Gson GSON = new Gson();
 
+    // Cache system
+    private static final Map<java.util.UUID, PlayerStats> statsCache = new ConcurrentHashMap<>();
+    private static final Map<java.util.UUID, Long> lastCacheUpdate = new ConcurrentHashMap<>();
+    private static final long CACHE_DURATION = 60000; // 1 minute cache
+
+    // Task tracking
+    private BukkitTask updateTask;
+    private long lastScoreboardUpdate = 0;
+    private static final long SCOREBOARD_UPDATE_INTERVAL = 10000; // Update every 10 seconds instead of 5
+
+    // Cached stats data structure
+    private static class PlayerStats {
+        List<PlayerMatchPerformance> allPerformances;
+        Long totalPlayTime;
+
+        PlayerStats(List<PlayerMatchPerformance> performances, Long playTime) {
+            this.allPerformances = performances;
+            this.totalPlayTime = playTime;
+        }
+    }
+
     public LobbyScoreboard(Player player) {
         this.player = player;
 
@@ -51,12 +74,16 @@ public class LobbyScoreboard {
         this.scoreboard = manager.getNewScoreboard();
         setupScoreboard();
 
-        // Schedule regular scoreboard updates
-        Bukkit.getScheduler().runTaskTimer(CookieDough.getInstance(), () -> {
+        // Schedule less frequent updates - every 10 seconds instead of 5
+        this.updateTask = Bukkit.getScheduler().runTaskTimer(CookieDough.getInstance(), () -> {
             if (this.scoreboard != null && this.objective != null && player.isOnline()) {
-                update();
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastScoreboardUpdate >= SCOREBOARD_UPDATE_INTERVAL) {
+                    update();
+                    lastScoreboardUpdate = currentTime;
+                }
             }
-        }, 20 * 5, 20 * 5); // Update every 5 seconds (5 * 20 ticks)
+        }, 100L, 200L); // Check every 10 ticks (0.5 seconds) but only update every 10 seconds
     }
 
     private void setupScoreboard() {
@@ -70,6 +97,31 @@ public class LobbyScoreboard {
         update();
     }
 
+    private PlayerStats getCachedStats() {
+        java.util.UUID playerId = player.getUniqueId();
+        long currentTime = System.currentTimeMillis();
+        Long lastUpdate = lastCacheUpdate.get(playerId);
+
+        // Check if cache is still valid
+        if (lastUpdate != null && (currentTime - lastUpdate) < CACHE_DURATION) {
+            PlayerStats cached = statsCache.get(playerId);
+            if (cached != null) {
+                return cached;
+            }
+        }
+
+        // Cache is expired or doesn't exist, fetch new data
+        List<PlayerMatchPerformance> allPerformances = PlayerStatsService
+                .getPlayerPerformancesStatic(playerId);
+        Long totalPlayTime = PlayerStatsService.getTotalPlayTimeStatic(playerId);
+
+        PlayerStats newStats = new PlayerStats(allPerformances, totalPlayTime);
+        statsCache.put(playerId, newStats);
+        lastCacheUpdate.put(playerId, currentTime);
+
+        return newStats;
+    }
+
     public void update() {
         if (this.scoreboard == null || objective == null || !player.isOnline()) {
             return;
@@ -81,22 +133,9 @@ public class LobbyScoreboard {
             return;
         }
 
-        // Clear old scores that are no longer needed
-        for (String entry : scoreboard.getEntries()) {
-            if (!entry.startsWith("§")) {
-                scoreboard.resetScores(entry);
-            }
-        }
-        // Only unregister teams that are no longer used
-        for (Team team : scoreboard.getTeams()) {
-            if (team.getEntries().isEmpty()) {
-                team.unregister();
-            }
-        }
-
-        // Get all match performances for the player
-        List<PlayerMatchPerformance> allPerformances = PlayerStatsService
-                .getPlayerPerformancesStatic(player.getUniqueId());
+        // Get cached stats
+        PlayerStats stats = getCachedStats();
+        List<PlayerMatchPerformance> allPerformances = stats.allPerformances;
 
         // Calculate overall stats
         int totalKillsAll = allPerformances.stream().mapToInt(PlayerMatchPerformance::getKillsInMatch).sum();
@@ -120,8 +159,8 @@ public class LobbyScoreboard {
 
         setScore(Component.text(" "), line--);
 
-        // Play Time - use static method to avoid lazy loading issues
-        Long pastSessionsPlayTime = PlayerStatsService.getTotalPlayTimeStatic(player.getUniqueId());
+        // Play Time - use cached data
+        Long pastSessionsPlayTime = stats.totalPlayTime;
 
         // Calculate current session's live play time
         long currentSessionLivePlayTime = 0;
@@ -196,11 +235,17 @@ public class LobbyScoreboard {
         if (team == null) {
             team = scoreboard.registerNewTeam("line" + score);
         }
+
+        // Only add entry if not already present to prevent blinking
         if (!team.hasEntry(entry)) {
             team.addEntry(entry);
         }
 
-        team.prefix(text);
+        // Only update prefix if it's different to prevent blinking
+        if (!team.prefix().equals(text)) {
+            team.prefix(text);
+        }
+
         objective.getScore(entry).setScore(score);
     }
 
@@ -249,24 +294,31 @@ public class LobbyScoreboard {
     }
 
     public void cleanup() {
-        hide();
-        if (this.scoreboard == null)
-            return;
-        // Unregister teams safely
-        for (Team team : scoreboard.getTeams()) {
-            try {
+        if (updateTask != null) {
+            updateTask.cancel();
+            updateTask = null;
+        }
+
+        // Clean up cache for this player
+        java.util.UUID playerId = player.getUniqueId();
+        statsCache.remove(playerId);
+        lastCacheUpdate.remove(playerId);
+
+        if (scoreboard != null) {
+            // Unregister all teams
+            for (Team team : scoreboard.getTeams()) {
                 team.unregister();
-            } catch (IllegalStateException e) {
-                /* Already unregistered */ }
-        }
-        if (objective != null) {
-            try {
-                objective.unregister();
-            } catch (IllegalStateException e) {
-                CookieDough.getInstance().getLogger().warning("LobbyScoreboard: Objective already unregistered for "
-                        + player.getName() + ": " + e.getMessage());
             }
-            objective = null;
+            // Unregister objective
+            if (objective != null) {
+                objective.unregister();
+            }
         }
+    }
+
+    // Method to invalidate cache when player completes a game
+    public static void invalidatePlayerCache(java.util.UUID playerId) {
+        statsCache.remove(playerId);
+        lastCacheUpdate.remove(playerId);
     }
 }
