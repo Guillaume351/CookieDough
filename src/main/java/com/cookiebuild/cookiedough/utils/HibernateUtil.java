@@ -50,6 +50,28 @@ public class HibernateUtil {
             properties.put(Environment.SHOW_SQL, System.getenv("HIBERNATE_SHOW_SQL"));
             properties.put(Environment.HBM2DDL_AUTO, System.getenv("HIBERNATE_HBM2DDL_AUTO"));
 
+            // Add HikariCP connection pooling configuration
+            properties.put("hibernate.connection.provider_class",
+                    "org.hibernate.hikaricp.internal.HikariCPConnectionProvider");
+
+            // Connection pool size settings
+            properties.put("hibernate.hikari.maximumPoolSize", "30");
+            properties.put("hibernate.hikari.minimumIdle", "5");
+
+            // Connection timeout settings (in milliseconds)
+            properties.put("hibernate.hikari.connectionTimeout", "30000"); // 30 seconds
+            properties.put("hibernate.hikari.idleTimeout", "300000"); // 5 minutes
+            properties.put("hibernate.hikari.maxLifetime", "900000"); // 15 minutes
+
+            // Connection validation
+            properties.put("hibernate.hikari.connectionTestQuery", "SELECT 1");
+
+            // Leak detection (useful for debugging)
+            properties.put("hibernate.hikari.leakDetectionThreshold", "60000"); // 1 minute
+
+            // Pool name for monitoring
+            properties.put("hibernate.hikari.poolName", "CookieDoughHikariCP");
+
             configuration.setProperties(properties);
 
             // Register core CookieDough entities

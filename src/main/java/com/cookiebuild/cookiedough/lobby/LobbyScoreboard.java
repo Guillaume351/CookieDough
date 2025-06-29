@@ -1,5 +1,6 @@
 package com.cookiebuild.cookiedough.lobby;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -100,26 +101,67 @@ public class LobbyScoreboard {
     private PlayerStats getCachedStats() {
         java.util.UUID playerId = player.getUniqueId();
         long currentTime = System.currentTimeMillis();
+
+        // Check if we have valid cached data
+        PlayerStats cachedStats = statsCache.get(playerId);
         Long lastUpdate = lastCacheUpdate.get(playerId);
 
-        // Check if cache is still valid
-        if (lastUpdate != null && (currentTime - lastUpdate) < CACHE_DURATION) {
-            PlayerStats cached = statsCache.get(playerId);
-            if (cached != null) {
-                return cached;
+        if (cachedStats != null && lastUpdate != null &&
+                (currentTime - lastUpdate) < CACHE_DURATION) {
+            return cachedStats;
+        }
+
+        // Cache is expired or doesn't exist, fetch new data with retry logic
+        int maxRetries = 3;
+        int retryDelay = 1000; // 1 second
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                List<PlayerMatchPerformance> allPerformances = PlayerStatsService
+                        .getPlayerPerformancesStatic(playerId);
+                Long totalPlayTime = PlayerStatsService.getTotalPlayTimeStatic(playerId);
+
+                PlayerStats newStats = new PlayerStats(allPerformances, totalPlayTime);
+                statsCache.put(playerId, newStats);
+                lastCacheUpdate.put(playerId, currentTime);
+
+                return newStats;
+
+            } catch (Exception e) {
+                CookieDough.getInstance().getLogger().warning(
+                        "Database query failed for player " + player.getName() +
+                                " (attempt " + attempt + "/" + maxRetries + "): " + e.getMessage());
+
+                if (attempt == maxRetries) {
+                    // On final failure, return cached data if available, or empty data
+                    if (cachedStats != null) {
+                        CookieDough.getInstance().getLogger().info(
+                                "Using stale cached data for player " + player.getName() +
+                                        " due to database connection issues");
+                        return cachedStats;
+                    } else {
+                        CookieDough.getInstance().getLogger().warning(
+                                "No cached data available for player " + player.getName() +
+                                        ", returning empty stats");
+                        return new PlayerStats(new ArrayList<>(), 0L);
+                    }
+                }
+
+                // Wait before retrying (except on last attempt)
+                if (attempt < maxRetries) {
+                    try {
+                        Thread.sleep(retryDelay);
+                        retryDelay *= 2; // Exponential backoff
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
         }
 
-        // Cache is expired or doesn't exist, fetch new data
-        List<PlayerMatchPerformance> allPerformances = PlayerStatsService
-                .getPlayerPerformancesStatic(playerId);
-        Long totalPlayTime = PlayerStatsService.getTotalPlayTimeStatic(playerId);
-
-        PlayerStats newStats = new PlayerStats(allPerformances, totalPlayTime);
-        statsCache.put(playerId, newStats);
-        lastCacheUpdate.put(playerId, currentTime);
-
-        return newStats;
+        // Fallback (should never reach here, but just in case)
+        return cachedStats != null ? cachedStats : new PlayerStats(new ArrayList<>(), 0L);
     }
 
     public void update() {
