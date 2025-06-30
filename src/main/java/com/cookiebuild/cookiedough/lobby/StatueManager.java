@@ -6,9 +6,11 @@ import java.util.Map;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.SkinUtils;
@@ -27,19 +29,28 @@ public class StatueManager {
     }
 
     public void createStatue(String gameMode, Location location) {
+        CookieDough.getInstance().getLogger()
+                .info("Creating statue for gameMode: " + gameMode + " at location: " + location);
+
         // Get top player for this game mode using static methods
         PlayerData topPlayer;
         int wins;
 
         try {
             topPlayer = PlayerStatsService.getTopPlayerThisWeekStatic(gameMode);
-            if (topPlayer == null)
+            if (topPlayer == null) {
+                CookieDough.getInstance().getLogger().warning("No top player found for gameMode: " + gameMode);
                 return;
+            }
 
             // Get win count for the top player
             wins = PlayerStatsService.getWinsThisWeekStatic(topPlayer.getId(), gameMode);
+            CookieDough.getInstance().getLogger()
+                    .info("Top player for " + gameMode + ": " + topPlayer.getName() + " with " + wins + " wins");
         } catch (Exception e) {
-            plugin.getLogger().warning("Failed to get top player data for " + gameMode + ": " + e.getMessage());
+            CookieDough.getInstance().getLogger()
+                    .warning("Failed to get top player data for " + gameMode + ": " + e.getMessage());
+            e.printStackTrace();
             return;
         }
 
@@ -53,8 +64,8 @@ public class StatueManager {
         statue.setSmall(true);
         statue.setInvulnerable(true); // Prevent breaking
         statue.setDisabledSlots(org.bukkit.inventory.EquipmentSlot.values()); // Prevent item removal
-        statue.setMetadata("statue", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
-        statue.setMetadata("gameMode", new org.bukkit.metadata.FixedMetadataValue(plugin, gameMode));
+        statue.setMetadata("statue", new FixedMetadataValue(plugin, true));
+        statue.setMetadata("gameMode", new FixedMetadataValue(plugin, gameMode));
 
         // Set player head
         ItemStack head = SkinUtils.getPlayerHead(topPlayer.getId());
@@ -65,8 +76,17 @@ public class StatueManager {
         // Create floating text
         createFloatingText(gameMode, location.clone().add(0, 0.5, 0), topPlayer, wins);
 
+        CookieDough.getInstance().getLogger().info("Statue created successfully, now creating leaderboard...");
+
         // Create leaderboard
-        leaderboardManager.createLeaderboard(gameMode, location.clone().add(0, 2, 0));
+        try {
+            leaderboardManager.createLeaderboard(gameMode, location.clone().add(0, 2, 0));
+            CookieDough.getInstance().getLogger().info("Leaderboard created successfully for gameMode: " + gameMode);
+        } catch (Exception e) {
+            CookieDough.getInstance().getLogger()
+                    .severe("Failed to create leaderboard for gameMode: " + gameMode + " - " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void createFloatingText(String gameMode, Location location, PlayerData player, int wins) {
@@ -84,8 +104,8 @@ public class StatueManager {
         textDisplay.setMarker(true);
         textDisplay.setInvulnerable(true); // Prevent breaking
         textDisplay.setDisabledSlots(org.bukkit.inventory.EquipmentSlot.values()); // Prevent item removal
-        textDisplay.setMetadata("statue", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
-        textDisplay.setMetadata("gameMode", new org.bukkit.metadata.FixedMetadataValue(plugin, gameMode));
+        textDisplay.setMetadata("statue", new FixedMetadataValue(plugin, true));
+        textDisplay.setMetadata("gameMode", new FixedMetadataValue(plugin, gameMode));
 
         textDisplays.put(gameMode, textDisplay);
     }

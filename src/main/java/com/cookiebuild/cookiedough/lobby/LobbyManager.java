@@ -23,7 +23,6 @@ import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
-import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
@@ -122,7 +121,7 @@ public class LobbyManager implements Listener {
             sign.setLine(2, stateColor + stateText);
             sign.setLine(3, ChatColor.YELLOW + "" + game.getPlayerCount() + "/" + game.getCapacity() + " players");
 
-            sign.setWaxed(true);
+            sign.setWaxed(false); // Unwax to allow updates
             sign.setGlowingText(true);
             sign.update(true); // Force update
         } catch (Exception e) {
@@ -146,7 +145,9 @@ public class LobbyManager implements Listener {
     }
 
     public void addGameSign(Sign sign) {
+        CookieDough.getInstance().getLogger().info("Adding game sign at location: " + sign.getBlock().getLocation());
         gameSigns.add(sign);
+        CookieDough.getInstance().getLogger().info("Sign added successfully! Total signs now: " + gameSigns.size());
     }
 
     public void addGameNpc(String gameName, Location location) {
@@ -202,7 +203,7 @@ public class LobbyManager implements Listener {
     }
 
     public void joinAvailableGame(CookiePlayer player) {
-        for (GameStatus game : GameManager.getGames()) {
+        for (Game game : GameManager.getGames()) {
             if (game.addPlayerToAvailableTeam(player)) {
                 return;
             }
@@ -221,7 +222,7 @@ public class LobbyManager implements Listener {
         }
         Block clickedBlock = event.getClickedBlock();
         if (clickedBlock != null && clickedBlock.getState() instanceof Sign sign) {
-            for (GameStatus game : GameManager.getGames()) {
+            for (Game game : GameManager.getGames()) {
                 if (sign.getLine(1).contains(game.getGameName())) {
                     if (game.getState() == GameState.OPEN) {
                         Player player = event.getPlayer();
@@ -245,9 +246,9 @@ public class LobbyManager implements Listener {
         }
     }
 
-    private GameStatus findGameForSign(Sign clickedSign) {
-        for (GameStatus game : GameManager.getGames()) {
-            if (clickedSign.getLine(1).equals(ChatColor.GOLD + "" + ChatColor.BOLD + game.getGameName())) {
+    private Game findGameForSign(Sign clickedSign) {
+        for (Game game : GameManager.getGames()) {
+            if (clickedSign.getLine(1).contains(game.getGameName())) {
                 return game;
             }
         }

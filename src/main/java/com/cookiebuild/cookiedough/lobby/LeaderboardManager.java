@@ -29,29 +29,43 @@ public class LeaderboardManager {
     }
 
     public void createLeaderboard(String gameMode, Location baseLocation) {
+        plugin.getLogger().info("=== CREATING LEADERBOARD DEBUG ===");
+        plugin.getLogger().info("GameMode: " + gameMode);
+        plugin.getLogger().info("Location: " + baseLocation);
+
         // Remove existing leaderboard if any
         removeLeaderboard(gameMode);
 
         // Use static methods for better resource management
         try {
+            plugin.getLogger().info("Fetching top players for: " + gameMode);
             List<PlayerData> topPlayers = PlayerStatsService.getTopPlayersThisMonthStatic(gameMode, 10);
+            plugin.getLogger().info("Found " + topPlayers.size() + " top players");
+
             List<ArmorStand> lines = new ArrayList<>();
 
             // Title
             Location titleLoc = baseLocation.clone().add(0, 2.5, 0); // Above the statue
+            plugin.getLogger().info("Creating title at: " + titleLoc);
             ArmorStand titleStand = spawnHologram(titleLoc, Component.text()
                     .append(Component.text(gameMode).color(NamedTextColor.AQUA))
                     .append(Component.text(" - Monthly Leaderboard").color(NamedTextColor.GOLD))
                     .decorate(TextDecoration.BOLD)
                     .build());
             lines.add(titleStand);
+            plugin.getLogger().info("Title created successfully");
 
             // Player entries
             for (int i = 0; i < topPlayers.size(); i++) {
                 PlayerData player = topPlayers.get(i);
+                plugin.getLogger().info("Processing player " + i + ": " + player.getName());
+
                 int wins = PlayerStatsService.getWinsThisMonthStatic(player.getId(), gameMode);
+                plugin.getLogger().info("Player " + player.getName() + " has " + wins + " wins");
 
                 Location lineLoc = titleLoc.clone().subtract(0, (i + 1) * LINE_SPACING, 0);
+                plugin.getLogger().info("Creating line " + i + " at: " + lineLoc);
+
                 Component text = Component.text()
                         .append(Component.text("#" + (i + 1) + " ")
                                 .color(i < 3 ? NamedTextColor.GOLD : NamedTextColor.GRAY))
@@ -61,12 +75,16 @@ public class LeaderboardManager {
 
                 ArmorStand line = spawnHologram(lineLoc, text);
                 lines.add(line);
+                plugin.getLogger().info("Line " + i + " created successfully");
             }
 
             leaderboardLines.put(gameMode, lines);
+            plugin.getLogger().info("Leaderboard created successfully with " + lines.size() + " lines");
         } catch (Exception e) {
             plugin.getLogger().severe("Failed to create leaderboard for " + gameMode + ": " + e.getMessage());
+            e.printStackTrace();
         }
+        plugin.getLogger().info("=== END CREATING LEADERBOARD DEBUG ===");
     }
 
     private ArmorStand spawnHologram(Location location, Component text) {

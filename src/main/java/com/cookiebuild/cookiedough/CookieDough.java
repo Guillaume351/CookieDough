@@ -3,6 +3,7 @@ package com.cookiebuild.cookiedough;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Sign;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.cookiebuild.cookiedough.chat.ChatManager;
@@ -106,6 +107,35 @@ public final class CookieDough extends JavaPlugin {
         if (lobbyWorld == null) {
             getLogger().severe("Lobby world not found! NPCs cannot be created.");
             return;
+        }
+
+        // Initialize lobby signs (restore from main branch and add more)
+        try {
+            // First sign at original location (0, 8, 12) - will show first game (Pitchout)
+            Sign gameSign1 = (Sign) lobbyWorld.getBlockAt(0, 8, 12).getState();
+            if (gameSign1 != null) {
+                lobbyManager.addGameSign(gameSign1);
+                getLogger().info("Added game sign #1 at (0, 8, 12): " + gameSign1);
+            } else {
+                getLogger().warning("No sign found at (0, 8, 12) in lobby world");
+            }
+
+            // Second sign above the first one (0, 9, 12) - will show second game
+            // (MicroBattles)
+            Sign gameSign2 = (Sign) lobbyWorld.getBlockAt(0, 9, 12).getState();
+            if (gameSign2 != null) {
+                lobbyManager.addGameSign(gameSign2);
+                getLogger().info("Added game sign #2 at (0, 9, 12): " + gameSign2);
+            } else {
+                getLogger().warning("No sign found at (0, 9, 12) in lobby world");
+            }
+
+            // Log total signs registered
+            getLogger().info("Total game signs registered: " +
+                    (gameSign1 != null ? 1 : 0) + (gameSign2 != null ? 1 : 0));
+
+        } catch (Exception e) {
+            getLogger().warning("Failed to add hardcoded signs: " + e.getMessage());
         }
 
         Location microBattlesNpcLocation = new Location(lobbyWorld, 0.5, 8, 12.5, 180, 0);
