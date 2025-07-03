@@ -163,6 +163,7 @@ public class PlayerWrapperListener implements Listener {
         if (finishedSession != null) {
             finishedSession.setEndTime(quitTime);
             finishedSession.setDuration(quitTime.getTime() - finishedSession.getStartTime().getTime());
+            finishedSession.setServerCrash(false); // Mark as normal quit, not a crash
 
             try {
                 PlayerSession finalSession = finishedSession;

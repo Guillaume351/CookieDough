@@ -1,12 +1,13 @@
 package com.cookiebuild.cookiedough.utils;
 
-import com.cookiebuild.cookiedough.CookieDough;
-import org.bukkit.Bukkit;
-
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+
+import org.bukkit.Bukkit;
+
+import com.cookiebuild.cookiedough.CookieDough;
 
 public class DiscordUtils {
 
@@ -20,7 +21,8 @@ public class DiscordUtils {
     public static void sendDiscordMessage(String webhookUrl, String message) {
         if (webhookUrl == null || webhookUrl.isEmpty()) {
             // Webhook URL is not defined, skip sending the message
-            CookieDough.getInstance().getLogger().warning("Discord webhook URL is not defined. Skipping Discord message.");
+            CookieDough.getInstance().getLogger()
+                    .warning("Discord webhook URL is not defined. Skipping Discord message.");
             return;
         }
 
@@ -32,7 +34,8 @@ public class DiscordUtils {
                 connection.setRequestProperty("Content-Type", "application/json");
                 connection.setDoOutput(true);
 
-                String jsonPayload = String.format("{\"content\":\"%s\"}", message);
+                String escapedMessage = escapeJsonString(message);
+                String jsonPayload = String.format("{\"content\":\"%s\"}", escapedMessage);
                 byte[] out = jsonPayload.getBytes(StandardCharsets.UTF_8);
 
                 try (OutputStream os = connection.getOutputStream()) {
@@ -45,5 +48,25 @@ public class DiscordUtils {
                 CookieDough.getInstance().getLogger().severe("Failed to send Discord message: " + e.getMessage());
             }
         });
+    }
+
+    /**
+     * Escape special JSON characters to prevent JSON injection.
+     *
+     * @param input The string to escape
+     * @return The escaped string safe for JSON
+     */
+    private static String escapeJsonString(String input) {
+        if (input == null) {
+            return "";
+        }
+
+        return input.replace("\\", "\\\\") // Escape backslashes first
+                .replace("\"", "\\\"") // Escape quotes
+                .replace("\b", "\\b") // Escape backspace
+                .replace("\f", "\\f") // Escape form feed
+                .replace("\n", "\\n") // Escape newline
+                .replace("\r", "\\r") // Escape carriage return
+                .replace("\t", "\\t"); // Escape tab
     }
 }

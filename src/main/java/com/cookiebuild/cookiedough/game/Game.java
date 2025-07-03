@@ -63,16 +63,20 @@ public abstract class Game implements GameStatus {
     }
 
     public void removePlayer(CookiePlayer player) {
-        if (players.remove(player)) {
+        boolean playerWasRemoved = players.remove(player);
+        if (playerWasRemoved) {
             if (startTimer > 0 && players.size() < 2) {
                 startTimer = 0;
                 inQuickStart = false;
             }
-        }
-        if (this.state != GameState.FINISHED) {
-            getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.RED
-                    + LocaleManager.getMessage("player.left.game", p.getPlayer().locale(),
-                            player.getPlayer().getName())));
+
+            // Only send notification if player was actually removed and game is not
+            // finished
+            if (this.state != GameState.FINISHED) {
+                getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.RED
+                        + LocaleManager.getMessage("player.left.game", p.getPlayer().locale(),
+                                player.getPlayer().getName())));
+            }
         }
     }
 
