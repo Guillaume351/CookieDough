@@ -1,11 +1,13 @@
 package com.cookiebuild.cookiedough.service;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.model.Match;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
@@ -57,7 +59,9 @@ public class PlayerStatsService {
     }
 
     /**
-     * Get top players this month with proper resource management
+     * Get top players for a specific game mode this month with proper resource
+     * management.
+     * Fixed HQL syntax for better HikariCP compatibility.
      */
     public static List<PlayerData> getTopPlayersThisMonthStatic(String gameMode, int limit) {
         try (EntityManager em = HibernateUtil.createEntityManager()) {
@@ -70,23 +74,31 @@ public class PlayerStatsService {
             cal.set(Calendar.MILLISECOND, 0);
             Date startOfMonth = cal.getTime();
 
-            // Use HQL with proper field names
+            // Use more standard HQL query - count wins by checking if player is in winners
+            // collection
             TypedQuery<PlayerData> query = em.createQuery(
                     "SELECT p.player FROM PlayerMatchPerformance p " +
                             "JOIN p.match m " +
                             "WHERE m.gameType = :gameType AND m.endTime >= :startOfMonth " +
                             "GROUP BY p.player " +
-                            "ORDER BY COUNT(CASE WHEN p.player MEMBER OF m.winners THEN 1 END) DESC",
+                            "ORDER BY SUM(CASE WHEN p.player IN (SELECT w FROM m.winners w) THEN 1 ELSE 0 END) DESC",
                     PlayerData.class);
             query.setParameter("gameType", gameMode);
             query.setParameter("startOfMonth", startOfMonth);
             query.setMaxResults(limit);
             return query.getResultList();
+        } catch (Exception e) {
+            // Add error handling to help debug leaderboard issues
+            CookieDough.getInstance().getLogger()
+                    .severe("Failed to get top players for " + gameMode + ": " + e.getMessage());
+            e.printStackTrace();
+            return new ArrayList<>();
         }
     }
 
     /**
      * Get top player this week with proper resource management
+     * Fixed HQL syntax for better HikariCP compatibility.
      */
     public static PlayerData getTopPlayerThisWeekStatic(String gameMode) {
         try (EntityManager em = HibernateUtil.createEntityManager()) {
@@ -100,7 +112,7 @@ public class PlayerStatsService {
             Date startOfWeek = cal.getTime();
 
             // Query to get the player with the most wins in the specified game mode this
-            // week
+            // week - standardized syntax
             TypedQuery<PlayerData> query = em.createQuery(
                     "SELECT p.player FROM PlayerMatchPerformance p " +
                             "JOIN p.match m " +
@@ -117,6 +129,11 @@ public class PlayerStatsService {
             } catch (jakarta.persistence.NoResultException e) {
                 return null;
             }
+        } catch (Exception e) {
+            // Add error handling to help debug statue issues
+            CookieDough.getInstance().getLogger()
+                    .warning("Failed to get top player for " + gameMode + ": " + e.getMessage());
+            return null;
         }
     }
 
@@ -146,6 +163,10 @@ public class PlayerStatsService {
             query.setParameter("startOfWeek", startOfWeek);
 
             return query.getSingleResult().intValue();
+        } catch (Exception e) {
+            CookieDough.getInstance().getLogger().warning(
+                    "Failed to get wins this week for player " + playerId + " in " + gameMode + ": " + e.getMessage());
+            return 0;
         }
     }
 
@@ -175,6 +196,10 @@ public class PlayerStatsService {
             query.setParameter("startOfMonth", startOfMonth);
 
             return query.getSingleResult().intValue();
+        } catch (Exception e) {
+            CookieDough.getInstance().getLogger().warning(
+                    "Failed to get wins this month for player " + playerId + " in " + gameMode + ": " + e.getMessage());
+            return 0;
         }
     }
 
