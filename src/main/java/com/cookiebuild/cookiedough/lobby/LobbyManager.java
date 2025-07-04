@@ -68,6 +68,7 @@ public class LobbyManager implements Listener {
     }
 
     private void startSignRefreshTask() {
+        CookieDough.getInstance().getLogger().info("Starting sign refresh task - will run every second (20 ticks)");
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -79,28 +80,85 @@ public class LobbyManager implements Listener {
     private void refreshSigns() {
         ArrayList<Game> games = GameManager.getGames();
 
+        // Only log detailed refresh info if we expect changes or every 30 cycles (30
+        // seconds)
+        boolean detailedLogging = shouldLogDetailed();
+
+        if (detailedLogging) {
+            CookieDough.getInstance().getLogger().info("=== SIGN REFRESH ===");
+            CookieDough.getInstance().getLogger().info("Games: " + games.size() + " | Signs: " + gameSigns.size());
+        }
+
         // Remove any invalid signs (destroyed blocks)
-        gameSigns.removeIf(sign -> sign == null || !sign.getBlock().getType().name().contains("SIGN"));
+        int initialSignCount = gameSigns.size();
+        gameSigns.removeIf(sign -> {
+            if (sign == null) {
+                CookieDough.getInstance().getLogger().warning("Found null sign, removing from list");
+                return true;
+            }
+            if (!sign.getBlock().getType().name().contains("SIGN")) {
+                CookieDough.getInstance().getLogger().warning("Found invalid sign block (type: " +
+                        sign.getBlock().getType().name() + "), removing from list");
+                return true;
+            }
+            return false;
+        });
+
+        if (initialSignCount != gameSigns.size()) {
+            CookieDough.getInstance().getLogger().info("Removed " + (initialSignCount - gameSigns.size()) +
+                    " invalid signs. New count: " + gameSigns.size());
+        }
 
         // Update existing signs
+        int signsActuallyUpdated = 0;
         for (int i = 0; i < gameSigns.size(); i++) {
             Sign sign = gameSigns.get(i);
+
             if (sign != null && sign.getBlock().getType().name().contains("SIGN")) {
+                boolean wasUpdated = false;
                 if (i < games.size()) {
                     Game game = games.get(i);
-                    updateSignContent(sign, game);
+                    wasUpdated = updateSignContentIfChanged(sign, game, detailedLogging);
                 } else {
-                    // Clear sign if no corresponding game
-                    clearSignContent(sign);
+                    wasUpdated = clearSignContentIfChanged(sign, detailedLogging);
                 }
+
+                if (wasUpdated) {
+                    signsActuallyUpdated++;
+                }
+            } else {
+                CookieDough.getInstance().getLogger().warning("Sign " + i + " is null or invalid during processing");
             }
+        }
+
+        // Only log if signs were updated, or every 30 seconds
+        if (signsActuallyUpdated > 0) {
+            CookieDough.getInstance().getLogger().info("Updated " + signsActuallyUpdated + " signs");
+        } else if (detailedLogging) {
+            CookieDough.getInstance().getLogger().info("No sign updates needed");
         }
     }
 
-    private void updateSignContent(Sign sign, Game game) {
+    private static int refreshCycleCount = 0;
+
+    private boolean shouldLogDetailed() {
+        refreshCycleCount++;
+        // Log detailed info every 30 cycles (30 seconds) or if it's the first cycle
+        return refreshCycleCount == 1 || refreshCycleCount % 30 == 0;
+    }
+
+    private boolean updateSignContentIfChanged(Sign sign, Game game, boolean detailedLogging) {
         try {
-            sign.setLine(0, ChatColor.BLUE + "Game");
-            sign.setLine(1, ChatColor.GOLD + game.getGameName());
+            // Ensure chunk is loaded
+            if (!sign.getBlock().getChunk().isLoaded()) {
+                CookieDough.getInstance().getLogger()
+                        .info("Loading chunk for sign at: " + sign.getBlock().getLocation());
+                sign.getBlock().getChunk().load(true);
+            }
+
+            // Generate new content
+            String newLine0 = ChatColor.BLUE + "Game";
+            String newLine1 = ChatColor.GOLD + game.getGameName();
 
             String stateColor;
             String stateText = game.getState().toString();
@@ -118,36 +176,153 @@ public class LobbyManager implements Listener {
                     stateColor = ChatColor.GRAY.toString();
             }
 
-            sign.setLine(2, stateColor + stateText);
-            sign.setLine(3, ChatColor.YELLOW + "" + game.getPlayerCount() + "/" + game.getCapacity() + " players");
+            String newLine2 = stateColor + stateText;
+            String newLine3 = ChatColor.YELLOW + "" + game.getPlayerCount() + "/" + game.getCapacity() + " players";
 
-            sign.setWaxed(false); // Unwax to allow updates
+            // Check if content actually changed
+            boolean contentChanged = !sign.getLine(0).equals(newLine0) ||
+                    !sign.getLine(1).equals(newLine1) ||
+                    !sign.getLine(2).equals(newLine2) ||
+                    !sign.getLine(3).equals(newLine3);
+
+            if (!contentChanged) {
+                return false;
+            }
+
+            // Always log when content actually changes
+            CookieDough.getInstance().getLogger().info("Updating sign for " + game.getGameName() +
+                    ": " + sign.getLine(3) + " → " + newLine3);
+
+            // Update content
+            sign.setLine(0, newLine0);
+            sign.setLine(1, newLine1);
+            sign.setLine(2, newLine2);
+            sign.setLine(3, newLine3);
+
+            sign.setWaxed(false);
             sign.setGlowingText(true);
-            sign.update(true); // Force update
+
+            boolean updateResult = sign.update(true);
+            if (!updateResult) {
+                CookieDough.getInstance().getLogger().warning("Sign update failed for " + game.getGameName());
+            }
+
+            // Send update to all nearby players
+            sendSignUpdateToNearbyPlayers(sign);
+
+            return true;
+
         } catch (Exception e) {
-            // Sign might have been destroyed, remove it from our list
-            CookieDough.getInstance().getLogger().warning("Failed to update sign: " + e.getMessage());
+            CookieDough.getInstance().getLogger().severe("Failed to update sign at " +
+                    sign.getBlock().getLocation() + ": " + e.getMessage());
             gameSigns.remove(sign);
+            return false;
         }
     }
 
-    private void clearSignContent(Sign sign) {
+    private boolean clearSignContentIfChanged(Sign sign, boolean detailedLogging) {
         try {
+            // Check if sign is already empty
+            boolean isEmpty = sign.getLine(0).isEmpty() &&
+                    sign.getLine(1).isEmpty() &&
+                    sign.getLine(2).isEmpty() &&
+                    sign.getLine(3).isEmpty();
+
+            if (isEmpty) {
+                return false;
+            }
+
+            CookieDough.getInstance().getLogger().info("Clearing empty sign at: " + sign.getBlock().getLocation());
+
+            // Ensure chunk is loaded
+            if (!sign.getBlock().getChunk().isLoaded()) {
+                sign.getBlock().getChunk().load(true);
+            }
+
             for (int i = 0; i < 4; i++) {
                 sign.setLine(i, "");
             }
-            sign.update(true); // Force update
+
+            boolean updateResult = sign.update(true);
+            if (!updateResult) {
+                CookieDough.getInstance().getLogger().warning("Sign clear failed");
+            }
+
+            // Send update to all nearby players
+            sendSignUpdateToNearbyPlayers(sign);
+
+            return true;
+
         } catch (Exception e) {
-            // Sign might have been destroyed, remove it from our list
-            CookieDough.getInstance().getLogger().warning("Failed to clear sign: " + e.getMessage());
+            CookieDough.getInstance().getLogger().severe("Failed to clear sign at " +
+                    sign.getBlock().getLocation() + ": " + e.getMessage());
             gameSigns.remove(sign);
+            return false;
+        }
+    }
+
+    private void sendSignUpdateToNearbyPlayers(Sign sign) {
+        try {
+            Location signLocation = sign.getBlock().getLocation();
+            World world = signLocation.getWorld();
+
+            if (world != null) {
+                int playersNotified = 0;
+                for (Player player : world.getPlayers()) {
+                    if (player.getLocation().distance(signLocation) <= 64) {
+                        // Use both methods for maximum compatibility
+                        player.sendBlockChange(signLocation, sign.getBlock().getBlockData());
+                        player.sendSignChange(signLocation, sign.getLines());
+                        playersNotified++;
+                    }
+                }
+
+                if (playersNotified > 0) {
+                    CookieDough.getInstance().getLogger().info("Synced sign to " + playersNotified + " players");
+                }
+
+                // Delayed backup update for any missed clients
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            for (Player player : world.getPlayers()) {
+                                if (player.getLocation().distance(signLocation) <= 64) {
+                                    player.sendSignChange(signLocation, sign.getLines());
+                                }
+                            }
+                        } catch (Exception e) {
+                            // Silent failure for delayed updates
+                        }
+                    }
+                }.runTaskLater(plugin, 5);
+
+            }
+        } catch (Exception e) {
+            CookieDough.getInstance().getLogger().warning("Failed to send sign update to players: " + e.getMessage());
         }
     }
 
     public void addGameSign(Sign sign) {
-        CookieDough.getInstance().getLogger().info("Adding game sign at location: " + sign.getBlock().getLocation());
+        CookieDough.getInstance().getLogger().info("=== ADDING GAME SIGN ===");
+        CookieDough.getInstance().getLogger().info("Sign location: " + sign.getBlock().getLocation());
+        CookieDough.getInstance().getLogger().info("Sign block type: " + sign.getBlock().getType().name());
+        CookieDough.getInstance().getLogger().info("Current sign content:");
+        for (int i = 0; i < 4; i++) {
+            CookieDough.getInstance().getLogger().info("  Line " + i + ": '" + sign.getLine(i) + "'");
+        }
+
         gameSigns.add(sign);
         CookieDough.getInstance().getLogger().info("Sign added successfully! Total signs now: " + gameSigns.size());
+
+        // Log all current signs
+        CookieDough.getInstance().getLogger().info("All registered signs:");
+        for (int i = 0; i < gameSigns.size(); i++) {
+            Sign currentSign = gameSigns.get(i);
+            CookieDough.getInstance().getLogger().info("  Sign " + i + ": " + currentSign.getBlock().getLocation() +
+                    " (type: " + currentSign.getBlock().getType().name() + ")");
+        }
+        CookieDough.getInstance().getLogger().info("=== END ADDING GAME SIGN ===");
     }
 
     public void addGameNpc(String gameName, Location location) {
@@ -274,5 +449,82 @@ public class LobbyManager implements Listener {
 
     public List<Sign> getGameSigns() {
         return gameSigns;
+    }
+
+    /**
+     * Debug method to manually refresh all signs and force client updates
+     * Useful for testing and troubleshooting sign sync issues
+     */
+    public void debugRefreshAllSigns() {
+        CookieDough.getInstance().getLogger().info("=== MANUAL SIGN DEBUG REFRESH ===");
+
+        for (int i = 0; i < gameSigns.size(); i++) {
+            Sign sign = gameSigns.get(i);
+            CookieDough.getInstance().getLogger()
+                    .info("Debug refreshing sign " + i + " at: " + sign.getBlock().getLocation());
+
+            // Log current server-side content
+            CookieDough.getInstance().getLogger().info("Current server-side sign content:");
+            for (int lineNum = 0; lineNum < 4; lineNum++) {
+                CookieDough.getInstance().getLogger().info("  Line " + lineNum + ": '" + sign.getLine(lineNum) + "'");
+            }
+
+            // Force client refresh for all nearby players
+            sendSignUpdateToNearbyPlayers(sign);
+
+            // Additional verification - try to re-read the sign content
+            try {
+                Sign reloadedSign = (Sign) sign.getBlock().getState();
+                CookieDough.getInstance().getLogger().info("Re-read sign content after refresh:");
+                for (int lineNum = 0; lineNum < 4; lineNum++) {
+                    CookieDough.getInstance().getLogger()
+                            .info("  Line " + lineNum + ": '" + reloadedSign.getLine(lineNum) + "'");
+                }
+
+                // Check if there's any difference
+                boolean contentMatches = true;
+                for (int lineNum = 0; lineNum < 4; lineNum++) {
+                    if (!sign.getLine(lineNum).equals(reloadedSign.getLine(lineNum))) {
+                        contentMatches = false;
+                        CookieDough.getInstance().getLogger().warning("MISMATCH on line " + lineNum +
+                                ": Original='" + sign.getLine(lineNum) + "' vs Reloaded='"
+                                + reloadedSign.getLine(lineNum) + "'");
+                    }
+                }
+
+                if (contentMatches) {
+                    CookieDough.getInstance().getLogger().info("Sign content verification: PASSED");
+                } else {
+                    CookieDough.getInstance().getLogger()
+                            .warning("Sign content verification: FAILED - Content mismatch detected!");
+                }
+
+            } catch (Exception e) {
+                CookieDough.getInstance().getLogger().warning("Failed to re-read sign content: " + e.getMessage());
+            }
+        }
+
+        CookieDough.getInstance().getLogger().info("=== END MANUAL SIGN DEBUG REFRESH ===");
+    }
+
+    /**
+     * Force all nearby players to refresh their view of all signs
+     */
+    public void forceSignRefreshForAllPlayers() {
+        CookieDough.getInstance().getLogger().info("Forcing sign refresh for all players...");
+
+        World lobbyWorld = Bukkit.getWorld("lobby");
+        if (lobbyWorld != null) {
+            for (Player player : lobbyWorld.getPlayers()) {
+                for (Sign sign : gameSigns) {
+                    if (sign != null && sign.getBlock().getLocation().getWorld().equals(lobbyWorld)) {
+                        // Force refresh this sign for this player
+                        player.sendSignChange(sign.getBlock().getLocation(), sign.getLines());
+                        player.sendBlockChange(sign.getBlock().getLocation(), sign.getBlock().getBlockData());
+                    }
+                }
+                CookieDough.getInstance().getLogger().info("Refreshed all signs for player: " + player.getName());
+            }
+        }
     }
 }

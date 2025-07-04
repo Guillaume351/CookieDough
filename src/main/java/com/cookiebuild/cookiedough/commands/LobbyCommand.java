@@ -33,6 +33,10 @@ public class LobbyCommand implements CommandExecutor {
                 return handleAddSign(player);
             } else if (args[0].equalsIgnoreCase("listsigns")) {
                 return handleListSigns(player);
+            } else if (args[0].equalsIgnoreCase("refreshsigns")) {
+                return handleRefreshSigns(player);
+            } else if (args[0].equalsIgnoreCase("debugsigns")) {
+                return handleDebugSigns(player);
             } else if (args[0].equalsIgnoreCase("help")) {
                 return handleHelp(player);
             }
@@ -70,12 +74,31 @@ public class LobbyCommand implements CommandExecutor {
         return true;
     }
 
+    private boolean handleRefreshSigns(Player player) {
+        player.sendMessage(ChatColor.YELLOW + "Forcing sign refresh for all players...");
+        lobbyManager.forceSignRefreshForAllPlayers();
+        player.sendMessage(ChatColor.GREEN + "Sign refresh completed for all players!");
+        return true;
+    }
+
+    private boolean handleDebugSigns(Player player) {
+        player.sendMessage(ChatColor.YELLOW + "Running comprehensive sign debug refresh...");
+        player.sendMessage(ChatColor.GRAY + "Check console for detailed debug output.");
+        lobbyManager.debugRefreshAllSigns();
+        player.sendMessage(ChatColor.GREEN + "Debug refresh completed! Check console for details.");
+        return true;
+    }
+
     private boolean handleHelp(Player player) {
         player.sendMessage(ChatColor.GOLD + "=== Lobby Admin Commands ===");
         player.sendMessage(ChatColor.YELLOW + "/lobby addsign" + ChatColor.WHITE
                 + " - Add the sign you're looking at to the game system");
         player.sendMessage(
                 ChatColor.YELLOW + "/lobby listsigns" + ChatColor.WHITE + " - List all registered game signs");
+        player.sendMessage(ChatColor.YELLOW + "/lobby refreshsigns" + ChatColor.WHITE
+                + " - Force refresh all signs for all players");
+        player.sendMessage(ChatColor.YELLOW + "/lobby debugsigns" + ChatColor.WHITE
+                + " - Run comprehensive sign debug refresh (check console)");
         player.sendMessage(ChatColor.YELLOW + "/lobby help" + ChatColor.WHITE + " - Show this help");
         player.sendMessage(ChatColor.YELLOW + "/lobby" + ChatColor.WHITE + " - Teleport to lobby");
         return true;

@@ -215,6 +215,8 @@ public abstract class Game implements GameStatus {
     }
 
     public int getPlayerCount() {
+        // Log for debugging
+        CookieDough.getInstance().getLogger().info("Player count: " + players.size());
         return players.size();
     }
 
