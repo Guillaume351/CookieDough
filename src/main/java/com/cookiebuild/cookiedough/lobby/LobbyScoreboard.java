@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -24,6 +25,7 @@ import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
+import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -50,15 +52,24 @@ public class LobbyScoreboard {
     private BukkitTask updateTask;
     private long lastScoreboardUpdate = 0;
     private static final long SCOREBOARD_UPDATE_INTERVAL = 10000; // Update every 10 seconds instead of 5
+    private final AtomicBoolean refreshInFlight = new AtomicBoolean();
 
     // Cached stats data structure
     private static class PlayerStats {
         List<PlayerMatchPerformance> allPerformances;
         Long totalPlayTime;
+        int coins;
+        PlayerStatsService.ProgressionSnapshot microProgression;
+        PlayerStatsService.ProgressionSnapshot pitchoutProgression;
 
-        PlayerStats(List<PlayerMatchPerformance> performances, Long playTime) {
+        PlayerStats(List<PlayerMatchPerformance> performances, Long playTime, int coins,
+                PlayerStatsService.ProgressionSnapshot microProgression,
+                PlayerStatsService.ProgressionSnapshot pitchoutProgression) {
             this.allPerformances = performances;
             this.totalPlayTime = playTime;
+            this.coins = coins;
+            this.microProgression = microProgression;
+            this.pitchoutProgression = pitchoutProgression;
         }
     }
 
@@ -101,67 +112,42 @@ public class LobbyScoreboard {
     private PlayerStats getCachedStats() {
         java.util.UUID playerId = player.getUniqueId();
         long currentTime = System.currentTimeMillis();
-
-        // Check if we have valid cached data
         PlayerStats cachedStats = statsCache.get(playerId);
         Long lastUpdate = lastCacheUpdate.get(playerId);
-
         if (cachedStats != null && lastUpdate != null &&
                 (currentTime - lastUpdate) < CACHE_DURATION) {
             return cachedStats;
         }
+        refreshStatsAsync(playerId);
+        return cachedStats != null ? cachedStats : new PlayerStats(new ArrayList<>(), 0L, 0,
+                PlayerStatsService.ProgressionSnapshot.empty(), PlayerStatsService.ProgressionSnapshot.empty());
+    }
 
-        // Cache is expired or doesn't exist, fetch new data with retry logic
-        int maxRetries = 3;
-        int retryDelay = 1000; // 1 second
-
-        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+    private void refreshStatsAsync(java.util.UUID playerId) {
+        if (!refreshInFlight.compareAndSet(false, true)) {
+            return;
+        }
+        Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
             try {
                 List<PlayerMatchPerformance> allPerformances = PlayerStatsService
                         .getPlayerPerformancesStatic(playerId);
                 Long totalPlayTime = PlayerStatsService.getTotalPlayTimeStatic(playerId);
-
-                PlayerStats newStats = new PlayerStats(allPerformances, totalPlayTime);
+                int coins = PlayerStatsService.getCoinsStatic(playerId);
+                PlayerStatsService.ProgressionSnapshot micro = PlayerStatsService.getProgressionStatic(
+                        playerId, MinigameProgressionService.MICROBATTLES);
+                PlayerStatsService.ProgressionSnapshot pitchout = PlayerStatsService.getProgressionStatic(
+                        playerId, MinigameProgressionService.PITCHOUT);
+                PlayerStats newStats = new PlayerStats(allPerformances, totalPlayTime, coins, micro, pitchout);
                 statsCache.put(playerId, newStats);
-                lastCacheUpdate.put(playerId, currentTime);
-
-                return newStats;
-
+                lastCacheUpdate.put(playerId, System.currentTimeMillis());
+                Bukkit.getScheduler().runTask(CookieDough.getInstance(), this::update);
             } catch (Exception e) {
                 CookieDough.getInstance().getLogger().warning(
-                        "Database query failed for player " + player.getName() +
-                                " (attempt " + attempt + "/" + maxRetries + "): " + e.getMessage());
-
-                if (attempt == maxRetries) {
-                    // On final failure, return cached data if available, or empty data
-                    if (cachedStats != null) {
-                        CookieDough.getInstance().getLogger().info(
-                                "Using stale cached data for player " + player.getName() +
-                                        " due to database connection issues");
-                        return cachedStats;
-                    } else {
-                        CookieDough.getInstance().getLogger().warning(
-                                "No cached data available for player " + player.getName() +
-                                        ", returning empty stats");
-                        return new PlayerStats(new ArrayList<>(), 0L);
-                    }
-                }
-
-                // Wait before retrying (except on last attempt)
-                if (attempt < maxRetries) {
-                    try {
-                        Thread.sleep(retryDelay);
-                        retryDelay *= 2; // Exponential backoff
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
+                        "Could not refresh lobby stats for " + player.getName() + ": " + e.getMessage());
+            } finally {
+                refreshInFlight.set(false);
             }
-        }
-
-        // Fallback (should never reach here, but just in case)
-        return cachedStats != null ? cachedStats : new PlayerStats(new ArrayList<>(), 0L);
+        });
     }
 
     public void update() {
@@ -195,9 +181,10 @@ public class LobbyScoreboard {
                 .decorate(TextDecoration.STRIKETHROUGH), line--);
 
         // Global stats
-        setScore(Component.text("GLOBAL STATS").color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD), line--);
-        setScore(Component.text("  Games played: ").color(NamedTextColor.GOLD)
-                .append(Component.text(allPerformances.size()).color(NamedTextColor.WHITE)), line--);
+        setScore(Component.text("PROGRESS").color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD), line--);
+        setScore(Component.text("  Coins: ").color(NamedTextColor.GOLD)
+                .append(Component.text(stats.coins).color(NamedTextColor.WHITE))
+                .append(Component.text(" • " + allPerformances.size() + " games").color(NamedTextColor.GRAY)), line--);
 
         setScore(Component.text(" "), line--);
 
@@ -219,7 +206,10 @@ public class LobbyScoreboard {
 
         // MicroBattles Stats
         List<PlayerMatchPerformance> mbPerformances = performancesByGame.getOrDefault("MicroBattles", List.of());
-        setScore(Component.text("MICROBATTLES").color(NamedTextColor.AQUA).decorate(TextDecoration.BOLD), line--);
+        setScore(Component.text("MICRO L" + stats.microProgression.level() + " "
+                        + stats.microProgression.experience() + "/" + stats.microProgression.nextLevelExperience())
+                .color(NamedTextColor.AQUA)
+                .decorate(TextDecoration.BOLD), line--);
         if (!mbPerformances.isEmpty()) {
             displayGameStats("MicroBattles", mbPerformances, line);
             line -= 2;
@@ -230,7 +220,10 @@ public class LobbyScoreboard {
 
         // Pitchout Stats
         List<PlayerMatchPerformance> poPerformances = performancesByGame.getOrDefault("Pitchout", List.of());
-        setScore(Component.text("PITCHOUT").color(NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD), line--);
+        setScore(Component.text("PITCH L" + stats.pitchoutProgression.level() + " "
+                        + stats.pitchoutProgression.experience() + "/" + stats.pitchoutProgression.nextLevelExperience())
+                .color(NamedTextColor.LIGHT_PURPLE)
+                .decorate(TextDecoration.BOLD), line--);
         if (!poPerformances.isEmpty()) {
             displayGameStats("Pitchout", poPerformances, line);
             line -= 2;

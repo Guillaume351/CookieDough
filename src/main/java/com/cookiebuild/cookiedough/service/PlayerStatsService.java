@@ -9,8 +9,11 @@ import java.util.UUID;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.model.Match;
+import com.cookiebuild.cookiedough.model.MinigameProgression;
+import com.cookiebuild.cookiedough.model.MinigameProgressionId;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
+import com.cookiebuild.cookiedough.model.PlayerSession;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 
 import jakarta.persistence.EntityManager;
@@ -19,6 +22,11 @@ import jakarta.persistence.NoResultException;
 import jakarta.persistence.TypedQuery;
 
 public class PlayerStatsService {
+    public record ProgressionSnapshot(int level, int experience, int nextLevelExperience) {
+        public static ProgressionSnapshot empty() {
+            return new ProgressionSnapshot(1, 0, 100);
+        }
+    }
 
     private final EntityManager entityManager;
 
@@ -37,7 +45,7 @@ public class PlayerStatsService {
     public static List<PlayerMatchPerformance> getPlayerPerformancesStatic(UUID playerId) {
         try (EntityManager em = HibernateUtil.createEntityManager()) {
             TypedQuery<PlayerMatchPerformance> query = em.createQuery(
-                    "SELECT p FROM PlayerMatchPerformance p " +
+                    "SELECT DISTINCT p FROM PlayerMatchPerformance p " +
                             "JOIN FETCH p.match m " +
                             "LEFT JOIN FETCH m.winners " +
                             "WHERE p.player.id = :playerId",
@@ -220,6 +228,32 @@ public class PlayerStatsService {
         }
     }
 
+    public static List<PlayerSession> getPlayerSessionsStatic(UUID playerId) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            return em.createQuery("SELECT s FROM PlayerSession s WHERE s.playerData.id = :playerId "
+                            + "ORDER BY s.startTime DESC", PlayerSession.class)
+                    .setParameter("playerId", playerId).getResultList();
+        }
+    }
+
+    public static int getCoinsStatic(UUID playerId) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            Integer coins = em.createQuery("SELECT p.coins FROM PlayerData p WHERE p.id = :playerId", Integer.class)
+                    .setParameter("playerId", playerId).getResultStream().findFirst().orElse(0);
+            return coins == null ? 0 : coins;
+        }
+    }
+
+    public static ProgressionSnapshot getProgressionStatic(UUID playerId, String minigame) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            MinigameProgression progression = em.find(MinigameProgression.class,
+                    new MinigameProgressionId(playerId, minigame));
+            return progression == null ? ProgressionSnapshot.empty()
+                    : new ProgressionSnapshot(progression.getLevel(), progression.getExperience(),
+                            progression.getExperienceForNextLevel());
+        }
+    }
+
     public EntityManager getEntityManager() {
         return entityManager;
     }
@@ -232,6 +266,9 @@ public class PlayerStatsService {
      */
     @Deprecated
     public PlayerData getPlayerData(UUID playerId) {
+        if (entityManager == null) {
+            return getPlayerDataStatic(playerId);
+        }
         try {
             return entityManager.find(PlayerData.class, playerId);
         } catch (Exception e) {
@@ -249,6 +286,9 @@ public class PlayerStatsService {
      */
     @Deprecated
     public List<PlayerMatchPerformance> getPlayerPerformances(UUID playerId) {
+        if (entityManager == null) {
+            return getPlayerPerformancesStatic(playerId);
+        }
         TypedQuery<PlayerMatchPerformance> query = entityManager.createQuery(
                 "SELECT p FROM PlayerMatchPerformance p " +
                         "JOIN FETCH p.match m " +

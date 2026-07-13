@@ -27,7 +27,7 @@ public class GenericDAOImpl<T> implements GenericDAO<T> {
             if (transaction != null && transaction.isActive()) {
                 transaction.rollback();
             }
-            e.printStackTrace();
+            throw new IllegalStateException("Failed to save " + entityClass.getSimpleName(), e);
         } finally {
             if (em != null) {
                 em.close();
@@ -60,7 +60,7 @@ public class GenericDAOImpl<T> implements GenericDAO<T> {
             if (transaction != null && transaction.isActive()) {
                 transaction.rollback();
             }
-            e.printStackTrace();
+            throw new IllegalStateException("Failed to delete " + entityClass.getSimpleName(), e);
         } finally {
             if (em != null) {
                 em.close();
@@ -81,7 +81,7 @@ public class GenericDAOImpl<T> implements GenericDAO<T> {
             if (transaction != null && transaction.isActive()) {
                 transaction.rollback();
             }
-            e.printStackTrace();
+            throw new IllegalStateException("Failed to update " + entityClass.getSimpleName(), e);
         } finally {
             if (em != null) {
                 em.close();

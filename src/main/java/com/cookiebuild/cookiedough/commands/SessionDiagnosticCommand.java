@@ -67,16 +67,13 @@ public class SessionDiagnosticCommand implements CommandExecutor {
     }
 
     private void analyzePlayerSessions(Player sender, OfflinePlayer targetPlayer, UUID targetUUID) {
-        PlayerStatsService playerStatsService = CookieDough.getPlayerStatsService();
-        PlayerData playerData = playerStatsService.getPlayerData(targetUUID);
+        List<PlayerSession> sessions = PlayerStatsService.getPlayerSessionsStatic(targetUUID);
+        Bukkit.getScheduler().runTask(CookieDough.getInstance(),
+                () -> renderPlayerSessions(sender, targetPlayer, targetUUID, sessions));
+    }
 
-        if (playerData == null) {
-            sender.sendMessage("§cAucune donnée trouvée pour le joueur " + targetPlayer.getName());
-            return;
-        }
-
-        Set<PlayerSession> sessionSet = playerData.getPlayerSessions();
-        List<PlayerSession> sessions = new ArrayList<>(sessionSet);
+    private void renderPlayerSessions(Player sender, OfflinePlayer targetPlayer, UUID targetUUID,
+            List<PlayerSession> sessions) {
 
         sender.sendMessage("§6=== Diagnostic des sessions pour " + targetPlayer.getName() + " ===");
         sender.sendMessage("§eUUID: §f" + targetUUID);

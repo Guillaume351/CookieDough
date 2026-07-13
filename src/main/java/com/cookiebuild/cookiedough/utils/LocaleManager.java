@@ -5,11 +5,12 @@ import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class LocaleManager {
 
     private static final String BASE_BUNDLE_NAME = "messages";
-    private static final Map<String, ResourceBundle> bundles = new HashMap<>();
+    private static final Map<String, ResourceBundle> bundles = new ConcurrentHashMap<>();
 
     static {
         // Load the base messages
@@ -36,6 +37,10 @@ public class LocaleManager {
         if (bundle != null && bundle.containsKey(key)) {
             return formatMessage(bundle.getString(key), params);
         }
+        ResourceBundle english = getBundleForLocale(BASE_BUNDLE_NAME, Locale.ENGLISH);
+        if (english != null && english.containsKey(key)) {
+            return formatMessage(english.getString(key), params);
+        }
         return key; // Return the key itself if no translation is found
     }
 
@@ -44,12 +49,22 @@ public class LocaleManager {
         if (bundle != null && bundle.containsKey(key)) {
             return formatMessage(bundle.getString(key), params);
         }
+        ResourceBundle english = getBundleForLocale(bundleName, Locale.ENGLISH);
+        if (english != null && english.containsKey(key)) {
+            return formatMessage(english.getString(key), params);
+        }
         return key; // Return the key itself if no translation is found
     }
 
     private static ResourceBundle getBundleForLocale(String bundleName, Locale locale) {
-        String bundleKey = bundleName + "_" + locale.toString();
-        return bundles.getOrDefault(bundleKey, bundles.get(bundleName + "_en"));
+        Locale effectiveLocale = locale == null ? Locale.ENGLISH : locale;
+        String bundleKey = bundleName + "_" + effectiveLocale.toString();
+        ResourceBundle exact = bundles.get(bundleKey);
+        if (exact != null) {
+            return exact;
+        }
+        ResourceBundle language = bundles.get(bundleName + "_" + effectiveLocale.getLanguage());
+        return language != null ? language : bundles.get(bundleName + "_en");
     }
 
     private static String formatMessage(String message, Object... params) {

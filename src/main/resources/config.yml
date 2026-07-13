@@ -1,0 +1,10 @@
+community-event:
+  enabled: false
+  # ISO-8601 UTC instant, for example: 2026-07-18T18:00:00Z
+  time: ""
+  title: "Cookie Build Community Session"
+  url: "https://www.cookie-build.com"
+
+# Generated automatically on first start; keep stable to compare cohorts without logging UUIDs.
+telemetry:
+  salt: ""

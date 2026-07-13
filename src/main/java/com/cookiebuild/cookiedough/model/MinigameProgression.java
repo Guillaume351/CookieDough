@@ -1,12 +1,15 @@
 package com.cookiebuild.cookiedough.model;
 
 import java.util.UUID;
+import java.util.Date;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 @Entity
 @Table(name = "minigame_progression")
@@ -35,6 +38,12 @@ public class MinigameProgression {
 
     @Column(name = "last_selected_kit_level", nullable = false, columnDefinition = "integer default 0")
     private int lastSelectedKitLevel = 0;
+
+    @Column(name = "updated_at")
+    private Date updatedAt;
+
+    @Column(name = "last_progress_at")
+    private Date lastProgressAt;
 
     // Constructeurs
     public MinigameProgression() {
@@ -82,6 +91,7 @@ public class MinigameProgression {
 
     public void addExperience(int amount) {
         this.experience += amount;
+        this.lastProgressAt = new Date();
         updateLevelFromExperience();
     }
 
@@ -119,6 +129,7 @@ public class MinigameProgression {
             // Ajouter le kit à la liste JSON
             unlockedKits = unlockedKits.substring(0, unlockedKits.length() - 1) + ",\"" + kitName + "\"]";
         }
+        this.lastProgressAt = new Date();
     }
 
     public String getLastSelectedKitName() {
@@ -127,6 +138,7 @@ public class MinigameProgression {
 
     public void setLastSelectedKitName(String lastSelectedKitName) {
         this.lastSelectedKitName = lastSelectedKitName;
+        this.lastProgressAt = new Date();
     }
 
     public int getLastSelectedKitLevel() {
@@ -135,6 +147,24 @@ public class MinigameProgression {
 
     public void setLastSelectedKitLevel(int lastSelectedKitLevel) {
         this.lastSelectedKitLevel = lastSelectedKitLevel;
+        this.lastProgressAt = new Date();
+    }
+
+    public Date getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public Date getLastProgressAt() {
+        return lastProgressAt;
+    }
+
+    @PrePersist
+    @PreUpdate
+    private void updateTimestamp() {
+        updatedAt = new Date();
+        if (lastProgressAt == null) {
+            lastProgressAt = updatedAt;
+        }
     }
 
 }

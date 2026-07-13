@@ -12,6 +12,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
@@ -19,7 +20,9 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "matches")
+@Table(name = "matches", indexes = {
+        @Index(name = "idx_matches_game_start", columnList = "gameType,startTime")
+})
 public class Match {
 
     @Id
@@ -27,11 +30,15 @@ public class Match {
     private UUID id;
 
     @ManyToMany
-    @JoinTable(name = "match_players", joinColumns = @JoinColumn(name = "match_id"), inverseJoinColumns = @JoinColumn(name = "player_id"))
+    @JoinTable(name = "match_players", joinColumns = @JoinColumn(name = "match_id"),
+            inverseJoinColumns = @JoinColumn(name = "player_id"),
+            indexes = @Index(name = "idx_match_players_player_match", columnList = "player_id,match_id"))
     private Set<PlayerData> players = new HashSet<>();
 
     @ManyToMany
-    @JoinTable(name = "match_winners", joinColumns = @JoinColumn(name = "match_id"), inverseJoinColumns = @JoinColumn(name = "player_id"))
+    @JoinTable(name = "match_winners", joinColumns = @JoinColumn(name = "match_id"),
+            inverseJoinColumns = @JoinColumn(name = "player_id"),
+            indexes = @Index(name = "idx_match_winners_player_match", columnList = "player_id,match_id"))
     private Set<PlayerData> winners = new HashSet<>();
 
     @Column(nullable = false)

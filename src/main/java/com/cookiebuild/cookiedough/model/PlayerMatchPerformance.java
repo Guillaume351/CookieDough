@@ -11,6 +11,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
@@ -19,7 +20,8 @@ import jakarta.persistence.UniqueConstraint;
 
 @Entity
 @Table(name = "player_match_performances", 
-       uniqueConstraints = @UniqueConstraint(columnNames = {"match_id", "player_id"}))
+       uniqueConstraints = @UniqueConstraint(columnNames = {"match_id", "player_id"}),
+       indexes = @Index(name = "idx_performance_player_match", columnList = "player_id,match_id"))
 public class PlayerMatchPerformance {
 
     @Id

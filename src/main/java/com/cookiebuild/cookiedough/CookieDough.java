@@ -1,5 +1,7 @@
 package com.cookiebuild.cookiedough;
 
+import java.time.Duration;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -10,6 +12,13 @@ import com.cookiebuild.cookiedough.chat.ChatManager;
 import com.cookiebuild.cookiedough.commands.LobbyCommand;
 import com.cookiebuild.cookiedough.commands.MessageTestCommand;
 import com.cookiebuild.cookiedough.commands.SessionDiagnosticCommand;
+import com.cookiebuild.cookiedough.commands.QuickPlayCommand;
+import com.cookiebuild.cookiedough.commands.SocialSafetyCommand;
+import com.cookiebuild.cookiedough.commands.PartyCommand;
+import com.cookiebuild.cookiedough.commands.PracticeCommand;
+import com.cookiebuild.cookiedough.commands.EventsCommand;
+import com.cookiebuild.cookiedough.commands.GoalsCommand;
+import com.cookiebuild.cookiedough.commands.FeedbackCommand;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
 import com.cookiebuild.cookiedough.listener.NPCReloadListener;
@@ -19,6 +28,10 @@ import com.cookiebuild.cookiedough.listener.WorldEventListener;
 import com.cookiebuild.cookiedough.lobby.GameNPC;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.scheduler.MessageScheduler;
+import com.cookiebuild.cookiedough.retention.PartyManager;
+import com.cookiebuild.cookiedough.retention.PracticeManager;
+import com.cookiebuild.cookiedough.retention.CommunityEventManager;
+import com.cookiebuild.cookiedough.retention.PlayerGoalTracker;
 import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
@@ -30,6 +43,12 @@ public final class CookieDough extends JavaPlugin {
     private LobbyManager lobbyManager;
     private LocaleManager localeManager;
     private MessageScheduler messageScheduler;
+    private ChatManager chatManager;
+    private PlayerWrapperListener playerWrapperListener;
+    private PartyManager partyManager;
+    private PracticeManager practiceManager;
+    private CommunityEventManager communityEventManager;
+    private PlayerGoalTracker goalTracker;
 
     public static CookieDough getInstance() {
         return instance;
@@ -37,10 +56,12 @@ public final class CookieDough extends JavaPlugin {
 
     public void registerListeners() {
         getServer().getPluginManager().registerEvents(new BaseEventBlocker(), this);
-        getServer().getPluginManager().registerEvents(new PlayerWrapperListener(), this);
+        playerWrapperListener = new PlayerWrapperListener();
+        getServer().getPluginManager().registerEvents(playerWrapperListener, this);
         getServer().getPluginManager().registerEvents(new WorldEventListener(), this);
-        getServer().getPluginManager().registerEvents(new PlayerChatListener(new ChatManager()), this);
+        getServer().getPluginManager().registerEvents(new PlayerChatListener(chatManager), this);
         getServer().getPluginManager().registerEvents(lobbyManager, this);
+        getServer().getPluginManager().registerEvents(practiceManager, this);
     }
 
     public LobbyManager getLobbyManager() {
@@ -48,11 +69,11 @@ public final class CookieDough extends JavaPlugin {
     }
 
     public static PlayerStatsService getPlayerStatsService() {
-        return new PlayerStatsService(HibernateUtil.createEntityManager());
+        return new PlayerStatsService(null);
     }
 
     public static MinigameProgressionService createMinigameProgressionService() {
-        return new MinigameProgressionService(HibernateUtil.createEntityManager());
+        return new MinigameProgressionService(null);
     }
 
     public LocaleManager getLocaleManager() {
@@ -60,6 +81,22 @@ public final class CookieDough extends JavaPlugin {
             localeManager = new LocaleManager();
         }
         return localeManager;
+    }
+
+    public ChatManager getChatManager() {
+        return chatManager;
+    }
+
+    public PartyManager getPartyManager() {
+        return partyManager;
+    }
+
+    public PracticeManager getPracticeManager() {
+        return practiceManager;
+    }
+
+    public PlayerGoalTracker getGoalTracker() {
+        return goalTracker;
     }
 
     public MessageScheduler getMessageScheduler() {
@@ -70,16 +107,26 @@ public final class CookieDough extends JavaPlugin {
     public void onEnable() {
         getLogger().info("Enabling CookieDough");
         instance = this;
+        saveDefaultConfig();
 
         // Initialize utilities
         HibernateUtil.initialize();
         RabbitMQInitializer.initialize();
         getLocaleManager();
+        chatManager = new ChatManager();
+        partyManager = new PartyManager();
+        goalTracker = new PlayerGoalTracker(this);
+        practiceManager = new PracticeManager(this);
+        communityEventManager = new CommunityEventManager(this);
 
         // Initialize managers
         lobbyManager = new LobbyManager(this);
         messageScheduler = new MessageScheduler(this, getLocaleManager());
         messageScheduler.start();
+
+        NPCReloadListener npcReloadListener = new NPCReloadListener(this);
+        getServer().getPluginManager().registerEvents(npcReloadListener, this);
+        GameNPC.setReloadListener(npcReloadListener);
 
         // Setup Lobby NPCs
         setupLobbyNPCs();
@@ -94,11 +141,6 @@ public final class CookieDough extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimer(this, GameManager::tickGames, 0, 20);
         getLogger().info("MessageScheduler initialized and started");
 
-        // Special Listeners
-        NPCReloadListener npcReloadListener = new NPCReloadListener(this);
-        getServer().getPluginManager().registerEvents(npcReloadListener, this);
-        GameNPC.setReloadListener(npcReloadListener);
-
         getLogger().info("CookieDough enabled!");
     }
 
@@ -112,7 +154,8 @@ public final class CookieDough extends JavaPlugin {
         // Initialize lobby signs (restore from main branch and add more)
         try {
             // First sign at original location (0, 8, 12) - will show first game (Pitchout)
-            Sign gameSign1 = (Sign) lobbyWorld.getBlockAt(0, 8, 12).getState();
+            org.bukkit.block.BlockState firstState = lobbyWorld.getBlockAt(0, 8, 12).getState();
+            Sign gameSign1 = firstState instanceof Sign sign ? sign : null;
             if (gameSign1 != null) {
                 lobbyManager.addGameSign(gameSign1);
                 getLogger().info("Added game sign #1 at (0, 8, 12): " + gameSign1);
@@ -122,7 +165,8 @@ public final class CookieDough extends JavaPlugin {
 
             // Second sign above the first one (0, 9, 12) - will show second game
             // (MicroBattles)
-            Sign gameSign2 = (Sign) lobbyWorld.getBlockAt(0, 9, 12).getState();
+            org.bukkit.block.BlockState secondState = lobbyWorld.getBlockAt(0, 9, 12).getState();
+            Sign gameSign2 = secondState instanceof Sign sign ? sign : null;
             if (gameSign2 != null) {
                 lobbyManager.addGameSign(gameSign2);
                 getLogger().info("Added game sign #2 at (0, 9, 12): " + gameSign2);
@@ -150,6 +194,16 @@ public final class CookieDough extends JavaPlugin {
         getCommand("hub").setExecutor(new LobbyCommand(lobbyManager));
         getCommand("messagetest").setExecutor(new MessageTestCommand());
         getCommand("sessiondiag").setExecutor(new SessionDiagnosticCommand());
+        getCommand("quickplay").setExecutor(new QuickPlayCommand(lobbyManager));
+        SocialSafetyCommand socialSafety = new SocialSafetyCommand(chatManager);
+        getCommand("mute").setExecutor(socialSafety);
+        getCommand("block").setExecutor(socialSafety);
+        getCommand("report").setExecutor(socialSafety);
+        getCommand("party").setExecutor(new PartyCommand(partyManager));
+        getCommand("practice").setExecutor(new PracticeCommand(practiceManager));
+        getCommand("events").setExecutor(new EventsCommand(communityEventManager));
+        getCommand("goals").setExecutor(new GoalsCommand(goalTracker));
+        getCommand("feedback").setExecutor(new FeedbackCommand());
     }
 
     @Override
@@ -157,9 +211,14 @@ public final class CookieDough extends JavaPlugin {
         if (messageScheduler != null) {
             messageScheduler.stop();
         }
+        if (goalTracker != null) {
+            goalTracker.shutdown();
+        }
 
-        Bukkit.getOnlinePlayers()
-                .forEach(player -> player.kickPlayer("Server is shutting down. Please try again later."));
+        PlayerWrapperListener.shutdownGracefully(Duration.ofSeconds(5));
+
+        Bukkit.getOnlinePlayers().forEach(player ->
+                player.kickPlayer("Server is shutting down. Please try again later."));
 
         HibernateUtil.shutdown();
 

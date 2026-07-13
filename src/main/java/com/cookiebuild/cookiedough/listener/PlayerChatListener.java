@@ -26,10 +26,16 @@ public class PlayerChatListener implements Listener {
         Player player = event.getPlayer();
         String message = PLAIN_TEXT_SERIALIZER.serialize(event.message());
 
-        if (chatManager.isChatBlocked(player, message)) {
+        ChatManager.ModerationResult moderation = chatManager.checkChat(player, message);
+        if (moderation.blocked()) {
             event.setCancelled(true);
+            player.sendMessage(net.kyori.adventure.text.Component.text(moderation.reason(),
+                    net.kyori.adventure.text.format.NamedTextColor.RED));
             return;
         }
+
+        event.viewers().removeIf(audience -> audience instanceof Player viewer
+                && chatManager.isBlocked(viewer.getUniqueId(), player.getUniqueId()));
 
         ChatMessage chatMessage = new ChatMessage(player.getUniqueId(), player.getWorld().getName(), message);
 
@@ -37,8 +43,6 @@ public class PlayerChatListener implements Listener {
             GenericDAOImpl<ChatMessage> chatMessageDAO = new GenericDAOImpl<>(ChatMessage.class);
             chatMessageDAO.save(chatMessage);
         });
-
-
         chatManager.addChatMessage(player, chatMessage);
     }
 }

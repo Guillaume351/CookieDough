@@ -4,6 +4,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Bukkit;
 
@@ -18,14 +19,12 @@ public class DiscordUtils {
      * @param webhookUrl The Discord webhook URL to send the message to
      * @param message    The message to send
      */
-    public static void sendDiscordMessage(String webhookUrl, String message) {
+    public static CompletableFuture<Boolean> sendDiscordMessage(String webhookUrl, String message) {
         if (webhookUrl == null || webhookUrl.isEmpty()) {
-            // Webhook URL is not defined, skip sending the message
-            CookieDough.getInstance().getLogger()
-                    .warning("Discord webhook URL is not defined. Skipping Discord message.");
-            return;
+            return CompletableFuture.completedFuture(false);
         }
 
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
         Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
             try {
                 URL url = new URL(webhookUrl);
@@ -33,6 +32,8 @@ public class DiscordUtils {
                 connection.setRequestMethod("POST");
                 connection.setRequestProperty("Content-Type", "application/json");
                 connection.setDoOutput(true);
+                connection.setConnectTimeout(5_000);
+                connection.setReadTimeout(5_000);
 
                 String escapedMessage = escapeJsonString(message);
                 String jsonPayload = String.format("{\"content\":\"%s\"}", escapedMessage);
@@ -42,12 +43,18 @@ public class DiscordUtils {
                     os.write(out);
                 }
 
-                connection.getInputStream(); // Trigger the request
+                int status = connection.getResponseCode();
+                if (status < 200 || status >= 300) {
+                    CookieDough.getInstance().getLogger().warning("Discord webhook returned HTTP " + status);
+                }
                 connection.disconnect();
+                result.complete(status >= 200 && status < 300);
             } catch (Exception e) {
                 CookieDough.getInstance().getLogger().severe("Failed to send Discord message: " + e.getMessage());
+                result.complete(false);
             }
         });
+        return result;
     }
 
     /**

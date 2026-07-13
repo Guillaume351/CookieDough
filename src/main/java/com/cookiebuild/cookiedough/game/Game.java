@@ -3,12 +3,14 @@ package com.cookiebuild.cookiedough.game;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.logging.Level;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Sound;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
@@ -21,6 +23,7 @@ public abstract class Game implements GameStatus {
     protected int QUICK_START_DELAY_SECONDS = 10;
 
     private final List<CookiePlayer> players;
+    private final Map<UUID, Long> queueEnteredAt = new HashMap<>();
 
     private final UUID gameId;
     private int time;
@@ -38,33 +41,58 @@ public abstract class Game implements GameStatus {
         this.resetGame();
     }
 
-    public boolean addPlayer(CookiePlayer player) {
-        // if game is running, do not allow players to join
-        if (state == GameState.RUNNING) {
+    public synchronized boolean addPlayer(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()) {
+            return false;
+        }
+        if (!PlayerWrapperListener.isPlayerDataReady(player.getPlayer().getUniqueId())) {
+            player.getPlayer().sendMessage(ChatColor.YELLOW + LocaleManager
+                    .getMessage("player.data_loading", player.getPlayer().locale()));
+            return false;
+        }
+        if (state != GameState.OPEN) {
             player.getPlayer().sendMessage(
                     ChatColor.RED + LocaleManager.getMessage("game.already_started", player.getPlayer().locale()));
             return false;
         }
-
-        if (!players.contains(player)) {
-            players.add(player);
-            player.setState(PlayerState.IN_GAME); // Set player as in game
-
-            // send localized message to in game players
-            getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager
-                    .getMessage("player.joined.game", p.getPlayer().locale(), player.getPlayer().getName())));
-
-        } else {
-            // Log error if player is already in the game
-            CookieDough.getInstance().getLogger().log(Level.SEVERE,
-                    player.getPlayer().getName() + " was added multiple times to the game!");
+        if (players.contains(player) || player.getState() == PlayerState.IN_GAME) {
+            player.getPlayer().sendMessage(ChatColor.YELLOW + LocaleManager
+                    .getMessage("game.already_joined", player.getPlayer().locale()));
+            return false;
         }
+        if (players.size() >= capacity) {
+            player.getPlayer().sendMessage(ChatColor.RED + LocaleManager
+                    .getMessage("game.full", player.getPlayer().locale()));
+            return false;
+        }
+
+        CookieDough.getInstance().getPracticeManager().stop(player.getPlayer(), false);
+        players.add(player);
+        queueEnteredAt.put(player.getPlayer().getUniqueId(), System.currentTimeMillis());
+        player.setState(PlayerState.IN_GAME);
+        getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager
+                .getMessage("player.joined.game", p.getPlayer().locale(), player.getPlayer().getName())));
+        PlayerWrapperListener.hideLobbyScoreboard(player.getPlayer());
+        FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.QUEUE_JOINED,
+                "game=" + gameName + " players=" + players.size());
         return true;
     }
 
     public void removePlayer(CookiePlayer player) {
+        removePlayer(player, "left_queue");
+    }
+
+    public synchronized void removePlayer(CookiePlayer player, String reason) {
         boolean playerWasRemoved = players.remove(player);
         if (playerWasRemoved) {
+            Long queuedAt = queueEnteredAt.remove(player.getPlayer().getUniqueId());
+            if (queuedAt != null) {
+                FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.QUEUE_LEFT,
+                        "game=" + gameName + " wait_seconds="
+                                + Math.max(0L, (System.currentTimeMillis() - queuedAt) / 1000)
+                                + " reason=" + reason);
+            }
+            onPlayerRemoved(player);
             if (startTimer > 0 && players.size() < 2) {
                 startTimer = 0;
                 inQuickStart = false;
@@ -80,11 +108,17 @@ public abstract class Game implements GameStatus {
         }
     }
 
+    /** Game modules can clean up team/spectator state when a player leaves. */
+    protected void onPlayerRemoved(CookiePlayer player) {
+        // Optional hook.
+    }
+
     public List<CookiePlayer> getPlayers() {
         return new ArrayList<>(players); // Return a copy to avoid external modification
     }
 
     public void tick() {
+        time++;
         if (state == GameState.OPEN) {
             int availablePlayers = GameManager.getAvailablePlayerCount();
             if (players.size() >= 2) {
@@ -110,6 +144,15 @@ public abstract class Game implements GameStatus {
             } else {
                 startTimer = 0; // Reset timer if players are less than 2
                 inQuickStart = false;
+                if (players.size() == 1 && time % 15 == 0) {
+                    CookiePlayer waiting = players.getFirst();
+                    long queuedAt = queueEnteredAt.getOrDefault(waiting.getPlayer().getUniqueId(),
+                            System.currentTimeMillis());
+                    long waitingSeconds = Math.max(0L, (System.currentTimeMillis() - queuedAt) / 1000);
+                    waiting.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text(
+                            "Waiting " + waitingSeconds + "s · 1 more player needed",
+                            net.kyori.adventure.text.format.NamedTextColor.YELLOW));
+                }
             }
 
             // Notify players of the countdown
@@ -122,6 +165,12 @@ public abstract class Game implements GameStatus {
     private void notifyCountdown() {
         int delay = inQuickStart ? QUICK_START_DELAY_SECONDS : START_DELAY_SECONDS;
         int remainingTime = delay - startTimer;
+
+        for (CookiePlayer player : players) {
+            player.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text(
+                    "Starting in " + Math.max(0, remainingTime) + "s · " + players.size() + "/" + capacity,
+                    net.kyori.adventure.text.format.NamedTextColor.GREEN));
+        }
 
         if (remainingTime <= 5 && remainingTime > 0) {
             for (CookiePlayer player : players) {
@@ -137,11 +186,17 @@ public abstract class Game implements GameStatus {
         state = GameState.RUNNING;
         isFilling = false;
         for (CookiePlayer player : players) {
+            Long queuedAt = queueEnteredAt.remove(player.getPlayer().getUniqueId());
+            long waitSeconds = queuedAt == null ? 0L
+                    : Math.max(0L, (System.currentTimeMillis() - queuedAt) / 1000);
+            FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.QUEUE_LEFT,
+                    "game=" + gameName + " wait_seconds=" + waitSeconds + " reason=match_started");
             teleportToGame(player);
             // send localized message
             player.getPlayer().sendMessage(
                     ChatColor.GREEN + LocaleManager.getMessage("game.started", player.getPlayer().locale()));
             player.getPlayer().playSound(player.getPlayer().getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
+            FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.MATCH_STARTED, "game=" + gameName);
         }
 
         registerANewGame();
@@ -160,10 +215,32 @@ public abstract class Game implements GameStatus {
         time = 0;
         startTimer = 0;
         players.clear();
+        queueEnteredAt.clear();
         inQuickStart = false;
     }
 
     public abstract boolean isGameEnded();
+
+    /** Call once when the result is known to expose a consistent replay action. */
+    public void offerReplay() {
+        for (CookiePlayer cookiePlayer : getPlayers()) {
+            if (!cookiePlayer.getPlayer().isOnline()) {
+                continue;
+            }
+            FunnelTelemetry.record(cookiePlayer.getPlayer(), FunnelTelemetry.Event.MATCH_COMPLETED,
+                    "game=" + gameName);
+            cookiePlayer.getPlayer().sendMessage(net.kyori.adventure.text.Component.text("Play again",
+                            net.kyori.adventure.text.format.NamedTextColor.GREEN)
+                    .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/quickplay replay"))
+                    .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
+                            net.kyori.adventure.text.Component.text("Join the next available match"))));
+            cookiePlayer.getPlayer().sendMessage(net.kyori.adventure.text.Component.text("Share feedback",
+                            net.kyori.adventure.text.format.NamedTextColor.AQUA)
+                    .clickEvent(net.kyori.adventure.text.event.ClickEvent.suggestCommand("/feedback "))
+                    .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
+                            net.kyori.adventure.text.Component.text("Tell us what would make the next match better"))));
+        }
+    }
 
     // Getters and Setters for encapsulation
     public UUID getGameId() {
@@ -215,8 +292,6 @@ public abstract class Game implements GameStatus {
     }
 
     public int getPlayerCount() {
-        // Log for debugging
-        CookieDough.getInstance().getLogger().info("Player count: " + players.size());
         return players.size();
     }
 

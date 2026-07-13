@@ -4,17 +4,26 @@ import com.cookiebuild.cookiedough.model.ChatMessage;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages chat censorship and formatting in messages.
  */
 public class ChatManager {
-    private List<ChatBlocker> chatBlockers = new ArrayList<>();
-    private Map<Player, SpamBlocker> spamBlockers = new HashMap<>();
-    private Map<Player, List<ChatMessage>> chatMessages = new HashMap<>();
+    public record ModerationResult(boolean blocked, String reason) {
+    }
+
+    private static final int MAX_RECENT_MESSAGES = 50;
+    private final List<ChatBlocker> chatBlockers = Collections.synchronizedList(new ArrayList<>());
+    private final Map<UUID, SpamBlocker> spamBlockers = new ConcurrentHashMap<>();
+    private final Map<UUID, ArrayDeque<ChatMessage>> chatMessages = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<UUID>> blockedPlayers = new ConcurrentHashMap<>();
 
     public void addChatBlocker(ChatBlocker chatBlocker) {
         chatBlockers.add(chatBlocker);
@@ -33,21 +42,53 @@ public class ChatManager {
     }
 
     public void addChatMessage(Player player, ChatMessage chatMessage) {
-        chatMessages.computeIfAbsent(player, k -> new ArrayList<>()).add(chatMessage);
+        ArrayDeque<ChatMessage> messages = chatMessages.computeIfAbsent(player.getUniqueId(), ignored -> new ArrayDeque<>());
+        synchronized (messages) {
+            messages.addLast(chatMessage);
+            while (messages.size() > MAX_RECENT_MESSAGES) {
+                messages.removeFirst();
+            }
+        }
     }
 
     public boolean isChatBlocked(Player player, String message) {
-        SpamBlocker spamBlocker = spamBlockers.computeIfAbsent(player, k -> new SpamBlocker());
+        return checkChat(player, message).blocked();
+    }
+
+    public ModerationResult checkChat(Player player, String message) {
+        SpamBlocker spamBlocker = spamBlockers.computeIfAbsent(player.getUniqueId(), ignored -> new SpamBlocker());
 
         if (spamBlocker.matches(message)) {
-            return true;
+            return new ModerationResult(true, "You're sending messages too quickly. Please wait a moment.");
         }
 
-        for (ChatBlocker chatBlocker : chatBlockers) {
-            if (chatBlocker.matches(message)) {
-                return true;
+        synchronized (chatBlockers) {
+            for (ChatBlocker chatBlocker : chatBlockers) {
+                if (chatBlocker.matches(message)) {
+                    return new ModerationResult(true, "That message was blocked by the chat filter.");
+                }
             }
         }
-        return false;
+        return new ModerationResult(false, "");
+    }
+
+    public boolean toggleBlock(UUID viewer, UUID sender) {
+        Set<UUID> blocked = blockedPlayers.computeIfAbsent(viewer, ignored -> ConcurrentHashMap.newKeySet());
+        if (!blocked.add(sender)) {
+            blocked.remove(sender);
+            return false;
+        }
+        return true;
+    }
+
+    public boolean isBlocked(UUID viewer, UUID sender) {
+        return blockedPlayers.getOrDefault(viewer, Set.of()).contains(sender);
+    }
+
+    public void cleanup(UUID playerId) {
+        spamBlockers.remove(playerId);
+        chatMessages.remove(playerId);
+        blockedPlayers.remove(playerId);
+        blockedPlayers.values().forEach(blocked -> blocked.remove(playerId));
     }
 }

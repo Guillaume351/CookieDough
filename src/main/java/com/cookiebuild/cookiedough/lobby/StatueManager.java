@@ -2,7 +2,9 @@ package com.cookiebuild.cookiedough.lobby;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.inventory.ItemStack;
@@ -16,6 +18,8 @@ import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.SkinUtils;
 
 public class StatueManager {
+    private record StatueData(UUID playerId, String playerName, int wins) {
+    }
     private final JavaPlugin plugin;
     private final Map<String, ArmorStand> statues = new HashMap<>();
     private final Map<String, ArmorStand> textDisplays = new HashMap<>();
@@ -32,31 +36,32 @@ public class StatueManager {
         CookieDough.getInstance().getLogger()
                 .info("Creating statue for gameMode: " + gameMode + " at location: " + location);
 
-        // Get top player for this game mode using static methods
-        PlayerData topPlayer;
-        int wins;
-
-        try {
-            topPlayer = PlayerStatsService.getTopPlayerThisWeekStatic(gameMode);
-            if (topPlayer == null) {
-                CookieDough.getInstance().getLogger().warning("No top player found for gameMode: " + gameMode);
-                return;
+        Location safeLocation = location.clone();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            StatueData data = loadStatueData(gameMode);
+            if (data != null) {
+                Bukkit.getScheduler().runTask(plugin, () -> renderStatue(gameMode, safeLocation, data));
             }
+        });
+    }
 
-            // Get win count for the top player
-            wins = PlayerStatsService.getWinsThisWeekStatic(topPlayer.getId(), gameMode);
-            CookieDough.getInstance().getLogger()
-                    .info("Top player for " + gameMode + ": " + topPlayer.getName() + " with " + wins + " wins");
-        } catch (Exception e) {
-            CookieDough.getInstance().getLogger()
-                    .warning("Failed to get top player data for " + gameMode + ": " + e.getMessage());
-            e.printStackTrace();
-            return;
+    private StatueData loadStatueData(String gameMode) {
+        try {
+            PlayerData topPlayer = PlayerStatsService.getTopPlayerThisWeekStatic(gameMode);
+            if (topPlayer == null) {
+                return null;
+            }
+            return new StatueData(topPlayer.getId(), topPlayer.getName(),
+                    PlayerStatsService.getWinsThisWeekStatic(topPlayer.getId(), gameMode));
+        } catch (RuntimeException error) {
+            plugin.getLogger().warning("Failed to load statue for " + gameMode + ": " + error.getMessage());
+            return null;
         }
+    }
 
-        winCounts.put(gameMode, wins);
-
-        // Create armor stand for statue
+    private void renderStatue(String gameMode, Location location, StatueData data) {
+        removeStatue(gameMode);
+        winCounts.put(gameMode, data.wins());
         ArmorStand statue = location.getWorld().spawn(location, ArmorStand.class);
         statue.setVisible(false);
         statue.setGravity(false);
@@ -68,33 +73,22 @@ public class StatueManager {
         statue.setMetadata("gameMode", new FixedMetadataValue(plugin, gameMode));
 
         // Set player head
-        ItemStack head = SkinUtils.getPlayerHead(topPlayer.getId());
+        ItemStack head = SkinUtils.getPlayerHead(data.playerId());
         statue.getEquipment().setHelmet(head);
 
         statues.put(gameMode, statue);
 
         // Create floating text
-        createFloatingText(gameMode, location.clone().add(0, 0.5, 0), topPlayer, wins);
-
-        CookieDough.getInstance().getLogger().info("Statue created successfully, now creating leaderboard...");
-
-        // Create leaderboard
-        try {
-            leaderboardManager.createLeaderboard(gameMode, location.clone().add(0, 2, 0));
-            CookieDough.getInstance().getLogger().info("Leaderboard created successfully for gameMode: " + gameMode);
-        } catch (Exception e) {
-            CookieDough.getInstance().getLogger()
-                    .severe("Failed to create leaderboard for gameMode: " + gameMode + " - " + e.getMessage());
-            e.printStackTrace();
-        }
+        createFloatingText(gameMode, location.clone().add(0, 0.5, 0), data.playerName(), data.wins());
+        leaderboardManager.createLeaderboard(gameMode, location.clone().add(0, 2, 0));
     }
 
-    private void createFloatingText(String gameMode, Location location, PlayerData player, int wins) {
+    private void createFloatingText(String gameMode, Location location, String playerName, int wins) {
         ArmorStand textDisplay = location.getWorld().spawn(location, ArmorStand.class);
         textDisplay.setVisible(false);
         textDisplay.setGravity(false);
         textDisplay.customName(net.kyori.adventure.text.Component.text()
-                .append(net.kyori.adventure.text.Component.text(player.getName())
+                .append(net.kyori.adventure.text.Component.text(playerName)
                         .color(net.kyori.adventure.text.format.NamedTextColor.YELLOW))
                 .appendNewline()
                 .append(net.kyori.adventure.text.Component.text("Top Player This Week: " + wins + " wins!")
@@ -113,35 +107,29 @@ public class StatueManager {
     public void updateStatue(String gameMode) {
         if (!statues.containsKey(gameMode))
             return;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            StatueData data = loadStatueData(gameMode);
+            if (data != null) {
+                Bukkit.getScheduler().runTask(plugin, () -> applyStatueUpdate(gameMode, data));
+            }
+        });
+    }
 
-        PlayerData topPlayer;
-        int wins;
-
-        try {
-            topPlayer = PlayerStatsService.getTopPlayerThisWeekStatic(gameMode);
-            if (topPlayer == null)
-                return;
-
-            wins = PlayerStatsService.getWinsThisWeekStatic(topPlayer.getId(), gameMode);
-        } catch (Exception e) {
-            plugin.getLogger().warning("Failed to update statue data for " + gameMode + ": " + e.getMessage());
-            return;
-        }
-
-        winCounts.put(gameMode, wins);
-
+    private void applyStatueUpdate(String gameMode, StatueData data) {
+        winCounts.put(gameMode, data.wins());
         ArmorStand statue = statues.get(gameMode);
-        ItemStack head = SkinUtils.getPlayerHead(topPlayer.getId());
-        statue.getEquipment().setHelmet(head);
+        if (statue != null) {
+            statue.getEquipment().setHelmet(SkinUtils.getPlayerHead(data.playerId()));
+        }
 
         // Update floating text
         ArmorStand textDisplay = textDisplays.get(gameMode);
         if (textDisplay != null) {
             textDisplay.customName(net.kyori.adventure.text.Component.text()
-                    .append(net.kyori.adventure.text.Component.text(topPlayer.getName())
+                    .append(net.kyori.adventure.text.Component.text(data.playerName())
                             .color(net.kyori.adventure.text.format.NamedTextColor.YELLOW))
                     .appendNewline()
-                    .append(net.kyori.adventure.text.Component.text("Top Player This Week: " + wins + " wins!")
+                    .append(net.kyori.adventure.text.Component.text("Top Player This Week: " + data.wins() + " wins!")
                             .color(net.kyori.adventure.text.format.NamedTextColor.GOLD))
                     .build());
         }

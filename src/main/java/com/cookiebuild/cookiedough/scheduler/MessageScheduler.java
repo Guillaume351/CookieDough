@@ -10,6 +10,8 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
+import com.cookiebuild.cookiedough.player.PlayerManager;
+import com.cookiebuild.cookiedough.player.PlayerState;
 
 /**
  * Planificateur de messages automatiques pour informer les joueurs
@@ -24,11 +26,11 @@ public class MessageScheduler {
 
     // Liste des clés de messages à faire tourner
     private final List<String> messageKeys = Arrays.asList(
-            "scheduled.website_stats",
-            "scheduled.java_compatibility",
-            "scheduled.discord_suggestions",
-            "scheduled.twitter_follow",
-            "scheduled.instagram_follow");
+            "scheduled.quick_play",
+            "scheduled.practice",
+            "scheduled.party",
+            "scheduled.goals",
+            "scheduled.events");
 
     // Intervalle entre les messages (en ticks - 20 ticks = 1 seconde)
     private static final long MESSAGE_INTERVAL = 20 * 60 * 5; // 5 minutes
@@ -88,6 +90,10 @@ public class MessageScheduler {
 
         // Envoyer le message à tous les joueurs connectés
         for (Player player : Bukkit.getOnlinePlayers()) {
+            var cookiePlayer = PlayerManager.getPlayer(player);
+            if (cookiePlayer == null || cookiePlayer.getState() != PlayerState.LOBBY) {
+                continue;
+            }
             String message = localeManager.getMessage(messageKey, player.locale());
             player.sendMessage("§6[Cookie Build] §f" + message);
         }
@@ -122,6 +128,10 @@ public class MessageScheduler {
 
         String messageKey = getNextMessageKey();
         for (Player player : Bukkit.getOnlinePlayers()) {
+            var cookiePlayer = PlayerManager.getPlayer(player);
+            if (cookiePlayer == null || cookiePlayer.getState() != PlayerState.LOBBY) {
+                continue;
+            }
             String message = localeManager.getMessage(messageKey, player.locale());
             player.sendMessage("§6[Cookie Build - Test] §f" + message);
         }

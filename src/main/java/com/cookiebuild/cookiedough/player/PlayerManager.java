@@ -3,11 +3,14 @@ package com.cookiebuild.cookiedough.player;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class PlayerManager {
-    static ArrayList<CookiePlayer> players = new ArrayList<>();
+    private static final List<CookiePlayer> players = new CopyOnWriteArrayList<>();
 
     public static void addPlayer(CookiePlayer player) {
+        players.removeIf(existing -> existing.getPlayer().getUniqueId().equals(player.getPlayer().getUniqueId()));
         players.add(player);
     }
 
@@ -25,6 +28,6 @@ public class PlayerManager {
     }
 
     public static ArrayList<CookiePlayer> getPlayers() {
-        return players;
+        return new ArrayList<>(players);
     }
 }

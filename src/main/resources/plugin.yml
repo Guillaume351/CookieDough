@@ -19,3 +19,31 @@ commands:
     description: Diagnostic tool for player sessions
     usage: /<command> <player>
     permission: cookiedough.admin
+  quickplay:
+    description: Join the game closest to starting
+    usage: /<command>
+    aliases: [play]
+  mute:
+    description: Hide or show messages from a player
+    usage: /<command> <player>
+  block:
+    description: Hide or show messages from a player
+    usage: /<command> <player>
+  report:
+    description: Report a player to the moderation team
+    usage: /<command> <player> <reason>
+  party:
+    description: Create and manage a player party
+    usage: /<command> [create|invite|join|leave|list]
+  practice:
+    description: Toggle the solo reaction trainer
+    usage: /<command>
+  events:
+    description: Show the next community session or toggle reminders
+    usage: /<command> [remind]
+  goals:
+    description: Show weekly objectives and achievements
+    usage: /<command>
+  feedback:
+    description: Send feedback to the Cookie Build team
+    usage: /<command> <message>

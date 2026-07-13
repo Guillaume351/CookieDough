@@ -7,8 +7,9 @@ import java.util.Locale;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
@@ -19,6 +20,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -26,6 +31,8 @@ import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
+import com.cookiebuild.cookiedough.game.FunnelTelemetry;
+import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
@@ -47,8 +54,6 @@ public class LobbyManager implements Listener {
 
         // Initialize StatueManager
         this.statueManager = new StatueManager(plugin);
-
-        Bukkit.getPluginManager().registerEvents(this, plugin);
 
         // Get lobby world, remove all entities
         World lobbyWorld = Bukkit.getWorld("lobby");
@@ -73,21 +78,22 @@ public class LobbyManager implements Listener {
     }
 
     private void startSignRefreshTask() {
-        CookieDough.getInstance().getLogger().info("Starting sign refresh task - will run every second (20 ticks)");
+        CookieDough.getInstance().getLogger().info("Starting sign refresh task (5 second interval)");
         new BukkitRunnable() {
             @Override
             public void run() {
                 refreshSigns();
             }
-        }.runTaskTimer(plugin, 0, 20); // Refresh every second (20 ticks)
+        }.runTaskTimer(plugin, 0, 100);
     }
 
     private void refreshSigns() {
-        ArrayList<Game> games = GameManager.getGames();
+        ArrayList<Game> games = new ArrayList<>(GameManager.getGames().stream()
+                .map(Game::getGameName).distinct().map(GameManager::getGameByName).toList());
 
         // Only log detailed refresh info if we expect changes or every 30 cycles (30
         // seconds)
-        boolean detailedLogging = shouldLogDetailed();
+        boolean detailedLogging = false;
 
         if (detailedLogging) {
             CookieDough.getInstance().getLogger().info("=== SIGN REFRESH ===");
@@ -342,53 +348,73 @@ public class LobbyManager implements Listener {
     }
 
     public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {
+        if (cookiePlayer == null || cookiePlayer.getPlayer() == null) {
+            return;
+        }
         Player player = cookiePlayer.getPlayer();
         World lobbyWorld = Bukkit.getWorld("lobby");
         if (lobbyWorld != null) {
-            // Set gamemode to adventure
-            player.setGameMode(GameMode.ADVENTURE);
-
-            // Empty inventory
-            player.getInventory().clear();
-
-            // Remove arrows in the player's body
-            player.setArrowsInBody(0);
-
-            // Reset player display name to original name (remove kit display)
-            player.setDisplayName(player.getName());
-            player.setPlayerListName(player.getName());
-
-            // if player is in a game, remove them from the game
-            if (cookiePlayer.getState() == PlayerState.IN_GAME) {
-                Game game = GameManager.getGameOfPlayer(cookiePlayer);
-                if (game != null) {
-                    game.removePlayer(cookiePlayer);
-                } else {
+            CookieDough.getInstance().getPracticeManager().stop(player, false);
+            // Remove active players and eliminated spectators from their roster.
+            Game currentGame = GameManager.getGameOfPlayer(cookiePlayer);
+            if (currentGame != null) {
+                currentGame.removePlayer(cookiePlayer, "returned_lobby");
+            } else if (cookiePlayer.getState() == PlayerState.IN_GAME
+                    || cookiePlayer.getState() == PlayerState.SPECTATING) {
                     CookieDough.getInstance().getLogger().severe("Player " + cookiePlayer.getPlayer().getName()
                             + " is in a game but no game was found.");
-                }
             }
+            cookiePlayer.resetPlayer();
             cookiePlayer.setState(PlayerState.LOBBY);
 
             Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
             player.teleport(lobbySpawnLocation);
             CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
 
-            // Initialize LobbyScoreboard
-            LobbyScoreboard scoreboard = new LobbyScoreboard(player);
-            scoreboard.show();
+            giveQuickPlayItem(player);
+            PlayerWrapperListener.showLobbyScoreboard(player);
+            FunnelTelemetry.record(player, FunnelTelemetry.Event.LOBBY_READY, "world=lobby");
         } else {
             CookieDough.getInstance().getLogger().severe("Lobby world 'lobby' is not loaded!");
         }
     }
 
     public void joinAvailableGame(CookiePlayer player) {
-        for (Game game : GameManager.getGames()) {
-            if (game.addPlayerToAvailableTeam(player)) {
-                return;
-            }
+        Game game = GameManager.getBestOpenGame();
+        if (game != null && game.addPlayerToAvailableTeam(player)) {
+            player.getPlayer().sendMessage(ChatColor.GREEN + "Quick Play: joined " + game.getGameName()
+                    + " (" + game.getPlayerCount() + "/" + game.getCapacity() + ").");
+            return;
         }
-        player.getPlayer().sendMessage("No available games. Please wait.");
+        player.getPlayer().sendMessage(ChatColor.RED + "No available games. Please try again shortly.");
+    }
+
+    public void requestQuickPlay(Player player) {
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        FunnelTelemetry.record(player, FunnelTelemetry.Event.SELECTOR_OPENED, "selector=quick_play");
+        if (cookiePlayer == null) {
+            player.sendMessage(ChatColor.RED + "Your player profile is still loading. Please try again.");
+            return;
+        }
+        if (!PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())) {
+            PlayerWrapperListener.queueQuickPlayWhenReady(player.getUniqueId());
+            player.sendMessage(ChatColor.YELLOW + "Quick Play is queued while your profile loads…");
+            return;
+        }
+        joinAvailableGame(cookiePlayer);
+    }
+
+    private static void giveQuickPlayItem(Player player) {
+        ItemStack quickPlay = new ItemStack(Material.COMPASS);
+        ItemMeta meta = quickPlay.getItemMeta();
+        meta.displayName(net.kyori.adventure.text.Component.text("Quick Play",
+                net.kyori.adventure.text.format.NamedTextColor.GOLD));
+        meta.lore(List.of(net.kyori.adventure.text.Component.text("Join the game closest to starting",
+                net.kyori.adventure.text.format.NamedTextColor.GRAY)));
+        meta.getPersistentDataContainer().set(new NamespacedKey(CookieDough.getInstance(), "quick_play"),
+                PersistentDataType.BYTE, (byte) 1);
+        quickPlay.setItemMeta(meta);
+        player.getInventory().setItem(0, quickPlay);
     }
 
     public void addGameNpc(Entity npc) {
@@ -397,6 +423,16 @@ public class LobbyManager implements Listener {
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+        ItemStack item = event.getItem();
+        if (item != null && item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(
+                new NamespacedKey(CookieDough.getInstance(), "quick_play"), PersistentDataType.BYTE)) {
+            event.setCancelled(true);
+            requestQuickPlay(event.getPlayer());
+            return;
+        }
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.LEFT_CLICK_BLOCK) {
             return;
         }
@@ -438,7 +474,7 @@ public class LobbyManager implements Listener {
         for (Game game : GameManager.getGames()) {
             String gameName = game.getGameName();
             if (containsIgnoreCase(frontLineOne, gameName) || containsIgnoreCase(backLineOne, gameName)) {
-                return game;
+                return GameManager.getGameByName(gameName);
             }
         }
         return null;

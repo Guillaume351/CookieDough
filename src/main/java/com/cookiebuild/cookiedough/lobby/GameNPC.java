@@ -10,6 +10,9 @@ import org.bukkit.entity.Zombie;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.GameManager;
@@ -25,6 +28,7 @@ public class GameNPC {
     private final CookieDough plugin;
     private final Location location;
     private Zombie npc;
+    private final Map<UUID, Long> lastInteraction = new ConcurrentHashMap<>();
 
     public GameNPC(String gameName, Location location, CookieDough plugin) {
         this.gameName = gameName;
@@ -91,8 +95,18 @@ public class GameNPC {
     }
 
     public void interactWithPlayer(Player player) {
+        long now = System.currentTimeMillis();
+        Long previous = lastInteraction.put(player.getUniqueId(), now);
+        if (previous != null && now - previous < 500) {
+            return;
+        }
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         GameStatus game = GameManager.getGameByName(gameName);
+
+        if (cookiePlayer == null) {
+            player.sendMessage(ChatColor.YELLOW + "Your profile is still loading. Please try again.");
+            return;
+        }
 
         if (game != null && game.getState() == GameState.OPEN) {
             if (game.addPlayerToAvailableTeam(cookiePlayer)) {
