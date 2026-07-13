@@ -24,6 +24,8 @@ public final class PartyManager {
     private static final long INVITE_TTL_MS = 120_000;
     private record Invitation(UUID leaderId, long expiresAt) {
     }
+    record PartyGameSelection(Game game, String rejectionReason) {
+    }
 
     private final Map<UUID, LinkedHashSet<UUID>> parties = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> partyByMember = new ConcurrentHashMap<>();
@@ -117,12 +119,10 @@ public final class PartyManager {
                 member.getPlayer().getUniqueId()))) {
             return "A party member's profile is still loading.";
         }
-        Game game = GameManager.getGames().stream()
-                .filter(candidate -> candidate.getState() == com.cookiebuild.cookiedough.game.GameState.OPEN)
-                .filter(candidate -> candidate.getCapacity() - candidate.getPlayerCount() >= members.size())
-                .max(java.util.Comparator.comparingInt(Game::getPlayerCount)).orElse(null);
+        PartyGameSelection selection = selectPartyGame(GameManager.getGames(), members.size());
+        Game game = selection.game();
         if (game == null) {
-            return "No game currently has room for the whole party.";
+            return selection.rejectionReason();
         }
         List<CookiePlayer> added = new ArrayList<>();
         for (CookiePlayer member : members) {
@@ -135,6 +135,28 @@ public final class PartyManager {
         broadcast(leaderId, "Party Quick Play: joined " + game.getGameName() + " ("
                 + game.getPlayerCount() + "/" + game.getCapacity() + ").");
         return "";
+    }
+
+    static PartyGameSelection selectPartyGame(List<Game> games, int partySize) {
+        List<Game> openGames = games.stream()
+                .filter(candidate -> candidate.getState() == com.cookiebuild.cookiedough.game.GameState.OPEN)
+                .sorted(java.util.Comparator.comparingInt(Game::getPlayerCount)
+                        .thenComparing(Game::getGameName, String.CASE_INSENSITIVE_ORDER)
+                        .reversed())
+                .toList();
+        String firstRejection = null;
+        for (Game candidate : openGames) {
+            String problem = candidate.getPartyAdmissionProblem(partySize);
+            if (problem == null) {
+                return new PartyGameSelection(candidate, "");
+            }
+            if (firstRejection == null) {
+                firstRejection = problem;
+            }
+        }
+        return new PartyGameSelection(null, firstRejection == null
+                ? "No game is currently available for your party."
+                : firstRejection);
     }
 
     public UUID getPartyId(UUID playerId) {

@@ -404,6 +404,30 @@ public class LobbyManager implements Listener {
         joinAvailableGame(cookiePlayer);
     }
 
+    public void requestGame(Player player, String gameName) {
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        FunnelTelemetry.record(player, FunnelTelemetry.Event.SELECTOR_OPENED,
+                "selector=direct game=" + gameName.replaceAll("[^A-Za-z0-9_-]", ""));
+        if (cookiePlayer == null || !PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())) {
+            player.sendMessage(ChatColor.YELLOW + "Your profile is still loading. Please try again shortly.");
+            return;
+        }
+
+        Game game = GameManager.getOpenGameByName(gameName);
+        if (game == null) {
+            String available = GameManager.getGames().stream().map(Game::getGameName).distinct().sorted().toList()
+                    .toString();
+            player.sendMessage(ChatColor.RED + "No open game named '" + gameName + "'. Available: " + available);
+            return;
+        }
+        if (game.addPlayerToAvailableTeam(cookiePlayer)) {
+            player.sendMessage(ChatColor.GREEN + "Joined " + game.getGameName() + " ("
+                    + game.getPlayerCount() + "/" + game.getCapacity() + ").");
+        } else {
+            player.sendMessage(ChatColor.RED + game.getGameName() + " is not available. Please try again shortly.");
+        }
+    }
+
     private static void giveQuickPlayItem(Player player) {
         ItemStack quickPlay = new ItemStack(Material.COMPASS);
         ItemMeta meta = quickPlay.getItemMeta();

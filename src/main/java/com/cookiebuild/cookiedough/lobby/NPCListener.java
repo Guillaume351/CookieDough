@@ -1,6 +1,5 @@
 package com.cookiebuild.cookiedough.lobby;
 
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -13,9 +12,6 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.persistence.PersistentDataType;
-
-import com.cookiebuild.cookiedough.CookieDough;
 
 public class NPCListener implements Listener {
 
@@ -97,8 +93,7 @@ public class NPCListener implements Listener {
                 return npc;
             }
 
-            NamespacedKey npcKey = new NamespacedKey(CookieDough.getInstance(), npc.getGameName());
-            if (zombie.getPersistentDataContainer().has(npcKey, PersistentDataType.BYTE)) {
+            if (npc.matches(zombie)) {
                 return npc;
             }
         }

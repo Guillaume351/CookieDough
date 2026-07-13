@@ -295,6 +295,35 @@ public abstract class Game implements GameStatus {
         return players.size();
     }
 
+    /**
+     * Maximum number of party members that this game can admit as one group.
+     * Games with smaller teams than their total match capacity should override
+     * this value.
+     */
+    public int getMaxAdmissiblePartySize() {
+        return capacity;
+    }
+
+    /**
+     * Returns a player-facing reason when a party cannot currently be admitted,
+     * or {@code null} when it is compatible with this game.
+     */
+    public String getPartyAdmissionProblem(int partySize) {
+        if (partySize <= 0) {
+            return "Your party has no available players.";
+        }
+        int groupCapacity = getMaxAdmissiblePartySize();
+        if (partySize > groupCapacity) {
+            return gameName + " supports parties of up to " + groupCapacity
+                    + " players; your party has " + partySize + ".";
+        }
+        if (capacity - getPlayerCount() < partySize) {
+            return gameName + " does not currently have room for all " + partySize
+                    + " party members.";
+        }
+        return null;
+    }
+
     public boolean addPlayerToAvailableTeam(CookiePlayer player) {
         return addPlayer(player);
     }

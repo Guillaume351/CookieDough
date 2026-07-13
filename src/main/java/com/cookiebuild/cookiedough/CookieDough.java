@@ -124,7 +124,7 @@ public final class CookieDough extends JavaPlugin {
         messageScheduler = new MessageScheduler(this, getLocaleManager());
         messageScheduler.start();
 
-        NPCReloadListener npcReloadListener = new NPCReloadListener(this);
+        NPCReloadListener npcReloadListener = new NPCReloadListener();
         getServer().getPluginManager().registerEvents(npcReloadListener, this);
         GameNPC.setReloadListener(npcReloadListener);
 

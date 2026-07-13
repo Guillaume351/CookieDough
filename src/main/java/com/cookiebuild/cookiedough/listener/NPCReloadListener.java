@@ -1,41 +1,35 @@
 package com.cookiebuild.cookiedough.listener;
 
-import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.lobby.GameNPC;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Zombie;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
-import org.bukkit.persistence.PersistentDataType;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class NPCReloadListener implements Listener {
-    private final CookieDough plugin;
-    private final Map<String, Location> npcLocations;
+    private final Map<String, GameNPC> gameNpcs;
 
-    public NPCReloadListener(CookieDough plugin) {
-        this.plugin = plugin;
-        this.npcLocations = new HashMap<>();
+    public NPCReloadListener() {
+        this.gameNpcs = new HashMap<>();
     }
 
-    public void registerNPC(String gameName, Location location) {
-        npcLocations.put(gameName, location);
-        Chunk chunk = location.getChunk();
+    public void registerNPC(GameNPC npc) {
+        gameNpcs.put(npc.getGameName().toLowerCase(Locale.ROOT), npc);
+        Chunk chunk = npc.getLocation().getChunk();
         chunk.setForceLoaded(true);
     }
 
     @EventHandler
     public void onChunkUnload(ChunkUnloadEvent event) {
         Chunk chunk = event.getChunk();
-        for (Map.Entry<String, Location> entry : npcLocations.entrySet()) {
-            if (isLocationInChunk(entry.getValue(), chunk)) {
+        for (GameNPC npc : gameNpcs.values()) {
+            if (isLocationInChunk(npc.getLocation(), chunk)) {
                 // If this chunk contains an NPC, keep it loaded
                 chunk.setForceLoaded(true);
                 return;
@@ -46,27 +40,17 @@ public class NPCReloadListener implements Listener {
     @EventHandler
     public void onChunkLoad(ChunkLoadEvent event) {
         Chunk chunk = event.getChunk();
-        for (Map.Entry<String, Location> entry : npcLocations.entrySet()) {
-            if (isLocationInChunk(entry.getValue(), chunk)) {
-                // Respawn the NPC if it's not present
-                if (!isNPCPresent(chunk, entry.getKey())) {
-                    new GameNPC(entry.getKey(), entry.getValue(), plugin);
-                }
+        for (GameNPC npc : gameNpcs.values()) {
+            if (isLocationInChunk(npc.getLocation(), chunk)) {
+                npc.reconcileNpc(chunk);
             }
         }
     }
 
     private boolean isLocationInChunk(Location location, Chunk chunk) {
-        return location.getChunk().equals(chunk);
-    }
-
-    private boolean isNPCPresent(Chunk chunk, String gameName) {
-        for (Entity entity : chunk.getEntities()) {
-            if (entity instanceof Zombie && entity.getPersistentDataContainer().has(new NamespacedKey(plugin, gameName), PersistentDataType.BYTE)) {
-                return true;
-            }
-        }
-        return false;
+        return location.getWorld() != null && location.getWorld().getUID().equals(chunk.getWorld().getUID())
+                && location.getBlockX() >> 4 == chunk.getX()
+                && location.getBlockZ() >> 4 == chunk.getZ();
     }
 
 }

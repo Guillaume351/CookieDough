@@ -34,6 +34,15 @@ public final class QuickPlayCommand implements CommandExecutor {
                 LobbyManager.teleportPlayerToLobby(cookiePlayer);
             }
         }
+        if (args.length > 0 && !args[0].equalsIgnoreCase("replay")) {
+            if (CookieDough.getInstance().getPartyManager().getPartyId(player.getUniqueId()) != null) {
+                player.sendMessage(org.bukkit.ChatColor.YELLOW
+                        + "Direct game selection is currently solo-only. Party Quick Play will choose a compatible game.");
+                return true;
+            }
+            lobbyManager.requestGame(player, args[0]);
+            return true;
+        }
         String partyResult = CookieDough.getInstance().getPartyManager().queueParty(player);
         if (partyResult != null) {
             if (!partyResult.isBlank()) {
