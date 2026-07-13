@@ -19,11 +19,13 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT'
+    compileOnly 'io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT'
 
     // Hibernate dependencies
     implementation 'org.hibernate:hibernate-core:6.5.2.Final'
     implementation 'org.hibernate:hibernate-hikaricp:6.5.2.Final'
+    // Required by Hibernate's JSON SqlType mapper
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
 
     // Database connector
     implementation 'org.postgresql:postgresql:42.7.3'
@@ -64,7 +66,7 @@ tasks.withType(JavaCompile).configureEach {
 processResources {
     def props = [version: version]
     inputs.properties props
-    filteringCharset 'UTF-8'
+    filteringCharset = 'UTF-8'
     filesMatching('plugin.yml') {
         expand props
     }

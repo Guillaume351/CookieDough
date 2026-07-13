@@ -1,56 +1,108 @@
 package com.cookiebuild.cookiedough.lobby;
 
+import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Zombie;
+import org.bukkit.event.Cancellable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.persistence.PersistentDataType;
+
+import com.cookiebuild.cookiedough.CookieDough;
 
 public class NPCListener implements Listener {
 
     @EventHandler
     public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
-        if (event.getRightClicked() instanceof Zombie) {
-            for (GameNPC npc : LobbyManager.getInstance().getGameNpcs()) {
-                if (npc.getNPC().equals(event.getRightClicked())) {
-                    event.setCancelled(true);
-                    npc.interactWithPlayer(event.getPlayer());
-                    break;
-                }
-            }
-        }
+        handleNpcInteraction(event.getPlayer(), event.getRightClicked(), event);
+    }
+
+    @EventHandler
+    public void onPlayerInteractAtEntity(PlayerInteractAtEntityEvent event) {
+        handleNpcInteraction(event.getPlayer(), event.getRightClicked(), event);
     }
 
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Zombie) {
+        if (resolveNpc(event.getEntity()) != null) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onPlayerDamage(EntityDamageByEntityEvent event) {
-        if (event.getDamager() instanceof Player player && event.getEntity() instanceof Zombie zombie) {
+        GameNPC npc = resolveNpc(event.getEntity());
+        if (npc == null) {
+            return;
+        }
 
-            for (GameNPC npc : LobbyManager.getInstance().getGameNpcs()) {
-                if (npc.getNPC().equals(zombie)) {
-                    event.setCancelled(true);
-                    npc.interactWithPlayer(player);
-                    break;
-                }
-            }
+        event.setCancelled(true);
+        Player player = extractDamagingPlayer(event.getDamager());
+        if (player != null) {
+            npc.interactWithPlayer(player);
         }
     }
 
     // prevent from despawning
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
-        if (event.getEntity() instanceof Zombie) {
+        if (resolveNpc(event.getEntity()) != null) {
             event.getEntity().setHealth(20);
             event.setCancelled(true);
         }
+    }
+
+    private void handleNpcInteraction(Player player, Entity clickedEntity, Cancellable event) {
+        GameNPC npc = resolveNpc(clickedEntity);
+        if (npc == null) {
+            return;
+        }
+
+        event.setCancelled(true);
+        npc.interactWithPlayer(player);
+    }
+
+    private Player extractDamagingPlayer(Entity damager) {
+        if (damager instanceof Player player) {
+            return player;
+        }
+
+        if (damager instanceof Projectile projectile && projectile.getShooter() instanceof Player shooter) {
+            return shooter;
+        }
+
+        return null;
+    }
+
+    private GameNPC resolveNpc(Entity entity) {
+        if (!(entity instanceof Zombie zombie)) {
+            return null;
+        }
+
+        LobbyManager lobbyManager = LobbyManager.getInstance();
+        if (lobbyManager == null) {
+            return null;
+        }
+
+        for (GameNPC npc : lobbyManager.getGameNpcs()) {
+            Zombie trackedNpc = npc.getNPC();
+            if (trackedNpc != null && trackedNpc.getUniqueId().equals(zombie.getUniqueId())) {
+                return npc;
+            }
+
+            NamespacedKey npcKey = new NamespacedKey(CookieDough.getInstance(), npc.getGameName());
+            if (zombie.getPersistentDataContainer().has(npcKey, PersistentDataType.BYTE)) {
+                return npc;
+            }
+        }
+
+        return null;
     }
 }

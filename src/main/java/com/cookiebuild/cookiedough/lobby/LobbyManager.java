@@ -2,7 +2,9 @@ package com.cookiebuild.cookiedough.lobby;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
@@ -10,6 +12,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
+import org.bukkit.block.sign.Side;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -28,6 +31,8 @@ import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
 
 public class LobbyManager implements Listener {
+    private static final PlainTextComponentSerializer PLAIN_TEXT_SERIALIZER = PlainTextComponentSerializer.plainText();
+
     private final JavaPlugin plugin;
     private final List<GameNPC> gameNpcs = new ArrayList<>();
     private final List<Sign> gameSigns = new ArrayList<>();
@@ -392,42 +397,60 @@ public class LobbyManager implements Listener {
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.LEFT_CLICK_BLOCK) {
             return;
         }
+
         Block clickedBlock = event.getClickedBlock();
-        if (clickedBlock != null && clickedBlock.getState() instanceof Sign sign) {
-            for (Game game : GameManager.getGames()) {
-                if (sign.getLine(1).contains(game.getGameName())) {
-                    if (game.getState() == GameState.OPEN) {
-                        Player player = event.getPlayer();
-                        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-                        if (cookiePlayer != null) {
-                            if (cookiePlayer.getState() != PlayerState.IN_GAME) {
-                                if (!game.addPlayerToAvailableTeam(cookiePlayer)) {
-                                    player.sendMessage(ChatColor.RED + "Failed to join " + game.getGameName()
-                                            + ". The game might be full.");
-                                }
-                            }
-                        } else {
-                            player.sendMessage(ChatColor.RED + "Could not find your player data. Please try again.");
-                        }
-                    } else {
-                        event.getPlayer().sendMessage(ChatColor.RED + "This game is not available.");
-                    }
-                    break;
-                }
+        if (!(clickedBlock != null && clickedBlock.getState() instanceof Sign sign)) {
+            return;
+        }
+
+        Game game = findGameForSign(sign);
+        if (game == null) {
+            return;
+        }
+
+        if (game.getState() != GameState.OPEN) {
+            event.getPlayer().sendMessage(ChatColor.RED + "This game is not available.");
+            return;
+        }
+
+        Player player = event.getPlayer();
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        if (cookiePlayer == null) {
+            player.sendMessage(ChatColor.RED + "Could not find your player data. Please try again.");
+            return;
+        }
+
+        if (cookiePlayer.getState() != PlayerState.IN_GAME) {
+            if (!game.addPlayerToAvailableTeam(cookiePlayer)) {
+                player.sendMessage(ChatColor.RED + "Failed to join " + game.getGameName()
+                        + ". The game might be full.");
             }
         }
     }
 
     private Game findGameForSign(Sign clickedSign) {
+        String frontLineOne = getPlainLine(clickedSign, Side.FRONT, 1);
+        String backLineOne = getPlainLine(clickedSign, Side.BACK, 1);
+
         for (Game game : GameManager.getGames()) {
-            if (clickedSign.getLine(1).contains(game.getGameName())) {
+            String gameName = game.getGameName();
+            if (containsIgnoreCase(frontLineOne, gameName) || containsIgnoreCase(backLineOne, gameName)) {
                 return game;
             }
         }
         return null;
+    }
+
+    private String getPlainLine(Sign sign, Side side, int line) {
+        return PLAIN_TEXT_SERIALIZER.serialize(sign.getSide(side).line(line));
+    }
+
+    private boolean containsIgnoreCase(String value, String expected) {
+        return value != null && expected != null &&
+                value.toLowerCase(Locale.ROOT).contains(expected.toLowerCase(Locale.ROOT));
     }
 
     public List<GameNPC> getGameNpcs() {
