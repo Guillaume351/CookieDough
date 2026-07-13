@@ -7,6 +7,7 @@ import java.util.Properties;
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
+import org.hibernate.cfg.JdbcSettings;
 
 import com.cookiebuild.cookiedough.model.ChatMessage;
 import com.cookiebuild.cookiedough.model.Match;
@@ -42,10 +43,10 @@ public class HibernateUtil {
 
             // Load properties from environment variables
             Properties properties = new Properties();
-            properties.put(Environment.DRIVER, System.getenv("HIBERNATE_CONNECTION_DRIVER_CLASS"));
-            properties.put(Environment.URL, System.getenv("HIBERNATE_CONNECTION_URL"));
-            properties.put(Environment.USER, System.getenv("HIBERNATE_CONNECTION_USERNAME"));
-            properties.put(Environment.PASS, System.getenv("HIBERNATE_CONNECTION_PASSWORD"));
+            properties.put(JdbcSettings.JAKARTA_JDBC_DRIVER, System.getenv("HIBERNATE_CONNECTION_DRIVER_CLASS"));
+            properties.put(JdbcSettings.JAKARTA_JDBC_URL, System.getenv("HIBERNATE_CONNECTION_URL"));
+            properties.put(JdbcSettings.JAKARTA_JDBC_USER, System.getenv("HIBERNATE_CONNECTION_USERNAME"));
+            properties.put(JdbcSettings.JAKARTA_JDBC_PASSWORD, System.getenv("HIBERNATE_CONNECTION_PASSWORD"));
             properties.put(Environment.DIALECT, System.getenv("HIBERNATE_DIALECT"));
             properties.put(Environment.SHOW_SQL, System.getenv("HIBERNATE_SHOW_SQL"));
             properties.put(Environment.HBM2DDL_AUTO, System.getenv("HIBERNATE_HBM2DDL_AUTO"));

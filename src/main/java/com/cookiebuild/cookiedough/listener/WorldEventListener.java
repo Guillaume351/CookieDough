@@ -1,6 +1,6 @@
 package com.cookiebuild.cookiedough.listener;
 
-import org.bukkit.GameRule;
+import org.bukkit.GameRules;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockFromToEvent;
@@ -18,8 +18,8 @@ public class WorldEventListener implements Listener {
 
     @EventHandler
     public void onWorldLoad(WorldLoadEvent event) {
-        event.getWorld().setGameRule(GameRule.DO_DAYLIGHT_CYCLE, Boolean.FALSE);
-        event.getWorld().setGameRule(GameRule.DO_WEATHER_CYCLE, Boolean.FALSE);
+        event.getWorld().setGameRule(GameRules.ADVANCE_TIME, Boolean.FALSE);
+        event.getWorld().setGameRule(GameRules.ADVANCE_WEATHER, Boolean.FALSE);
 
         event.getWorld().setTime(0);
         event.getWorld().setAutoSave(false);
