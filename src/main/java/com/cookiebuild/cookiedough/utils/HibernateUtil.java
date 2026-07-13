@@ -43,13 +43,18 @@ public class HibernateUtil {
 
             // Load properties from environment variables
             Properties properties = new Properties();
-            properties.put(JdbcSettings.JAKARTA_JDBC_DRIVER, System.getenv("HIBERNATE_CONNECTION_DRIVER_CLASS"));
-            properties.put(JdbcSettings.JAKARTA_JDBC_URL, System.getenv("HIBERNATE_CONNECTION_URL"));
-            properties.put(JdbcSettings.JAKARTA_JDBC_USER, System.getenv("HIBERNATE_CONNECTION_USERNAME"));
-            properties.put(JdbcSettings.JAKARTA_JDBC_PASSWORD, System.getenv("HIBERNATE_CONNECTION_PASSWORD"));
-            properties.put(Environment.DIALECT, System.getenv("HIBERNATE_DIALECT"));
-            properties.put(Environment.SHOW_SQL, System.getenv("HIBERNATE_SHOW_SQL"));
-            properties.put(Environment.HBM2DDL_AUTO, System.getenv("HIBERNATE_HBM2DDL_AUTO"));
+            properties.put(JdbcSettings.JAKARTA_JDBC_DRIVER,
+                    requireEnvironmentVariable("HIBERNATE_CONNECTION_DRIVER_CLASS"));
+            properties.put(JdbcSettings.JAKARTA_JDBC_URL,
+                    requireEnvironmentVariable("HIBERNATE_CONNECTION_URL"));
+            properties.put(JdbcSettings.JAKARTA_JDBC_USER,
+                    requireEnvironmentVariable("HIBERNATE_CONNECTION_USERNAME"));
+            properties.put(JdbcSettings.JAKARTA_JDBC_PASSWORD,
+                    requireEnvironmentVariable("HIBERNATE_CONNECTION_PASSWORD"));
+            putEnvironmentVariableIfPresent(properties, Environment.DIALECT, "HIBERNATE_DIALECT");
+            properties.put(Environment.SHOW_SQL, environmentVariableOrDefault("HIBERNATE_SHOW_SQL", "false"));
+            properties.put(Environment.HBM2DDL_AUTO,
+                    environmentVariableOrDefault("HIBERNATE_HBM2DDL_AUTO", "validate"));
 
             // Add HikariCP connection pooling configuration
             properties.put("hibernate.connection.provider_class",
@@ -107,6 +112,28 @@ public class HibernateUtil {
     public static void shutdown() {
         if (sessionFactory != null) {
             sessionFactory.close();
+            sessionFactory = null;
+        }
+    }
+
+    private static String requireEnvironmentVariable(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("Missing required environment variable: " + name);
+        }
+        return value;
+    }
+
+    private static String environmentVariableOrDefault(String name, String defaultValue) {
+        String value = System.getenv(name);
+        return value == null || value.isBlank() ? defaultValue : value;
+    }
+
+    private static void putEnvironmentVariableIfPresent(Properties properties, String propertyName,
+            String environmentVariableName) {
+        String value = System.getenv(environmentVariableName);
+        if (value != null && !value.isBlank()) {
+            properties.put(propertyName, value);
         }
     }
 }

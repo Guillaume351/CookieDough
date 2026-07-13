@@ -10,8 +10,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.Temporal;
-import jakarta.persistence.TemporalType;
 
 @Entity
 @Table(name = "player_sessions")
@@ -25,11 +23,9 @@ public class PlayerSession {
     @JoinColumn(name = "player_id", nullable = false)
     private PlayerData playerData;
 
-    @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "start_time", nullable = false)
     private Date startTime;
 
-    @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "end_time")
     private Date endTime; // Nullable, as session might be ongoing or crashed
 
