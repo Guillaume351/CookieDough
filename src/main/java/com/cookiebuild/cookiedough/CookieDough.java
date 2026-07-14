@@ -6,7 +6,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Sign;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.util.Vector;
 
 import com.cookiebuild.cookiedough.chat.ChatManager;
 import com.cookiebuild.cookiedough.commands.LobbyCommand;
@@ -108,6 +110,8 @@ public final class CookieDough extends JavaPlugin {
         getLogger().info("Enabling CookieDough");
         instance = this;
         saveDefaultConfig();
+        getConfig().options().copyDefaults(true);
+        saveConfig();
 
         // Initialize utilities
         HibernateUtil.initialize();
@@ -175,18 +179,39 @@ public final class CookieDough extends JavaPlugin {
             }
 
             // Log total signs registered
-            getLogger().info("Total game signs registered: " +
-                    (gameSign1 != null ? 1 : 0) + (gameSign2 != null ? 1 : 0));
+            int registeredSigns = (gameSign1 != null ? 1 : 0) + (gameSign2 != null ? 1 : 0);
+            getLogger().info("Total game signs registered: " + registeredSigns);
 
         } catch (Exception e) {
             getLogger().warning("Failed to add hardcoded signs: " + e.getMessage());
         }
 
-        Location microBattlesNpcLocation = new Location(lobbyWorld, 0.5, 8, 12.5, 180, 0);
-        lobbyManager.addGameNpc("MicroBattles", microBattlesNpcLocation);
+        ConfigurationSection selectors = getConfig().getConfigurationSection("lobby.game-selectors");
+        if (selectors == null) {
+            getLogger().severe("No lobby.game-selectors are configured; game NPCs cannot be created.");
+            return;
+        }
 
-        Location pitchoutNpcLocation = new Location(lobbyWorld, 0.5, 8, -11.5, 0, 0);
-        lobbyManager.addGameNpc("Pitchout", pitchoutNpcLocation);
+        for (String selectorKey : selectors.getKeys(false)) {
+            ConfigurationSection selector = selectors.getConfigurationSection(selectorKey);
+            if (selector == null || !selector.getBoolean("enabled", true)) {
+                continue;
+            }
+            String gameName = selector.getString("game", selectorKey);
+            World world = getServer().getWorld(selector.getString("world", "lobby"));
+            if (world == null) {
+                getLogger().warning("Skipping " + gameName + " selector: configured world is not loaded");
+                continue;
+            }
+            Location location = new Location(world,
+                    selector.getDouble("x"), selector.getDouble("y"), selector.getDouble("z"),
+                    (float) selector.getDouble("yaw"), (float) selector.getDouble("pitch"));
+            java.util.List<Double> offset = selector.getDoubleList("statue-offset");
+            Vector statueOffset = offset.size() == 3
+                    ? new Vector(offset.get(0), offset.get(1), offset.get(2))
+                    : new Vector(2, 0, 0);
+            lobbyManager.addGameNpc(gameName, location, statueOffset);
+        }
     }
 
     public void registerCommands() {

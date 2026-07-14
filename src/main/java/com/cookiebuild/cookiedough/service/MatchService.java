@@ -32,11 +32,18 @@ public class MatchService {
     }
 
     public Match startMatch(String gameType, Collection<PlayerData> participants) {
+        List<UUID> participantIds = participants == null ? List.of() : participants.stream()
+                .filter(Objects::nonNull).map(PlayerData::getId).filter(Objects::nonNull).distinct().toList();
+        return startMatchByPlayerIds(gameType, participantIds);
+    }
+
+    /** Starts a match without retaining persistence entities in a long-lived game object. */
+    public Match startMatchByPlayerIds(String gameType, Collection<UUID> participants) {
         if (gameType == null || gameType.isBlank()) {
             throw new IllegalArgumentException("gameType is required");
         }
         List<UUID> participantIds = participants == null ? List.of() : participants.stream()
-                .filter(Objects::nonNull).map(PlayerData::getId).filter(Objects::nonNull).distinct().toList();
+                .filter(Objects::nonNull).distinct().toList();
         return inTransaction(em -> {
             Match match = new Match(new Date(), gameType);
             for (UUID participantId : participantIds) {
@@ -84,11 +91,19 @@ public class MatchService {
     /** Stores every performance and the final result in one transaction. */
     public Match completeMatch(Match match, Collection<PlayerData> winners,
             Collection<Performance> performances) {
+        List<UUID> winnerIds = winners == null ? List.of() : winners.stream()
+                .filter(Objects::nonNull).map(PlayerData::getId).filter(Objects::nonNull).distinct().toList();
+        return completeMatchByWinnerIds(match, winnerIds, performances);
+    }
+
+    /** Completes a match using stable UUIDs rather than detached persistence entities. */
+    public Match completeMatchByWinnerIds(Match match, Collection<UUID> winners,
+            Collection<Performance> performances) {
         if (match == null || match.getId() == null) {
             throw new IllegalArgumentException("Persisted match is required");
         }
         List<UUID> winnerIds = winners == null ? List.of() : winners.stream()
-                .filter(Objects::nonNull).map(PlayerData::getId).filter(Objects::nonNull).distinct().toList();
+                .filter(Objects::nonNull).distinct().toList();
         List<Performance> results = performances == null ? List.of() : List.copyOf(performances);
         return inTransaction(em -> {
             Match managedMatch = requireMatch(em, match.getId());

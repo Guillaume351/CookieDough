@@ -11,6 +11,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.util.Vector;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.block.sign.Side;
@@ -337,13 +338,17 @@ public class LobbyManager implements Listener {
     }
 
     public void addGameNpc(String gameName, Location location) {
+        addGameNpc(gameName, location, new Vector(2, 0, 0));
+    }
+
+    public void addGameNpc(String gameName, Location location, Vector statueOffset) {
         GameNPC npc = new GameNPC(gameName, location, CookieDough.getInstance());
         gameNpcs.add(npc);
         // keep chunk loaded
         npc.getNPC().getLocation().getChunk().load(true);
 
         // Create statue next to NPC (offset by 2 blocks in x direction)
-        Location statueLocation = location.clone().add(2, 0, 0);
+        Location statueLocation = location.clone().add(statueOffset);
         statueManager.createStatue(gameName, statueLocation);
     }
 
@@ -453,6 +458,9 @@ public class LobbyManager implements Listener {
         ItemStack item = event.getItem();
         if (item != null && item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(
                 new NamespacedKey(CookieDough.getInstance(), "quick_play"), PersistentDataType.BYTE)) {
+            if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+                return;
+            }
             event.setCancelled(true);
             requestQuickPlay(event.getPlayer());
             return;

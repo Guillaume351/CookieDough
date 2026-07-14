@@ -27,12 +27,16 @@ public class WorldEventListener implements Listener {
 
     @EventHandler
     public void onBlockTick(BlockPhysicsEvent event) {
-        event.setCancelled(true);
+        if (WorldPolicy.usesFrozenPhysics(event.getBlock().getWorld().getName())) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler
     public void onBlockUpdate(BlockFromToEvent event) {
-        event.setCancelled(true);
+        if (WorldPolicy.usesFrozenPhysics(event.getBlock().getWorld().getName())) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler

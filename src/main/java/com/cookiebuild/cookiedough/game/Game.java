@@ -33,6 +33,7 @@ public abstract class Game implements GameStatus {
     protected boolean inQuickStart = false;
 
     private int capacity = 8;
+    private int minimumPlayers = 2;
 
     public Game(String gameName) {
         this.gameName = gameName;
@@ -93,7 +94,7 @@ public abstract class Game implements GameStatus {
                                 + " reason=" + reason);
             }
             onPlayerRemoved(player);
-            if (startTimer > 0 && players.size() < 2) {
+            if (startTimer > 0 && players.size() < minimumPlayers) {
                 startTimer = 0;
                 inQuickStart = false;
             }
@@ -121,7 +122,7 @@ public abstract class Game implements GameStatus {
         time++;
         if (state == GameState.OPEN) {
             int availablePlayers = GameManager.getAvailablePlayerCount();
-            if (players.size() >= 2) {
+            if (players.size() >= minimumPlayers) {
                 boolean quickStartCondition = availablePlayers == 0 || players.size() == capacity;
 
                 if (quickStartCondition && !inQuickStart) {
@@ -144,13 +145,15 @@ public abstract class Game implements GameStatus {
             } else {
                 startTimer = 0; // Reset timer if players are less than 2
                 inQuickStart = false;
-                if (players.size() == 1 && time % 15 == 0) {
+                if (!players.isEmpty() && time % 15 == 0) {
                     CookiePlayer waiting = players.getFirst();
                     long queuedAt = queueEnteredAt.getOrDefault(waiting.getPlayer().getUniqueId(),
                             System.currentTimeMillis());
                     long waitingSeconds = Math.max(0L, (System.currentTimeMillis() - queuedAt) / 1000);
                     waiting.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text(
-                            "Waiting " + waitingSeconds + "s · 1 more player needed",
+                            "Waiting " + waitingSeconds + "s · "
+                                    + (minimumPlayers - players.size()) + " more player"
+                                    + (minimumPlayers - players.size() == 1 ? "" : "s") + " needed",
                             net.kyori.adventure.text.format.NamedTextColor.YELLOW));
                 }
             }
@@ -284,7 +287,21 @@ public abstract class Game implements GameStatus {
     }
 
     public void setCapacity(int capacity) {
+        if (capacity < 1 || capacity < minimumPlayers) {
+            throw new IllegalArgumentException("Capacity must be at least the minimum player count");
+        }
         this.capacity = capacity;
+    }
+
+    public int getMinimumPlayers() {
+        return minimumPlayers;
+    }
+
+    public void setMinimumPlayers(int minimumPlayers) {
+        if (minimumPlayers < 1 || minimumPlayers > capacity) {
+            throw new IllegalArgumentException("Minimum players must be between 1 and capacity");
+        }
+        this.minimumPlayers = minimumPlayers;
     }
 
     public String getGameName() {

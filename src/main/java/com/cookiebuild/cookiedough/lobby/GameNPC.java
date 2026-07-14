@@ -195,7 +195,8 @@ public class GameNPC {
                 player.sendMessage(ChatColor.RED + "No available " + gameName + " games. Please wait.");
             }
         } else {
-            player.sendMessage(ChatColor.RED + "Error: Game not found.");
+            player.sendMessage(ChatColor.YELLOW + gameName
+                    + " is temporarily unavailable because no arena is ready yet.");
         }
     }
 

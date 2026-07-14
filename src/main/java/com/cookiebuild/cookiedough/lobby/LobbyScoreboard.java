@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -34,6 +35,17 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 public class LobbyScoreboard {
+    private record GameStatsSpec(String gameType, String progressionKey, String label,
+            NamedTextColor headerColor, NamedTextColor statsColor) {
+    }
+
+    private static final List<GameStatsSpec> GAME_STATS = List.of(
+            new GameStatsSpec("MicroBattles", MinigameProgressionService.MICROBATTLES, "MICRO",
+                    NamedTextColor.AQUA, NamedTextColor.DARK_AQUA),
+            new GameStatsSpec("Pitchout", MinigameProgressionService.PITCHOUT, "PITCH",
+                    NamedTextColor.LIGHT_PURPLE, NamedTextColor.DARK_PURPLE),
+            new GameStatsSpec("SkyWars", MinigameProgressionService.SKYWARS, "SKY",
+                    NamedTextColor.GOLD, NamedTextColor.YELLOW));
     private final Player player;
     private final Scoreboard scoreboard;
     private Objective objective;
@@ -59,17 +71,14 @@ public class LobbyScoreboard {
         List<PlayerMatchPerformance> allPerformances;
         Long totalPlayTime;
         int coins;
-        PlayerStatsService.ProgressionSnapshot microProgression;
-        PlayerStatsService.ProgressionSnapshot pitchoutProgression;
+        Map<String, PlayerStatsService.ProgressionSnapshot> progressionByGame;
 
         PlayerStats(List<PlayerMatchPerformance> performances, Long playTime, int coins,
-                PlayerStatsService.ProgressionSnapshot microProgression,
-                PlayerStatsService.ProgressionSnapshot pitchoutProgression) {
+                Map<String, PlayerStatsService.ProgressionSnapshot> progressionByGame) {
             this.allPerformances = performances;
             this.totalPlayTime = playTime;
             this.coins = coins;
-            this.microProgression = microProgression;
-            this.pitchoutProgression = pitchoutProgression;
+            this.progressionByGame = Map.copyOf(progressionByGame);
         }
     }
 
@@ -119,8 +128,7 @@ public class LobbyScoreboard {
             return cachedStats;
         }
         refreshStatsAsync(playerId);
-        return cachedStats != null ? cachedStats : new PlayerStats(new ArrayList<>(), 0L, 0,
-                PlayerStatsService.ProgressionSnapshot.empty(), PlayerStatsService.ProgressionSnapshot.empty());
+        return cachedStats != null ? cachedStats : new PlayerStats(new ArrayList<>(), 0L, 0, Map.of());
     }
 
     private void refreshStatsAsync(java.util.UUID playerId) {
@@ -133,11 +141,12 @@ public class LobbyScoreboard {
                         .getPlayerPerformancesStatic(playerId);
                 Long totalPlayTime = PlayerStatsService.getTotalPlayTimeStatic(playerId);
                 int coins = PlayerStatsService.getCoinsStatic(playerId);
-                PlayerStatsService.ProgressionSnapshot micro = PlayerStatsService.getProgressionStatic(
-                        playerId, MinigameProgressionService.MICROBATTLES);
-                PlayerStatsService.ProgressionSnapshot pitchout = PlayerStatsService.getProgressionStatic(
-                        playerId, MinigameProgressionService.PITCHOUT);
-                PlayerStats newStats = new PlayerStats(allPerformances, totalPlayTime, coins, micro, pitchout);
+                Map<String, PlayerStatsService.ProgressionSnapshot> progressionByGame = new LinkedHashMap<>();
+                for (GameStatsSpec game : GAME_STATS) {
+                    progressionByGame.put(game.progressionKey(), PlayerStatsService.getProgressionStatic(
+                            playerId, game.progressionKey()));
+                }
+                PlayerStats newStats = new PlayerStats(allPerformances, totalPlayTime, coins, progressionByGame);
                 statsCache.put(playerId, newStats);
                 lastCacheUpdate.put(playerId, System.currentTimeMillis());
                 Bukkit.getScheduler().runTask(CookieDough.getInstance(), this::update);
@@ -165,11 +174,6 @@ public class LobbyScoreboard {
         PlayerStats stats = getCachedStats();
         List<PlayerMatchPerformance> allPerformances = stats.allPerformances;
 
-        // Calculate overall stats
-        int totalKillsAll = allPerformances.stream().mapToInt(PlayerMatchPerformance::getKillsInMatch).sum();
-        int totalDeathsAll = allPerformances.stream().mapToInt(PlayerMatchPerformance::getDeathsInMatch).sum();
-        double kdrOverall = (totalDeathsAll == 0) ? totalKillsAll : (double) totalKillsAll / totalDeathsAll;
-
         // Group performances by game type
         Map<String, List<PlayerMatchPerformance>> performancesByGame = allPerformances.stream()
                 .collect(Collectors.groupingBy(p -> p.getMatch().getGameType()));
@@ -186,8 +190,6 @@ public class LobbyScoreboard {
                 .append(Component.text(stats.coins).color(NamedTextColor.WHITE))
                 .append(Component.text(" • " + allPerformances.size() + " games").color(NamedTextColor.GRAY)), line--);
 
-        setScore(Component.text(" "), line--);
-
         // Play Time - use cached data
         Long pastSessionsPlayTime = stats.totalPlayTime;
 
@@ -199,40 +201,26 @@ public class LobbyScoreboard {
         }
         long totalPlayTime = pastSessionsPlayTime + currentSessionLivePlayTime;
 
-        setScore(Component.text("PLAY TIME").color(NamedTextColor.GOLD).decorate(TextDecoration.BOLD), line--);
-        setScore(Component.text("  ").append(Component.text(formatPlayTime(totalPlayTime)).color(NamedTextColor.WHITE)),
-                line--);
+        setScore(Component.text("  Play: ").color(NamedTextColor.GOLD)
+                .append(Component.text(formatPlayTime(totalPlayTime)).color(NamedTextColor.WHITE)), line--);
         setScore(Component.text(" "), line--);
 
-        // MicroBattles Stats
-        List<PlayerMatchPerformance> mbPerformances = performancesByGame.getOrDefault("MicroBattles", List.of());
-        setScore(Component.text("MICRO L" + stats.microProgression.level() + " "
-                        + stats.microProgression.experience() + "/" + stats.microProgression.nextLevelExperience())
-                .color(NamedTextColor.AQUA)
-                .decorate(TextDecoration.BOLD), line--);
-        if (!mbPerformances.isEmpty()) {
-            displayGameStats("MicroBattles", mbPerformances, line);
-            line -= 2;
-        } else {
-            setScore(Component.text("  Play a game!").color(NamedTextColor.GRAY), line--);
-            setScore(Component.text(" "), line--);
-        }
-
-        // Pitchout Stats
-        List<PlayerMatchPerformance> poPerformances = performancesByGame.getOrDefault("Pitchout", List.of());
-        setScore(Component.text("PITCH L" + stats.pitchoutProgression.level() + " "
-                        + stats.pitchoutProgression.experience() + "/" + stats.pitchoutProgression.nextLevelExperience())
-                .color(NamedTextColor.LIGHT_PURPLE)
-                .decorate(TextDecoration.BOLD), line--);
-        if (!poPerformances.isEmpty()) {
-            displayGameStats("Pitchout", poPerformances, line);
-            line -= 2;
-        } else {
-            setScore(Component.text("  Play a game!").color(NamedTextColor.GRAY), line--);
-            setScore(Component.text(" "), line--);
+        for (GameStatsSpec game : GAME_STATS) {
+            PlayerStatsService.ProgressionSnapshot progression = stats.progressionByGame.getOrDefault(
+                    game.progressionKey(), PlayerStatsService.ProgressionSnapshot.empty());
+            setScore(Component.text(game.label() + " L" + progression.level() + " "
+                            + progression.experience() + "/" + progression.nextLevelExperience())
+                    .color(game.headerColor()).decorate(TextDecoration.BOLD), line--);
+            List<PlayerMatchPerformance> performances = performancesByGame.getOrDefault(game.gameType(), List.of());
+            if (performances.isEmpty()) {
+                setScore(Component.text("  Play a game!").color(NamedTextColor.GRAY), line--);
+            } else {
+                displayGameStats(game, performances, line--);
+            }
         }
 
         // Website and separator
+        setScore(Component.text(" "), line--);
         setScore(Component.text(websiteUrl).color(NamedTextColor.GRAY).decorate(TextDecoration.ITALIC), line--);
         setScore(Component.text("                 ").color(NamedTextColor.DARK_GRAY)
                 .decorate(TextDecoration.STRIKETHROUGH), line--);
@@ -242,23 +230,18 @@ public class LobbyScoreboard {
         }
     }
 
-    private void displayGameStats(String gameType, List<PlayerMatchPerformance> performances, int line) {
-        NamedTextColor color = gameType.equals("MicroBattles") ? NamedTextColor.DARK_AQUA : NamedTextColor.DARK_PURPLE;
-
+    private void displayGameStats(GameStatsSpec game, List<PlayerMatchPerformance> performances, int line) {
         int wins = (int) performances.stream()
                 .filter(p -> p.getMatch().getWinners().stream()
                         .anyMatch(winner -> winner.getId().equals(player.getUniqueId())))
                 .count();
 
-        setScore(Component.text("  Wins: ").color(color)
+        int eliminations = performances.stream().mapToInt(PlayerMatchPerformance::getKillsInMatch).sum();
+        setScore(Component.text("  W ").color(game.statsColor())
                 .append(Component.text(wins).color(NamedTextColor.WHITE))
-                .append(Component.text(" (" + performances.size() + " P)").color(NamedTextColor.GRAY)), line--);
-
-        int eliminations = performances.stream()
-                .mapToInt(p -> p.getKillsInMatch())
-                .sum();
-        setScore(Component.text("  Kills: ").color(color)
-                .append(Component.text(eliminations).color(NamedTextColor.WHITE)), line--);
+                .append(Component.text(" • K ").color(game.statsColor()))
+                .append(Component.text(eliminations).color(NamedTextColor.WHITE))
+                .append(Component.text(" • P " + performances.size()).color(NamedTextColor.GRAY)), line);
     }
 
     private void setScore(Component text, int score) {

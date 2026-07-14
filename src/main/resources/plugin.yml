@@ -21,7 +21,7 @@ commands:
     permission: cookiedough.admin
   quickplay:
     description: Join the game closest to starting
-    usage: /<command> [MicroBattles|Pitchout]
+    usage: /<command> [MicroBattles|Pitchout|SkyWars]
     aliases: [play]
   mute:
     description: Hide or show messages from a player

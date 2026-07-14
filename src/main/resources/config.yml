@@ -8,3 +8,39 @@ community-event:
 # Generated automatically on first start; keep stable to compare cohorts without logging UUIDs.
 telemetry:
   salt: ""
+
+# Lobby selectors are data-driven so new games do not require another hardcoded
+# core change. Coordinates are centred on blocks and can be adjusted live in
+# this file before a restart.
+lobby:
+  game-selectors:
+    microbattles:
+      enabled: true
+      game: "MicroBattles"
+      world: "lobby"
+      x: 0.5
+      y: 8.0
+      z: 12.5
+      yaw: 180.0
+      pitch: 0.0
+      statue-offset: [2.0, 0.0, 0.0]
+    pitchout:
+      enabled: true
+      game: "Pitchout"
+      world: "lobby"
+      x: 0.5
+      y: 8.0
+      z: -11.5
+      yaw: 0.0
+      pitch: 0.0
+      statue-offset: [2.0, 0.0, 0.0]
+    skywars:
+      enabled: true
+      game: "SkyWars"
+      world: "lobby"
+      x: 12.5
+      y: 8.0
+      z: 0.5
+      yaw: 90.0
+      pitch: 0.0
+      statue-offset: [0.0, 0.0, 2.0]
