@@ -15,6 +15,7 @@ import com.cookiebuild.cookiedough.commands.LobbyCommand;
 import com.cookiebuild.cookiedough.commands.MessageTestCommand;
 import com.cookiebuild.cookiedough.commands.SessionDiagnosticCommand;
 import com.cookiebuild.cookiedough.commands.QuickPlayCommand;
+import com.cookiebuild.cookiedough.commands.RallyCommand;
 import com.cookiebuild.cookiedough.commands.SocialSafetyCommand;
 import com.cookiebuild.cookiedough.commands.PartyCommand;
 import com.cookiebuild.cookiedough.commands.PracticeCommand;
@@ -33,6 +34,7 @@ import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.scheduler.MessageScheduler;
 import com.cookiebuild.cookiedough.retention.PartyManager;
 import com.cookiebuild.cookiedough.retention.PracticeManager;
+import com.cookiebuild.cookiedough.retention.RallyManager;
 import com.cookiebuild.cookiedough.retention.CommunityEventManager;
 import com.cookiebuild.cookiedough.retention.PlayerGoalTracker;
 import com.cookiebuild.cookiedough.service.MinigameProgressionService;
@@ -50,6 +52,7 @@ public final class CookieDough extends JavaPlugin {
     private ChatManager chatManager;
     private PlayerWrapperListener playerWrapperListener;
     private PartyManager partyManager;
+    private RallyManager rallyManager;
     private PracticeManager practiceManager;
     private CommunityEventManager communityEventManager;
     private PlayerGoalTracker goalTracker;
@@ -97,6 +100,10 @@ public final class CookieDough extends JavaPlugin {
         return partyManager;
     }
 
+    public RallyManager getRallyManager() {
+        return rallyManager;
+    }
+
     public PracticeManager getPracticeManager() {
         return practiceManager;
     }
@@ -122,7 +129,8 @@ public final class CookieDough extends JavaPlugin {
         RabbitMQInitializer.initialize();
         getLocaleManager();
         chatManager = new ChatManager();
-        partyManager = new PartyManager();
+        partyManager = new PartyManager(this);
+        rallyManager = new RallyManager(this);
         goalTracker = new PlayerGoalTracker(this);
         practiceManager = new PracticeManager(this);
         communityEventManager = new CommunityEventManager(this);
@@ -152,7 +160,12 @@ public final class CookieDough extends JavaPlugin {
         registerCommands();
 
         // Start scheduled tasks
-        Bukkit.getScheduler().runTaskTimer(this, GameManager::tickGames, 0, 20);
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            GameManager.tickGames();
+            rallyManager.tick(GameManager.getGames());
+        }, 0, 20);
+        partyManager.start();
+        rallyManager.start();
         getLogger().info("MessageScheduler initialized and started");
 
         getLogger().info("CookieDough enabled!");
@@ -243,6 +256,7 @@ public final class CookieDough extends JavaPlugin {
         getCommand("block").setExecutor(socialSafety);
         getCommand("report").setExecutor(socialSafety);
         getCommand("party").setExecutor(new PartyCommand(partyManager));
+        getCommand("rally").setExecutor(new RallyCommand(rallyManager));
         getCommand("practice").setExecutor(new PracticeCommand(practiceManager));
         getCommand("events").setExecutor(new EventsCommand(communityEventManager));
         getCommand("goals").setExecutor(new GoalsCommand(goalTracker));
@@ -268,6 +282,12 @@ public final class CookieDough extends JavaPlugin {
         }
         if (appLinkCommand != null) {
             appLinkCommand.shutdown(Duration.ofSeconds(5));
+        }
+        if (partyManager != null) {
+            partyManager.shutdown(Duration.ofSeconds(5));
+        }
+        if (rallyManager != null) {
+            rallyManager.shutdown(Duration.ofSeconds(5));
         }
 
         PlayerWrapperListener.shutdownGracefully(Duration.ofSeconds(5));

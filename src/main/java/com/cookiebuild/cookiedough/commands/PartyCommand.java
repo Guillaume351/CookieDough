@@ -22,24 +22,31 @@ public final class PartyCommand implements CommandExecutor {
             sender.sendMessage("This command can only be used by players.");
             return true;
         }
-        String result;
+        java.util.function.Consumer<String> reply = result -> {
+            if (player.isOnline()) {
+                player.sendMessage(ChatColor.YELLOW + result);
+            }
+        };
         if (args.length == 0 || args[0].equalsIgnoreCase("list")) {
-            result = parties.describe(player);
+            reply.accept(parties.describe(player));
         } else if (args[0].equalsIgnoreCase("create")) {
-            result = parties.create(player) ? "Party created." : "You are already in a party.";
+            parties.create(player, reply);
         } else if (args[0].equalsIgnoreCase("leave")) {
-            result = parties.leave(player);
+            parties.leave(player, reply);
         } else if ((args[0].equalsIgnoreCase("invite") || args[0].equalsIgnoreCase("join")) && args.length > 1) {
             Player target = Bukkit.getPlayerExact(args[1]);
             if (target == null) {
-                result = "That player is not online.";
+                reply.accept("That player is not online.");
             } else {
-                result = args[0].equalsIgnoreCase("invite") ? parties.invite(player, target) : parties.join(player, target);
+                if (args[0].equalsIgnoreCase("invite")) {
+                    parties.invite(player, target, reply);
+                } else {
+                    parties.join(player, target, reply);
+                }
             }
         } else {
-            result = "/party [create|invite <player>|join <leader>|leave|list]";
+            reply.accept("/party [create|invite <player>|join <leader>|leave|list]");
         }
-        player.sendMessage(ChatColor.YELLOW + result);
         return true;
     }
 }

@@ -36,6 +36,9 @@ commands:
   party:
     description: Create and manage a player party
     usage: /<command> [create|invite|join|leave|list]
+  rally:
+    description: Call opted-in players to an underfilled queue
+    usage: /<command> [MicroBattles|Pitchout|SkyWars|BuildBattles]
   practice:
     description: Toggle the solo reaction trainer
     usage: /<command>
