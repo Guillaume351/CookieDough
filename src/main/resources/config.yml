@@ -44,3 +44,13 @@ lobby:
       yaw: 90.0
       pitch: 0.0
       statue-offset: [0.0, 0.0, 2.0]
+    buildbattles:
+      enabled: true
+      game: "BuildBattles"
+      world: "lobby"
+      x: -11.5
+      y: 8.0
+      z: 0.5
+      yaw: -90.0
+      pitch: 0.0
+      statue-offset: [0.0, 0.0, -2.0]

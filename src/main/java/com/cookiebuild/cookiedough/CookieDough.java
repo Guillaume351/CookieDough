@@ -197,7 +197,15 @@ public final class CookieDough extends JavaPlugin {
             if (selector == null || !selector.getBoolean("enabled", true)) {
                 continue;
             }
-            String gameName = selector.getString("game", selectorKey);
+            String gameName = selector.getString("game");
+            if (gameName == null || gameName.isBlank()) {
+                // A ConfigurationSection created from an older persisted YAML does
+                // not inherit newly copied nested defaults. Resolve the embedded
+                // default explicitly before falling back to the selector key.
+                org.bukkit.configuration.Configuration defaults = getConfig().getDefaults();
+                gameName = defaults == null ? selectorKey : defaults.getString(
+                        "lobby.game-selectors." + selectorKey + ".game", selectorKey);
+            }
             World world = getServer().getWorld(selector.getString("world", "lobby"));
             if (world == null) {
                 getLogger().warning("Skipping " + gameName + " selector: configured world is not loaded");

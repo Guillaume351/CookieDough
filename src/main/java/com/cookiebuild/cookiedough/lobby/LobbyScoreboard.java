@@ -36,16 +36,18 @@ import net.kyori.adventure.text.format.TextDecoration;
 
 public class LobbyScoreboard {
     private record GameStatsSpec(String gameType, String progressionKey, String label,
-            NamedTextColor headerColor, NamedTextColor statsColor) {
+            NamedTextColor headerColor, NamedTextColor statsColor, String metricLabel, String metricKey) {
     }
 
     private static final List<GameStatsSpec> GAME_STATS = List.of(
             new GameStatsSpec("MicroBattles", MinigameProgressionService.MICROBATTLES, "MICRO",
-                    NamedTextColor.AQUA, NamedTextColor.DARK_AQUA),
+                    NamedTextColor.AQUA, NamedTextColor.DARK_AQUA, "K", null),
             new GameStatsSpec("Pitchout", MinigameProgressionService.PITCHOUT, "PITCH",
-                    NamedTextColor.LIGHT_PURPLE, NamedTextColor.DARK_PURPLE),
+                    NamedTextColor.LIGHT_PURPLE, NamedTextColor.DARK_PURPLE, "K", null),
             new GameStatsSpec("SkyWars", MinigameProgressionService.SKYWARS, "SKY",
-                    NamedTextColor.GOLD, NamedTextColor.YELLOW));
+                    NamedTextColor.GOLD, NamedTextColor.YELLOW, "K", null),
+            new GameStatsSpec("BuildBattles", MinigameProgressionService.BUILDBATTLES, "BUILD",
+                    NamedTextColor.GREEN, NamedTextColor.DARK_GREEN, "S", "score"));
     private final Player player;
     private final Scoreboard scoreboard;
     private Objective objective;
@@ -236,11 +238,14 @@ public class LobbyScoreboard {
                         .anyMatch(winner -> winner.getId().equals(player.getUniqueId())))
                 .count();
 
-        int eliminations = performances.stream().mapToInt(PlayerMatchPerformance::getKillsInMatch).sum();
+        int metric = game.metricKey() == null
+                ? performances.stream().mapToInt(PlayerMatchPerformance::getKillsInMatch).sum()
+                : performances.stream().mapToInt(performance -> getMetricFromJson(
+                        performance.getGameSpecificMetrics(), game.metricKey())).sum();
         setScore(Component.text("  W ").color(game.statsColor())
                 .append(Component.text(wins).color(NamedTextColor.WHITE))
-                .append(Component.text(" • K ").color(game.statsColor()))
-                .append(Component.text(eliminations).color(NamedTextColor.WHITE))
+                .append(Component.text(" • " + game.metricLabel() + " ").color(game.statsColor()))
+                .append(Component.text(metric).color(NamedTextColor.WHITE))
                 .append(Component.text(" • P " + performances.size()).color(NamedTextColor.GRAY)), line);
     }
 
@@ -272,14 +277,17 @@ public class LobbyScoreboard {
         return "§" + (score % 10) + "§" + ((score / 10) % 10);
     }
 
-    private String getMetricFromJson(String json, String key) {
+    private int getMetricFromJson(String json, String key) {
+        if (json == null || json.isBlank()) {
+            return 0;
+        }
         try {
             Map<String, String> metrics = GSON.fromJson(json,
                     new TypeToken<Map<String, String>>() {
                     }.getType());
-            return metrics.getOrDefault(key, "0");
+            return Integer.parseInt(metrics.getOrDefault(key, "0"));
         } catch (Exception e) {
-            return "0";
+            return 0;
         }
     }
 

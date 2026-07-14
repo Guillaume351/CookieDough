@@ -23,6 +23,7 @@ public class MinigameProgressionService {
     public static final String MICROBATTLES = "microbattles";
     public static final String PITCHOUT = "pitchout";
     public static final String SKYWARS = "skywars";
+    public static final String BUILDBATTLES = "buildbattles";
 
     private final EntityManager legacyEntityManager;
 

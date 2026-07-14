@@ -79,6 +79,27 @@ public abstract class Game implements GameStatus {
         return true;
     }
 
+    /**
+     * Restores a module-owned participant after a short transport disconnect.
+     * The module must validate the player's reserved slot and reconnect window
+     * before calling this method; normal admission remains restricted to OPEN.
+     */
+    protected synchronized boolean restorePlayerAfterReconnect(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()
+                || state != GameState.RUNNING) {
+            return false;
+        }
+        UUID playerId = player.getPlayer().getUniqueId();
+        players.removeIf(existing -> existing.getPlayer().getUniqueId().equals(playerId));
+        if (players.size() >= capacity) {
+            return false;
+        }
+        players.add(player);
+        player.setState(PlayerState.IN_GAME);
+        PlayerWrapperListener.hideLobbyScoreboard(player.getPlayer());
+        return true;
+    }
+
     public void removePlayer(CookiePlayer player) {
         removePlayer(player, "left_queue");
     }
