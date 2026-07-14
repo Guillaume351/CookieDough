@@ -6,6 +6,7 @@ load: POSTWORLD
 authors: [Guillaume Claverie]
 description: New Cookie Build Core plugin
 website: cookie-build.com
+softdepend: [floodgate]
 commands:
   lobby:
     description: Teleport to the lobby
@@ -47,3 +48,6 @@ commands:
   feedback:
     description: Send feedback to the Cookie Build team
     usage: /<command> <message>
+  app:
+    description: Link or unlink your Cookie Build mobile app
+    usage: /<command> [link|status|revoke]

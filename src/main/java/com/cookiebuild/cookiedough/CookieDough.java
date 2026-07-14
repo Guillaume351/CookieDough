@@ -21,6 +21,7 @@ import com.cookiebuild.cookiedough.commands.PracticeCommand;
 import com.cookiebuild.cookiedough.commands.EventsCommand;
 import com.cookiebuild.cookiedough.commands.GoalsCommand;
 import com.cookiebuild.cookiedough.commands.FeedbackCommand;
+import com.cookiebuild.cookiedough.commands.AppLinkCommand;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
 import com.cookiebuild.cookiedough.listener.NPCReloadListener;
@@ -36,6 +37,7 @@ import com.cookiebuild.cookiedough.retention.CommunityEventManager;
 import com.cookiebuild.cookiedough.retention.PlayerGoalTracker;
 import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
+import com.cookiebuild.cookiedough.service.MobileLinkService;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
 import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
@@ -51,6 +53,8 @@ public final class CookieDough extends JavaPlugin {
     private PracticeManager practiceManager;
     private CommunityEventManager communityEventManager;
     private PlayerGoalTracker goalTracker;
+    private MobileLinkService mobileLinkService;
+    private AppLinkCommand appLinkCommand;
 
     public static CookieDough getInstance() {
         return instance;
@@ -122,6 +126,12 @@ public final class CookieDough extends JavaPlugin {
         goalTracker = new PlayerGoalTracker(this);
         practiceManager = new PracticeManager(this);
         communityEventManager = new CommunityEventManager(this);
+        String mobileLinkPepper = System.getenv("MOBILE_LINK_PEPPER");
+        if (MobileLinkService.isValidPepper(mobileLinkPepper)) {
+            mobileLinkService = new MobileLinkService(mobileLinkPepper);
+        } else {
+            getLogger().warning("Mobile account linking is disabled: MOBILE_LINK_PEPPER must be a non-placeholder secret of at least 32 characters");
+        }
 
         // Initialize managers
         lobbyManager = new LobbyManager(this);
@@ -237,6 +247,15 @@ public final class CookieDough extends JavaPlugin {
         getCommand("events").setExecutor(new EventsCommand(communityEventManager));
         getCommand("goals").setExecutor(new GoalsCommand(goalTracker));
         getCommand("feedback").setExecutor(new FeedbackCommand());
+        if (mobileLinkService != null) {
+            appLinkCommand = new AppLinkCommand(this, mobileLinkService);
+            getCommand("app").setExecutor(appLinkCommand);
+        } else {
+            getCommand("app").setExecutor((sender, command, label, args) -> {
+                sender.sendMessage("The Cookie Build app link service is temporarily unavailable.");
+                return true;
+            });
+        }
     }
 
     @Override
@@ -246,6 +265,9 @@ public final class CookieDough extends JavaPlugin {
         }
         if (goalTracker != null) {
             goalTracker.shutdown();
+        }
+        if (appLinkCommand != null) {
+            appLinkCommand.shutdown(Duration.ofSeconds(5));
         }
 
         PlayerWrapperListener.shutdownGracefully(Duration.ofSeconds(5));
