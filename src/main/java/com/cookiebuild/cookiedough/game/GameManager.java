@@ -23,6 +23,7 @@ public class GameManager {
     private static final List<Game> games = new CopyOnWriteArrayList<>();
     private static volatile GameLifecycleListener lifecycleListener;
     private static volatile boolean globalAdmissionsOpen = true;
+    private static final GameSelectionPolicy quickPlaySelection = new GameSelectionPolicy();
     private static long lastTickBatchAtNanos;
 
     public static void addGame(Game game) {
@@ -138,13 +139,12 @@ public class GameManager {
 
     /** Concentrates low population in the game that is closest to starting. */
     public static Game getBestOpenGame() {
-        return games.stream()
-                .filter(game -> game.getState() == GameState.OPEN)
-                .filter(Game::isAdmissionsOpen)
-                .filter(game -> game.getPlayerCount() < game.getCapacity())
-                .max(Comparator.comparingInt(Game::getPlayerCount)
-                        .thenComparing(Game::getGameName, String.CASE_INSENSITIVE_ORDER))
-                .orElse(null);
+        return selectBestOpenGame(games);
+    }
+
+    /** Uses the shared fair-selection history for a pre-filtered set of games. */
+    public static Game selectBestOpenGame(List<? extends Game> candidates) {
+        return quickPlaySelection.select(candidates);
     }
 
     public static int getAvailablePlayerCount() {

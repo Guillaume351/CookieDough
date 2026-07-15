@@ -105,7 +105,7 @@ class RallyQueueTrackerTest {
     @Test
     void requestContractRejectsUnsupportedOrUnattributedPayloads() {
         assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
-                UUID.randomUUID(), RallyRepository.Source.PLAYER, "turfwars", 1, 1, "CookieFan"));
+                UUID.randomUUID(), RallyRepository.Source.PLAYER, "unknown", 1, 1, "CookieFan"));
         assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
                 UUID.randomUUID(), RallyRepository.Source.PLAYER, "pitchout", 1, 1, null));
         assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
@@ -133,7 +133,8 @@ class RallyQueueTrackerTest {
         assertEquals("microbattles", RallyManager.normalizeGamemode("Micro Battles"));
         assertEquals("buildbattles", RallyManager.normalizeGamemode("BuildBattles"));
         assertEquals("skywars", RallyManager.normalizeGamemode("SKY-WARS"));
-        assertEquals(null, RallyManager.normalizeGamemode("TurfWars"));
+        assertEquals("turfwars", RallyManager.normalizeGamemode("TurfWars"));
+        assertEquals(null, RallyManager.normalizeGamemode("Unknown"));
     }
 
     private static RallyQueueTracker.QueueState queue(

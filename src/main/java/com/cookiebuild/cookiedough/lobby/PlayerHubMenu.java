@@ -30,7 +30,8 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 /** One discoverable lobby menu, rendered natively for Java and Bedrock players. */
 public final class PlayerHubMenu implements Listener {
-    private static final List<String> GAMES = List.of("MicroBattles", "Pitchout", "SkyWars", "BuildBattles");
+    private static final List<String> GAMES = List.of(
+            "MicroBattles", "Pitchout", "SkyWars", "BuildBattles", "TurfWars");
 
     private final CookieDough plugin;
     private final LobbyManager lobby;
@@ -57,7 +58,7 @@ public final class PlayerHubMenu implements Listener {
         inventory.setItem(10, item(Material.NETHER_STAR, "Quick Play", "quick",
                 "Join the game closest to starting"));
         inventory.setItem(12, item(Material.GRASS_BLOCK, "Choose a game", "games",
-                "MicroBattles, Pitchout, SkyWars or BuildBattles"));
+                "MicroBattles, Pitchout, SkyWars, BuildBattles or TurfWars"));
         inventory.setItem(14, item(Material.EXPERIENCE_BOTTLE, "Daily & weekly quests", "goals",
                 "Track objectives, rewards and achievements"));
         inventory.setItem(16, item(Material.PLAYER_HEAD, "Friends", "friends",
@@ -73,8 +74,11 @@ public final class PlayerHubMenu implements Listener {
     private Inventory gamesInventory() {
         MenuHolder holder = new MenuHolder(MenuPage.GAMES, 27, Component.text("Choose a game", NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
-        Material[] icons = { Material.RED_CONCRETE, Material.SLIME_BALL, Material.ENDER_EYE, Material.CRAFTING_TABLE };
-        int[] slots = { 10, 12, 14, 16 };
+        Material[] icons = {
+                Material.RED_CONCRETE, Material.SLIME_BALL, Material.ENDER_EYE,
+                Material.CRAFTING_TABLE, Material.BOW
+        };
+        int[] slots = { 9, 11, 13, 15, 17 };
         for (int index = 0; index < GAMES.size(); index++) {
             String game = GAMES.get(index);
             inventory.setItem(slots[index], item(icons[index], game, "game:" + game, "Join an open waiting lobby"));

@@ -314,6 +314,9 @@ public final class CookieDough extends JavaPlugin {
         if (adminBridge != null) {
             adminBridge.close();
         }
+        if (lobbyManager != null) {
+            lobbyManager.shutdown();
+        }
         if (messageScheduler != null) {
             messageScheduler.stop();
         }

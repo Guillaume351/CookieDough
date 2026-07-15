@@ -108,7 +108,7 @@ public final class RallyManager {
                 ? gameId
                 : normalizeGamemode(requestedGamemode);
         if (requested == null) {
-            completion.accept("Unknown gamemode. Use MicroBattles, Pitchout, SkyWars, or BuildBattles.");
+            completion.accept("Unknown gamemode. Use MicroBattles, Pitchout, SkyWars, BuildBattles, or TurfWars.");
             return;
         }
         if (!requested.equals(gameId)) {

@@ -54,3 +54,13 @@ lobby:
       yaw: -90.0
       pitch: 0.0
       statue-offset: [0.0, 0.0, -2.0]
+    turfwars:
+      enabled: true
+      game: "TurfWars"
+      world: "lobby"
+      x: 8.5
+      y: 8.0
+      z: 8.5
+      yaw: 135.0
+      pitch: 0.0
+      statue-offset: [1.0, 0.0, 0.0]

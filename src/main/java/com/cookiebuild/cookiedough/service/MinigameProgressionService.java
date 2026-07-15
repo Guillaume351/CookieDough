@@ -24,6 +24,7 @@ public class MinigameProgressionService {
     public static final String PITCHOUT = "pitchout";
     public static final String SKYWARS = "skywars";
     public static final String BUILDBATTLES = "buildbattles";
+    public static final String TURFWARS = "turfwars";
 
     private final EntityManager legacyEntityManager;
 
@@ -149,13 +150,7 @@ public class MinigameProgressionService {
     /** Applies a goal reward once using the same coin transaction ledger as match rewards. */
     public boolean claimGoalReward(UUID playerId, String minigame, int experience, int coins, String rewardKey) {
         if (rewardKey == null || rewardKey.isBlank() || experience < 0 || coins < 0) return false;
-        String normalizedGame = switch (minigame == null ? "" : minigame.toLowerCase()) {
-            case "microbattles" -> MICROBATTLES;
-            case "pitchout" -> PITCHOUT;
-            case "skywars" -> SKYWARS;
-            case "buildbattles" -> BUILDBATTLES;
-            default -> null;
-        };
+        String normalizedGame = supportedMinigameKey(minigame);
         if (normalizedGame == null) return false;
         RewardApplication result = inTransaction(em -> {
             PlayerData playerData = em.find(PlayerData.class, playerId,
@@ -170,6 +165,17 @@ public class MinigameProgressionService {
             return new RewardApplication(stats, true);
         });
         return result.applied();
+    }
+
+    static String supportedMinigameKey(String minigame) {
+        return switch (minigame == null ? "" : minigame.toLowerCase(java.util.Locale.ROOT)) {
+            case "microbattles" -> MICROBATTLES;
+            case "pitchout" -> PITCHOUT;
+            case "skywars" -> SKYWARS;
+            case "buildbattles" -> BUILDBATTLES;
+            case "turfwars" -> TURFWARS;
+            default -> null;
+        };
     }
 
     /** Claims globally idempotent rewards using the coin transaction ledger. */

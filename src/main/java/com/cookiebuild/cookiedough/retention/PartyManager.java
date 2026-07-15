@@ -183,19 +183,21 @@ public final class PartyManager {
     static PartyGameSelection selectPartyGame(List<Game> games, int partySize) {
         List<Game> openGames = games.stream()
                 .filter(candidate -> candidate.getState() == com.cookiebuild.cookiedough.game.GameState.OPEN)
-                .sorted(java.util.Comparator.comparingInt(Game::getPlayerCount)
-                        .thenComparing(Game::getGameName, String.CASE_INSENSITIVE_ORDER)
-                        .reversed())
                 .toList();
         String firstRejection = null;
+        List<Game> compatible = new ArrayList<>();
         for (Game candidate : openGames) {
             String problem = candidate.getPartyAdmissionProblem(partySize);
             if (problem == null) {
-                return new PartyGameSelection(candidate, "");
+                compatible.add(candidate);
             }
-            if (firstRejection == null) {
+            else if (firstRejection == null) {
                 firstRejection = problem;
             }
+        }
+        Game selected = GameManager.selectBestOpenGame(compatible);
+        if (selected != null) {
+            return new PartyGameSelection(selected, "");
         }
         return new PartyGameSelection(null, firstRejection == null
                 ? "No game is currently available for your party."

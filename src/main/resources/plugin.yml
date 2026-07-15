@@ -22,7 +22,7 @@ commands:
     permission: cookiedough.admin
   quickplay:
     description: Join the game closest to starting
-    usage: /<command> [MicroBattles|Pitchout|SkyWars|BuildBattles]
+    usage: /<command> [MicroBattles|Pitchout|SkyWars|BuildBattles|TurfWars]
     aliases: [play]
   mute:
     description: Hide or show messages from a player
@@ -38,7 +38,7 @@ commands:
     usage: /<command> [create|invite|join|leave|list]
   rally:
     description: Call opted-in players to an underfilled queue
-    usage: /<command> [MicroBattles|Pitchout|SkyWars|BuildBattles]
+    usage: /<command> [MicroBattles|Pitchout|SkyWars|BuildBattles|TurfWars]
   practice:
     description: Toggle the solo reaction trainer
     usage: /<command>

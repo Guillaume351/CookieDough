@@ -27,6 +27,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.Game;
@@ -45,6 +46,7 @@ public class LobbyManager implements Listener {
     private final List<GameNPC> gameNpcs = new ArrayList<>();
     private final List<Sign> gameSigns = new ArrayList<>();
     private final StatueManager statueManager;
+    private BukkitTask signRefreshTask;
 
     // Singleton
     private static LobbyManager instance;
@@ -80,12 +82,23 @@ public class LobbyManager implements Listener {
 
     private void startSignRefreshTask() {
         CookieDough.getInstance().getLogger().info("Starting sign refresh task (5 second interval)");
-        new BukkitRunnable() {
+        signRefreshTask = new BukkitRunnable() {
             @Override
             public void run() {
                 refreshSigns();
             }
         }.runTaskTimer(plugin, 0, 100);
+    }
+
+    public void shutdown() {
+        if (signRefreshTask != null) {
+            signRefreshTask.cancel();
+            signRefreshTask = null;
+        }
+        statueManager.shutdown();
+        if (instance == this) {
+            instance = null;
+        }
     }
 
     private void refreshSigns() {

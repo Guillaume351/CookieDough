@@ -2,6 +2,7 @@ package com.cookiebuild.cookiedough.retention;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.util.List;
@@ -57,6 +58,21 @@ class PartyManagerTest {
         assertNull(selection.game());
         assertEquals("Pitchout does not currently have room for all 3 party members.",
                 selection.rejectionReason());
+    }
+
+    @Test
+    void rotatesCompatibleEmptyPartyQueuesInsteadOfAlwaysChoosingTurfWars() {
+        StubGame skyWars = new StubGame("SkyWars", 8, 8, 0);
+        StubGame turfWars = new StubGame("TurfWars", 8, 8, 0);
+
+        PartyManager.PartyGameSelection first = PartyManager.selectPartyGame(
+                List.of(turfWars, skyWars), 2);
+        PartyManager.PartyGameSelection second = PartyManager.selectPartyGame(
+                List.of(turfWars, skyWars), 2);
+
+        assertNotSame(first.game(), second.game());
+        assertEquals(java.util.Set.of("SkyWars", "TurfWars"), java.util.Set.of(
+                first.game().getGameName(), second.game().getGameName()));
     }
 
     private static final class StubGame extends Game {

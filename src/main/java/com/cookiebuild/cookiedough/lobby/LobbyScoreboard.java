@@ -47,8 +47,11 @@ public class LobbyScoreboard {
             new GameStatsSpec("SkyWars", MinigameProgressionService.SKYWARS, "SKY",
                     NamedTextColor.GOLD, NamedTextColor.YELLOW, "K", null),
             new GameStatsSpec("BuildBattles", MinigameProgressionService.BUILDBATTLES, "BUILD",
-                    NamedTextColor.GREEN, NamedTextColor.DARK_GREEN, "S", "score"));
+                    NamedTextColor.GREEN, NamedTextColor.DARK_GREEN, "S", "score"),
+            new GameStatsSpec("TurfWars", MinigameProgressionService.TURFWARS, "TURF",
+                    NamedTextColor.RED, NamedTextColor.DARK_RED, "K", null));
     private final Player player;
+    private final PluginTaskDispatcher tasks;
     private final Scoreboard scoreboard;
     private Objective objective;
     private final String websiteUrl = "www.cookie-build.com";
@@ -86,6 +89,7 @@ public class LobbyScoreboard {
 
     public LobbyScoreboard(Player player) {
         this.player = player;
+        this.tasks = new PluginTaskDispatcher(CookieDough.getInstance());
 
         ScoreboardManager manager = Bukkit.getScoreboardManager();
         if (manager == null) {
@@ -137,7 +141,7 @@ public class LobbyScoreboard {
         if (!refreshInFlight.compareAndSet(false, true)) {
             return;
         }
-        Bukkit.getScheduler().runTaskAsynchronously(CookieDough.getInstance(), () -> {
+        boolean scheduled = tasks.runAsync(() -> {
             try {
                 List<PlayerMatchPerformance> allPerformances = PlayerStatsService
                         .getPlayerPerformancesStatic(playerId);
@@ -149,16 +153,23 @@ public class LobbyScoreboard {
                             playerId, game.progressionKey()));
                 }
                 PlayerStats newStats = new PlayerStats(allPerformances, totalPlayTime, coins, progressionByGame);
-                statsCache.put(playerId, newStats);
-                lastCacheUpdate.put(playerId, System.currentTimeMillis());
-                Bukkit.getScheduler().runTask(CookieDough.getInstance(), this::update);
+                tasks.runSync(() -> {
+                    statsCache.put(playerId, newStats);
+                    lastCacheUpdate.put(playerId, System.currentTimeMillis());
+                    update();
+                });
             } catch (Exception e) {
-                CookieDough.getInstance().getLogger().warning(
-                        "Could not refresh lobby stats for " + player.getName() + ": " + e.getMessage());
+                if (tasks.isActive()) {
+                    CookieDough.getInstance().getLogger().warning(
+                            "Could not refresh lobby stats for " + player.getName() + ": " + e.getMessage());
+                }
             } finally {
                 refreshInFlight.set(false);
             }
         });
+        if (!scheduled) {
+            refreshInFlight.set(false);
+        }
     }
 
     public void update() {
@@ -180,11 +191,9 @@ public class LobbyScoreboard {
         Map<String, List<PlayerMatchPerformance>> performancesByGame = allPerformances.stream()
                 .collect(Collectors.groupingBy(p -> p.getMatch().getGameType()));
 
-        int line = 15;
-
-        // Decorative separator
-        setScore(Component.text("                 ").color(NamedTextColor.DARK_GRAY)
-                .decorate(TextDecoration.STRIKETHROUGH), line--);
+        // A sidebar renders at most fifteen entries. Keep five games visible by
+        // using every line for actionable progression or connection information.
+        int line = 14;
 
         // Global stats
         setScore(Component.text("PROGRESS").color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD), line--);
@@ -221,11 +230,8 @@ public class LobbyScoreboard {
             }
         }
 
-        // Website and separator
-        setScore(Component.text(" "), line--);
+        // Website
         setScore(Component.text(websiteUrl).color(NamedTextColor.GRAY).decorate(TextDecoration.ITALIC), line--);
-        setScore(Component.text("                 ").color(NamedTextColor.DARK_GRAY)
-                .decorate(TextDecoration.STRIKETHROUGH), line--);
 
         if (player.getScoreboard() != this.scoreboard) {
             player.setScoreboard(this.scoreboard);
@@ -320,6 +326,7 @@ public class LobbyScoreboard {
     }
 
     public void cleanup() {
+        tasks.close();
         if (updateTask != null) {
             updateTask.cancel();
             updateTask = null;

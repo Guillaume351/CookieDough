@@ -5,11 +5,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
@@ -22,13 +22,16 @@ public class LeaderboardManager {
     private record LeaderboardEntry(String name, int wins) {
     }
     private final JavaPlugin plugin;
+    private final PluginTaskDispatcher tasks;
     private final Map<String, List<ArmorStand>> leaderboardLines = new HashMap<>();
     private final Map<String, Location> leaderboardLocations = new HashMap<>();
     private final Map<String, Long> refreshGenerations = new HashMap<>();
+    private BukkitTask monthlyUpdateTask;
     private static final double LINE_SPACING = 0.3; // Space between lines
 
     public LeaderboardManager(JavaPlugin plugin) {
         this.plugin = plugin;
+        this.tasks = new PluginTaskDispatcher(plugin);
         startMonthlyUpdateTask();
     }
 
@@ -43,17 +46,20 @@ public class LeaderboardManager {
             return;
         }
         long generation = refreshGenerations.merge(gameMode, 1L, Long::sum);
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        tasks.runAsync(() -> {
             try {
                 List<LeaderboardEntry> entries = loadLeaderboard(gameMode);
-                Bukkit.getScheduler().runTask(plugin, () -> {
+                tasks.runSync(() -> {
                     if (refreshGenerations.getOrDefault(gameMode, 0L) == generation
                             && leaderboardLocations.containsKey(gameMode)) {
                         renderLeaderboard(gameMode, baseLocation, entries);
                     }
                 });
             } catch (RuntimeException error) {
-                plugin.getLogger().warning("Failed to load leaderboard for " + gameMode + ": " + error.getMessage());
+                if (tasks.isActive()) {
+                    plugin.getLogger().warning(
+                            "Failed to load leaderboard for " + gameMode + ": " + error.getMessage());
+                }
             }
         });
     }
@@ -123,7 +129,7 @@ public class LeaderboardManager {
     }
 
     private void startMonthlyUpdateTask() {
-        new BukkitRunnable() {
+        monthlyUpdateTask = new BukkitRunnable() {
             @Override
             public void run() {
                 // Get a snapshot of the current game modes to avoid concurrent modification
@@ -134,5 +140,18 @@ public class LeaderboardManager {
                 }
             }
         }.runTaskTimer(plugin, 0, 20 * 60 * 60); // Update every hour
+    }
+
+    public void shutdown() {
+        tasks.close();
+        if (monthlyUpdateTask != null) {
+            monthlyUpdateTask.cancel();
+            monthlyUpdateTask = null;
+        }
+        leaderboardLocations.clear();
+        refreshGenerations.replaceAll((gameMode, generation) -> generation + 1);
+        for (String gameMode : new ArrayList<>(leaderboardLines.keySet())) {
+            removeRenderedLines(gameMode);
+        }
     }
 }

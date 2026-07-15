@@ -1,16 +1,17 @@
 package com.cookiebuild.cookiedough.lobby;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.model.PlayerData;
@@ -22,14 +23,17 @@ public class StatueManager {
     private record StatueData(UUID playerId, String playerName, int wins) {
     }
     private final JavaPlugin plugin;
+    private final PluginTaskDispatcher tasks;
     private final Map<String, ArmorStand> statues = new HashMap<>();
     private final Map<String, ArmorStand> textDisplays = new HashMap<>();
     private final Map<String, Integer> winCounts = new HashMap<>();
     private final Map<String, Location> statueLocations = new HashMap<>();
     private final LeaderboardManager leaderboardManager;
+    private BukkitTask weeklyUpdateTask;
 
     public StatueManager(JavaPlugin plugin) {
         this.plugin = plugin;
+        this.tasks = new PluginTaskDispatcher(plugin);
         this.leaderboardManager = new LeaderboardManager(plugin);
         active = this;
         startWeeklyUpdateTask();
@@ -55,10 +59,10 @@ public class StatueManager {
         // newly added gamemode. Previously the whole popup was skipped until a
         // weekly winner already existed.
         leaderboardManager.createLeaderboard(gameMode, safeLocation.clone().add(0, 2, 0));
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        tasks.runAsync(() -> {
             StatueData data = loadStatueData(gameMode);
             if (data != null) {
-                Bukkit.getScheduler().runTask(plugin, () -> renderStatue(gameMode, safeLocation, data));
+                tasks.runSync(() -> renderStatue(gameMode, safeLocation, data));
             }
         });
     }
@@ -72,7 +76,9 @@ public class StatueManager {
             return new StatueData(topPlayer.getId(), topPlayer.getName(),
                     PlayerStatsService.getWinsThisWeekStatic(topPlayer.getId(), gameMode));
         } catch (RuntimeException error) {
-            plugin.getLogger().warning("Failed to load statue for " + gameMode + ": " + error.getMessage());
+            if (tasks.isActive()) {
+                plugin.getLogger().warning("Failed to load statue for " + gameMode + ": " + error.getMessage());
+            }
             return null;
         }
     }
@@ -125,10 +131,10 @@ public class StatueManager {
         Location location = statueLocations.get(gameMode);
         if (location == null)
             return;
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        tasks.runAsync(() -> {
             StatueData data = loadStatueData(gameMode);
             if (data != null) {
-                Bukkit.getScheduler().runTask(plugin, () -> {
+                tasks.runSync(() -> {
                     if (statues.containsKey(gameMode)) {
                         applyStatueUpdate(gameMode, data);
                     } else {
@@ -182,7 +188,7 @@ public class StatueManager {
     }
 
     private void startWeeklyUpdateTask() {
-        new BukkitRunnable() {
+        weeklyUpdateTask = new BukkitRunnable() {
             @Override
             public void run() {
                 // Create a defensive copy to avoid ConcurrentModificationException
@@ -197,5 +203,21 @@ public class StatueManager {
                 }
             }
         }.runTaskTimer(plugin, 0, 20 * 60 * 60 * 24 * 7); // Update weekly
+    }
+
+    public void shutdown() {
+        tasks.close();
+        if (weeklyUpdateTask != null) {
+            weeklyUpdateTask.cancel();
+            weeklyUpdateTask = null;
+        }
+        leaderboardManager.shutdown();
+        for (String gameMode : new ArrayList<>(statueLocations.keySet())) {
+            removeStatueEntities(gameMode);
+        }
+        statueLocations.clear();
+        if (active == this) {
+            active = null;
+        }
     }
 }
