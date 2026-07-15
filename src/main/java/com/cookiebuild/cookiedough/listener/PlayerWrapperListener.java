@@ -38,6 +38,7 @@ import com.cookiebuild.cookiedough.retention.PostgresChangelogRepository;
 import com.cookiebuild.cookiedough.utils.DiscordUtils;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
+import com.cookiebuild.cookiedough.service.MobilePromotionService;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
@@ -62,6 +63,7 @@ public class PlayerWrapperListener implements Listener {
     private final Set<UUID> newPlayerSessions = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> disconnectReasons = new ConcurrentHashMap<>();
     private final ChangelogCoordinator changelog = new ChangelogCoordinator(new PostgresChangelogRepository());
+    private final MobilePromotionService mobilePromotion = new MobilePromotionService();
     private final ExecutorService persistenceExecutor = Executors.newFixedThreadPool(4, runnable -> {
         Thread thread = new Thread(runnable, "CookieDough-player-persistence");
         thread.setDaemon(true);
@@ -179,6 +181,7 @@ public class PlayerWrapperListener implements Listener {
             FunnelTelemetry.record(player, FunnelTelemetry.Event.PLAYER_DATA_READY,
                     "session=" + handle.sessionId() + " new_player=" + newPlayer);
             showUnreadChangelog(player, handle);
+            showMobileAppPromotion(player, handle);
             if (queuedQuickPlay.remove(handle.playerId())) {
                 CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
             }
@@ -232,6 +235,33 @@ public class PlayerWrapperListener implements Listener {
                                 });
                     });
                 });
+    }
+
+    private void showMobileAppPromotion(Player player, SessionHandle handle) {
+        CompletableFuture.supplyAsync(() -> mobilePromotion.claimPromotion(handle.playerId()), persistenceExecutor)
+                .whenComplete((claimed, error) -> Bukkit.getScheduler().runTask(CookieDough.getInstance(), () -> {
+                    SessionHandle current = activePlayerSessions.get(handle.playerId());
+                    if (current == null || current.generation() != handle.generation() || !player.isOnline()) return;
+                    if (error != null) {
+                        CookieDough.getInstance().getLogger().warning("Could not evaluate the mobile app reminder: "
+                                + rootMessage(error));
+                        return;
+                    }
+                    if (!Boolean.TRUE.equals(claimed)) return;
+                    player.sendMessage(Component.text(LocaleManager.getMessage(
+                                    "app.promotion.message", player.locale()), NamedTextColor.LIGHT_PURPLE)
+                            .append(Component.text("  "))
+                            .append(Component.text(LocaleManager.getMessage(
+                                            "app.promotion.download", player.locale()), NamedTextColor.AQUA)
+                                    .hoverEvent(HoverEvent.showText(Component.text(LocaleManager.getMessage(
+                                            "app.promotion.download_hover", player.locale()))))
+                                    .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com/#mobile-app"))));
+                    player.sendMessage(Component.text(LocaleManager.getMessage(
+                                    "app.promotion.link", player.locale()), NamedTextColor.GOLD)
+                            .hoverEvent(HoverEvent.showText(Component.text(LocaleManager.getMessage(
+                                    "app.promotion.link_hover", player.locale()))))
+                            .clickEvent(ClickEvent.runCommand("/app link")));
+                }));
     }
 
     @EventHandler

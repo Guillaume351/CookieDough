@@ -146,6 +146,32 @@ public class MinigameProgressionService {
         return result.progression();
     }
 
+    /** Applies a goal reward once using the same coin transaction ledger as match rewards. */
+    public boolean claimGoalReward(UUID playerId, String minigame, int experience, int coins, String rewardKey) {
+        if (rewardKey == null || rewardKey.isBlank() || experience < 0 || coins < 0) return false;
+        String normalizedGame = switch (minigame == null ? "" : minigame.toLowerCase()) {
+            case "microbattles" -> MICROBATTLES;
+            case "pitchout" -> PITCHOUT;
+            case "skywars" -> SKYWARS;
+            case "buildbattles" -> BUILDBATTLES;
+            default -> null;
+        };
+        if (normalizedGame == null) return false;
+        RewardApplication result = inTransaction(em -> {
+            PlayerData playerData = em.find(PlayerData.class, playerId,
+                    jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            if (playerData == null) return new RewardApplication(null, false);
+            MinigameProgression stats = findOrCreate(em, playerId, normalizedGame);
+            String source = "goal:" + rewardKey;
+            if (coinTransactionExists(em, playerId, source)) return new RewardApplication(stats, false);
+            stats.addExperience(experience);
+            playerData.addCoins(coins);
+            appendCoinTransaction(em, playerData, coins, source);
+            return new RewardApplication(stats, true);
+        });
+        return result.applied();
+    }
+
     /** Claims globally idempotent rewards using the coin transaction ledger. */
     public boolean claimGlobalReward(UUID playerId, String rewardKey, int coins) {
         if (rewardKey == null || rewardKey.isBlank() || coins < 0) {
