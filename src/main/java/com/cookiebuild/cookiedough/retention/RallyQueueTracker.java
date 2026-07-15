@@ -11,16 +11,20 @@ import java.util.UUID;
 
 /** Main-thread-only state machine for sustained underfilled queues and cancellation. */
 final class RallyQueueTracker {
-    static final Duration AUTOMATIC_WAIT = Duration.ofSeconds(90);
+    static final Duration AUTOMATIC_WAIT = Duration.ofSeconds(8);
     static final Duration RETRY_DELAY = Duration.ofMinutes(1);
 
     record QueueState(UUID gameId, boolean open, int queuedCount, int minimumPlayers) {
         boolean underfilled() {
             return open && queuedCount > 0 && queuedCount < minimumPlayers;
         }
+
+        boolean automaticCandidateEligible() {
+            return open && queuedCount > 0;
+        }
     }
 
-    record Pending(UUID gameId, UUID outboxId, long releaseAtMillis) {
+    record Pending(UUID gameId, UUID outboxId, long releaseAtMillis, boolean cancelWhenFilled) {
     }
 
     record Observation(List<UUID> automaticCandidates, List<Pending> cancellations) {
@@ -34,24 +38,27 @@ final class RallyQueueTracker {
         Map<UUID, QueueState> current = new HashMap<>();
         states.forEach(state -> current.put(state.gameId(), state));
         Set<UUID> known = new HashSet<>(underfilledSince.keySet());
-        known.addAll(pendingByGame.keySet());
 
         List<Pending> cancellations = new ArrayList<>();
+        for (Pending pending : List.copyOf(pendingByGame.values())) {
+            QueueState state = current.get(pending.gameId());
+            boolean stale = state == null || state.queuedCount() == 0
+                    || (pending.cancelWhenFilled() && !state.underfilled());
+            if (stale && pendingByGame.remove(pending.gameId(), pending)) {
+                cancellations.add(pending);
+            }
+        }
         for (UUID gameId : known) {
             QueueState state = current.get(gameId);
-            if (state == null || !state.underfilled()) {
+            if (state == null || !state.automaticCandidateEligible()) {
                 underfilledSince.remove(gameId);
                 nextAutomaticAttempt.remove(gameId);
-                Pending pending = pendingByGame.remove(gameId);
-                if (pending != null) {
-                    cancellations.add(pending);
-                }
             }
         }
 
         List<UUID> candidates = new ArrayList<>();
         for (QueueState state : states) {
-            if (!state.underfilled()) {
+            if (!state.automaticCandidateEligible()) {
                 continue;
             }
             long since = underfilledSince.computeIfAbsent(state.gameId(), ignored -> nowMillis);
@@ -69,8 +76,9 @@ final class RallyQueueTracker {
         return pendingByGame.containsKey(gameId);
     }
 
-    void markScheduled(UUID gameId, UUID outboxId, long releaseAtMillis, long nextAutomaticAtMillis) {
-        pendingByGame.put(gameId, new Pending(gameId, outboxId, releaseAtMillis));
+    void markScheduled(UUID gameId, UUID outboxId, long releaseAtMillis, long nextAutomaticAtMillis,
+            boolean cancelWhenFilled) {
+        pendingByGame.put(gameId, new Pending(gameId, outboxId, releaseAtMillis, cancelWhenFilled));
         nextAutomaticAttempt.put(gameId, nextAutomaticAtMillis);
     }
 

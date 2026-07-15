@@ -7,4 +7,8 @@ final class WorldPolicy {
     static boolean usesFrozenPhysics(String worldName) {
         return "lobby".equalsIgnoreCase(worldName);
     }
+
+    static boolean blocksHostileSpawn(String worldName, boolean hostile, boolean customSpawn) {
+        return "lobby".equalsIgnoreCase(worldName) && hostile && !customSpawn;
+    }
 }

@@ -21,7 +21,7 @@ import jakarta.persistence.EntityTransaction;
 
 /** Inserts structured rallies into the existing mobile notification outbox. */
 public final class PostgresRallyRepository implements RallyRepository {
-    public static final int DELIVERY_GRACE_SECONDS = 15;
+    public static final int DELIVERY_GRACE_SECONDS = 3;
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String GLOBAL_LOCK_KEY = "cookiebuild:player-rally";
@@ -61,7 +61,7 @@ public final class PostgresRallyRepository implements RallyRepository {
                     INSERT INTO mobile_notification_outbox
                         (id, kind, audience, payload, status, attempts, available_at, created_at)
                     VALUES (?, 'player_rally', '{"all":true}'::jsonb, ?::jsonb,
-                            'pending', 0, now() + interval '15 seconds', now())
+                            'pending', 0, now() + interval '3 seconds', now())
                     ON CONFLICT DO NOTHING
                     RETURNING available_at
                     """)) {

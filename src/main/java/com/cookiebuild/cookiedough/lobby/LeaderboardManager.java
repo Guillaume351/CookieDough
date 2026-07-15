@@ -23,6 +23,8 @@ public class LeaderboardManager {
     }
     private final JavaPlugin plugin;
     private final Map<String, List<ArmorStand>> leaderboardLines = new HashMap<>();
+    private final Map<String, Location> leaderboardLocations = new HashMap<>();
+    private final Map<String, Long> refreshGenerations = new HashMap<>();
     private static final double LINE_SPACING = 0.3; // Space between lines
 
     public LeaderboardManager(JavaPlugin plugin) {
@@ -31,12 +33,25 @@ public class LeaderboardManager {
     }
 
     public void createLeaderboard(String gameMode, Location baseLocation) {
-        removeLeaderboard(gameMode);
-        Location safeLocation = baseLocation.clone();
+        leaderboardLocations.put(gameMode, baseLocation.clone());
+        requestRefresh(gameMode);
+    }
+
+    private void requestRefresh(String gameMode) {
+        Location baseLocation = leaderboardLocations.get(gameMode);
+        if (baseLocation == null) {
+            return;
+        }
+        long generation = refreshGenerations.merge(gameMode, 1L, Long::sum);
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 List<LeaderboardEntry> entries = loadLeaderboard(gameMode);
-                Bukkit.getScheduler().runTask(plugin, () -> renderLeaderboard(gameMode, safeLocation, entries));
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (refreshGenerations.getOrDefault(gameMode, 0L) == generation
+                            && leaderboardLocations.containsKey(gameMode)) {
+                        renderLeaderboard(gameMode, baseLocation, entries);
+                    }
+                });
             } catch (RuntimeException error) {
                 plugin.getLogger().warning("Failed to load leaderboard for " + gameMode + ": " + error.getMessage());
             }
@@ -44,6 +59,7 @@ public class LeaderboardManager {
     }
 
     private void renderLeaderboard(String gameMode, Location baseLocation, List<LeaderboardEntry> entries) {
+        removeRenderedLines(gameMode);
         List<ArmorStand> lines = new ArrayList<>();
         Location titleLoc = baseLocation.clone().add(0, 2.5, 0);
         Component title = entries.isEmpty()
@@ -89,33 +105,16 @@ public class LeaderboardManager {
     }
 
     public void updateLeaderboard(String gameMode) {
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try {
-                List<LeaderboardEntry> entries = loadLeaderboard(gameMode);
-                Bukkit.getScheduler().runTask(plugin, () -> applyLeaderboard(gameMode, entries));
-            } catch (RuntimeException error) {
-                plugin.getLogger().warning("Failed to load leaderboard for " + gameMode + ": " + error.getMessage());
-            }
-        });
-    }
-
-    private void applyLeaderboard(String gameMode, List<LeaderboardEntry> entries) {
-        List<ArmorStand> lines = leaderboardLines.get(gameMode);
-        if (lines == null || lines.size() < 2) {
-            return;
-        }
-        for (int i = 0; i < Math.min(entries.size(), lines.size() - 1); i++) {
-            LeaderboardEntry entry = entries.get(i);
-            lines.get(i + 1).customName(Component.text()
-                    .append(Component.text("#" + (i + 1) + " ")
-                            .color(i < 3 ? NamedTextColor.GOLD : NamedTextColor.GRAY))
-                    .append(Component.text(entry.name()).color(NamedTextColor.YELLOW))
-                    .append(Component.text(" - " + entry.wins() + " wins").color(NamedTextColor.WHITE))
-                    .build());
-        }
+        requestRefresh(gameMode);
     }
 
     public void removeLeaderboard(String gameMode) {
+        leaderboardLocations.remove(gameMode);
+        refreshGenerations.merge(gameMode, 1L, Long::sum);
+        removeRenderedLines(gameMode);
+    }
+
+    private void removeRenderedLines(String gameMode) {
         List<ArmorStand> lines = leaderboardLines.get(gameMode);
         if (lines != null) {
             lines.forEach(ArmorStand::remove);

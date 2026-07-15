@@ -30,6 +30,8 @@ public abstract class Game implements GameStatus {
     private int startTimer;
     private GameState state;
     private boolean isFilling;
+    private boolean replacementRegistrationRequested;
+    private int replacementRegistrationAttemptTick = Integer.MIN_VALUE;
     protected boolean inQuickStart = false;
 
     private int capacity = 8;
@@ -115,6 +117,15 @@ public abstract class Game implements GameStatus {
                                 + " reason=" + reason);
             }
             onPlayerRemoved(player);
+            // A player that is no longer owned by any game must not keep a game-only
+            // state. In particular, eliminated spectators are removed before the lobby
+            // teleport during cleanup; leaving SPECTATING here made the lobby correctly
+            // report them as apparent orphans even though the removal was intentional.
+            if (player.getPlayer().isOnline()
+                    && (player.getState() == PlayerState.IN_GAME
+                            || player.getState() == PlayerState.SPECTATING)) {
+                player.setState(PlayerState.LOBBY);
+            }
             if (startTimer > 0 && players.size() < minimumPlayers) {
                 startTimer = 0;
                 inQuickStart = false;
@@ -156,6 +167,14 @@ public abstract class Game implements GameStatus {
                 }
 
                 startTimer++;
+                // Prepare the spare arena at the beginning of the countdown instead of
+                // immediately after players are teleported into a live match. World
+                // creation must remain on the server thread, but moving it out of the
+                // first live-game ticks prevents replacement-map preparation from
+                // freezing combat as the match begins.
+                if (startTimer == 1) {
+                    ensureReplacementGame();
+                }
                 int delay = inQuickStart ? QUICK_START_DELAY_SECONDS : START_DELAY_SECONDS;
 
                 if (startTimer >= delay) {
@@ -223,7 +242,30 @@ public abstract class Game implements GameStatus {
             FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.MATCH_STARTED, "game=" + gameName);
         }
 
-        registerANewGame();
+        ensureReplacementGame();
+    }
+
+    private void ensureReplacementGame() {
+        if (GameManager.hasOtherOpenGame(this)) {
+            replacementRegistrationRequested = true;
+            return;
+        }
+        // Some modules schedule the actual map registration for the next server
+        // tick. If that deferred preparation fails, retry after a short bounded
+        // interval instead of permanently believing a spare exists.
+        if (replacementRegistrationRequested && state == GameState.OPEN
+                && time - replacementRegistrationAttemptTick < 5) {
+            return;
+        }
+        replacementRegistrationRequested = true;
+        replacementRegistrationAttemptTick = time;
+        try {
+            registerANewGame();
+        } catch (RuntimeException error) {
+            replacementRegistrationRequested = false;
+            CookieDough.getInstance().getLogger().severe(
+                    "Could not prepare replacement " + gameName + " game: " + error.getMessage());
+        }
     }
 
     public abstract void registerANewGame();
@@ -241,6 +283,8 @@ public abstract class Game implements GameStatus {
         players.clear();
         queueEnteredAt.clear();
         inQuickStart = false;
+        replacementRegistrationRequested = false;
+        replacementRegistrationAttemptTick = Integer.MIN_VALUE;
     }
 
     public abstract boolean isGameEnded();

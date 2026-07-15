@@ -1,6 +1,9 @@
 package com.cookiebuild.cookiedough.listener;
 
 import org.bukkit.GameRules;
+import org.bukkit.Bukkit;
+import org.bukkit.World;
+import org.bukkit.entity.Enemy;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockFromToEvent;
@@ -11,6 +14,12 @@ import org.bukkit.event.world.WorldLoadEvent;
 
 public class WorldEventListener implements Listener {
 
+    public WorldEventListener() {
+        // The lobby is already loaded before plugin listeners are registered, so it
+        // does not receive a WorldLoadEvent during a normal startup.
+        Bukkit.getWorlds().forEach(WorldEventListener::configureWorld);
+    }
+
     @EventHandler
     public void onWeatherChange(WeatherChangeEvent event) {
         event.setCancelled(true);
@@ -18,11 +27,7 @@ public class WorldEventListener implements Listener {
 
     @EventHandler
     public void onWorldLoad(WorldLoadEvent event) {
-        event.getWorld().setGameRule(GameRules.ADVANCE_TIME, Boolean.FALSE);
-        event.getWorld().setGameRule(GameRules.ADVANCE_WEATHER, Boolean.FALSE);
-
-        event.getWorld().setTime(0);
-        event.getWorld().setAutoSave(false);
+        configureWorld(event.getWorld());
     }
 
     @EventHandler
@@ -41,6 +46,25 @@ public class WorldEventListener implements Listener {
 
     @EventHandler
     public void onCreatureSpawn(CreatureSpawnEvent event) {
-        if (event.getSpawnReason().equals(CreatureSpawnEvent.SpawnReason.NATURAL)) event.setCancelled(true);
+        boolean customSpawn = event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.CUSTOM;
+        if (WorldPolicy.blocksHostileSpawn(event.getLocation().getWorld().getName(),
+                event.getEntity() instanceof Enemy, customSpawn)) {
+            event.setCancelled(true);
+            return;
+        }
+        if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
+            event.setCancelled(true);
+        }
+    }
+
+    private static void configureWorld(World world) {
+        world.setGameRule(GameRules.ADVANCE_TIME, Boolean.FALSE);
+        world.setGameRule(GameRules.ADVANCE_WEATHER, Boolean.FALSE);
+        if (WorldPolicy.usesFrozenPhysics(world.getName())) {
+            world.setGameRule(GameRules.SPAWN_MOBS, Boolean.FALSE);
+            world.setGameRule(GameRules.SPAWN_MONSTERS, Boolean.FALSE);
+        }
+        world.setTime(0);
+        world.setAutoSave(false);
     }
 }

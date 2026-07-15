@@ -14,4 +14,12 @@ class WorldEventListenerTest {
         assertFalse(WorldPolicy.usesFrozenPhysics("microbattles_match_123"));
         assertFalse(WorldPolicy.usesFrozenPhysics(null));
     }
+
+    @Test
+    void lobbyBlocksHostilesWithoutBlockingCustomNpcSpawns() {
+        assertTrue(WorldPolicy.blocksHostileSpawn("lobby", true, false));
+        assertFalse(WorldPolicy.blocksHostileSpawn("lobby", true, true));
+        assertFalse(WorldPolicy.blocksHostileSpawn("lobby", false, false));
+        assertFalse(WorldPolicy.blocksHostileSpawn("skywars_match_123", true, false));
+    }
 }

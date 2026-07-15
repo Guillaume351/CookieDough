@@ -48,6 +48,13 @@ commands:
   goals:
     description: Show weekly objectives and achievements
     usage: /<command>
+  friend:
+    description: Create and manage friend relationships
+    usage: /<command> [list|add <player>|accept <player>|deny <player>|remove <player>]
+    aliases: [friends]
+  menu:
+    description: Open the Cookie Build player menu
+    usage: /<command>
   feedback:
     description: Send feedback to the Cookie Build team
     usage: /<command> <message>

@@ -130,11 +130,14 @@ public class PlayerWrapperListener implements Listener {
         player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("welcome.message", player.locale(), player.getName()));
         player.showTitle(net.kyori.adventure.title.Title.title(
                 Component.text("Cookie Build", NamedTextColor.GOLD),
-                Component.text("Use the compass for Quick Play", NamedTextColor.YELLOW)));
+                Component.text(LocaleManager.getMessage("lobby.menu.subtitle", player.locale()),
+                        NamedTextColor.YELLOW)));
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
-        player.sendMessage(Component.text("Quick Play", NamedTextColor.GOLD)
-                .hoverEvent(HoverEvent.showText(Component.text("Join the game closest to starting")))
-                .clickEvent(ClickEvent.runCommand("/quickplay"))
+        player.sendMessage(Component.text(LocaleManager.getMessage("lobby.menu.action", player.locale()),
+                        NamedTextColor.GOLD)
+                .hoverEvent(HoverEvent.showText(Component.text(
+                        LocaleManager.getMessage("lobby.menu.hover", player.locale()))))
+                .clickEvent(ClickEvent.runCommand("/menu"))
                 .append(Component.text("  •  ", NamedTextColor.DARK_GRAY))
                 .append(Component.text("Discord", NamedTextColor.AQUA)
                         .hoverEvent(HoverEvent.showText(Component.text("Open the Cookie Build Discord")))

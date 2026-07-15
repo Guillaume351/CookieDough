@@ -46,7 +46,7 @@ public interface RallyRepository {
             if (!SUPPORTED_GAMEMODES.contains(gamemode)) {
                 throw new IllegalArgumentException("Unsupported rally gamemode: " + gamemode);
             }
-            if (queuedCount < 0 || neededCount < 1) {
+            if (queuedCount < 0 || neededCount < 0 || (source == Source.PLAYER && neededCount < 1)) {
                 throw new IllegalArgumentException("Invalid rally queue counts");
             }
             if (source == Source.PLAYER) {

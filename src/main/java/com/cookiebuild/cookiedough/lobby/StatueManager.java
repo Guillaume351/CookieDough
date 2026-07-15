@@ -18,18 +18,31 @@ import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.SkinUtils;
 
 public class StatueManager {
+    private static volatile StatueManager active;
     private record StatueData(UUID playerId, String playerName, int wins) {
     }
     private final JavaPlugin plugin;
     private final Map<String, ArmorStand> statues = new HashMap<>();
     private final Map<String, ArmorStand> textDisplays = new HashMap<>();
     private final Map<String, Integer> winCounts = new HashMap<>();
+    private final Map<String, Location> statueLocations = new HashMap<>();
     private final LeaderboardManager leaderboardManager;
 
     public StatueManager(JavaPlugin plugin) {
         this.plugin = plugin;
         this.leaderboardManager = new LeaderboardManager(plugin);
+        active = this;
         startWeeklyUpdateTask();
+    }
+
+    /** Refreshes the visible weekly/monthly ranking after a completed match. */
+    public static void refreshAfterMatch(String gameMode) {
+        StatueManager manager = active;
+        if (manager == null || gameMode == null) {
+            return;
+        }
+        manager.updateStatue(gameMode);
+        manager.leaderboardManager.updateLeaderboard(gameMode);
     }
 
     public void createStatue(String gameMode, Location location) {
@@ -37,6 +50,11 @@ public class StatueManager {
                 .info("Creating statue for gameMode: " + gameMode + " at location: " + location);
 
         Location safeLocation = location.clone();
+        statueLocations.put(gameMode, safeLocation);
+        // Always render a leaderboard, including a useful "No Data" state for a
+        // newly added gamemode. Previously the whole popup was skipped until a
+        // weekly winner already existed.
+        leaderboardManager.createLeaderboard(gameMode, safeLocation.clone().add(0, 2, 0));
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             StatueData data = loadStatueData(gameMode);
             if (data != null) {
@@ -60,7 +78,7 @@ public class StatueManager {
     }
 
     private void renderStatue(String gameMode, Location location, StatueData data) {
-        removeStatue(gameMode);
+        removeStatueEntities(gameMode);
         winCounts.put(gameMode, data.wins());
         ArmorStand statue = location.getWorld().spawn(location, ArmorStand.class);
         statue.setVisible(false);
@@ -80,7 +98,6 @@ public class StatueManager {
 
         // Create floating text
         createFloatingText(gameMode, location.clone().add(0, 0.5, 0), data.playerName(), data.wins());
-        leaderboardManager.createLeaderboard(gameMode, location.clone().add(0, 2, 0));
     }
 
     private void createFloatingText(String gameMode, Location location, String playerName, int wins) {
@@ -105,12 +122,19 @@ public class StatueManager {
     }
 
     public void updateStatue(String gameMode) {
-        if (!statues.containsKey(gameMode))
+        Location location = statueLocations.get(gameMode);
+        if (location == null)
             return;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             StatueData data = loadStatueData(gameMode);
             if (data != null) {
-                Bukkit.getScheduler().runTask(plugin, () -> applyStatueUpdate(gameMode, data));
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (statues.containsKey(gameMode)) {
+                        applyStatueUpdate(gameMode, data);
+                    } else {
+                        renderStatue(gameMode, location, data);
+                    }
+                });
             }
         });
     }
@@ -136,6 +160,12 @@ public class StatueManager {
     }
 
     public void removeStatue(String gameMode) {
+        statueLocations.remove(gameMode);
+        removeStatueEntities(gameMode);
+        leaderboardManager.removeLeaderboard(gameMode);
+    }
+
+    private void removeStatueEntities(String gameMode) {
         if (statues.containsKey(gameMode)) {
             statues.get(gameMode).remove();
             statues.remove(gameMode);
@@ -144,7 +174,6 @@ public class StatueManager {
             textDisplays.get(gameMode).remove();
             textDisplays.remove(gameMode);
         }
-        leaderboardManager.removeLeaderboard(gameMode);
         winCounts.remove(gameMode);
     }
 

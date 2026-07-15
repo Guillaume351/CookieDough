@@ -156,7 +156,7 @@ public final class RallyManager {
                 source,
                 gamemodeId(game.getGameName()),
                 game.getPlayerCount(),
-                game.getMinimumPlayers() - game.getPlayerCount(),
+                Math.max(0, game.getMinimumPlayers() - game.getPlayerCount()),
                 actorName);
 
         worker.execute(() -> {
@@ -198,7 +198,11 @@ public final class RallyManager {
         Game current = GameManager.getGames().stream()
                 .filter(game -> game.getGameId().equals(gameId))
                 .findFirst().orElse(null);
-        if (current == null || !queueState(current).underfilled()) {
+        RallyQueueTracker.QueueState currentState = current == null ? null : queueState(current);
+        boolean stillRelevant = source == RallyRepository.Source.AUTOMATIC
+                ? currentState != null && currentState.queuedCount() > 0
+                : currentState != null && currentState.underfilled();
+        if (!stillRelevant) {
             cancelAsync(result.outboxId());
             completion.accept("The queue changed, so no player call was sent.");
             return;
@@ -209,7 +213,8 @@ public final class RallyManager {
         long nextAutomatic = now + (source == RallyRepository.Source.AUTOMATIC
                 ? AUTOMATIC_COOLDOWN.toMillis()
                 : MANUAL_GAMEMODE_COOLDOWN.toMillis());
-        tracker.markScheduled(gameId, result.outboxId(), releaseAt, nextAutomatic);
+        tracker.markScheduled(gameId, result.outboxId(), releaseAt, nextAutomatic,
+                source == RallyRepository.Source.PLAYER);
         completion.accept(source == RallyRepository.Source.PLAYER
                 ? "Player call scheduled. It will be cancelled automatically if the queue fills or closes."
                 : "");

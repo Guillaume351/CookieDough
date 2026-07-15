@@ -436,10 +436,13 @@ public class LobbyManager implements Listener {
     private static void giveQuickPlayItem(Player player) {
         ItemStack quickPlay = new ItemStack(Material.COMPASS);
         ItemMeta meta = quickPlay.getItemMeta();
-        meta.displayName(net.kyori.adventure.text.Component.text("Quick Play",
+        meta.displayName(net.kyori.adventure.text.Component.text("Cookie Build Menu",
                 net.kyori.adventure.text.format.NamedTextColor.GOLD));
-        meta.lore(List.of(net.kyori.adventure.text.Component.text("Join the game closest to starting",
-                net.kyori.adventure.text.format.NamedTextColor.GRAY)));
+        meta.lore(List.of(
+                net.kyori.adventure.text.Component.text("Games • Quests • Friends • Party • App",
+                        net.kyori.adventure.text.format.NamedTextColor.GRAY),
+                net.kyori.adventure.text.Component.text("Right-click to open",
+                        net.kyori.adventure.text.format.NamedTextColor.YELLOW)));
         meta.getPersistentDataContainer().set(new NamespacedKey(CookieDough.getInstance(), "quick_play"),
                 PersistentDataType.BYTE, (byte) 1);
         quickPlay.setItemMeta(meta);
@@ -462,7 +465,7 @@ public class LobbyManager implements Listener {
                 return;
             }
             event.setCancelled(true);
-            requestQuickPlay(event.getPlayer());
+            CookieDough.getInstance().getPlayerHubMenu().open(event.getPlayer());
             return;
         }
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.LEFT_CLICK_BLOCK) {

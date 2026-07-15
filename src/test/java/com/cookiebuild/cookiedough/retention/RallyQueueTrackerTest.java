@@ -17,14 +17,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 class RallyQueueTrackerTest {
     @Test
-    void automaticRallyRequiresNinetyContinuousUnderfilledSeconds() {
+    void automaticRallyStartsAfterEightSecondsForAnyOpenNonEmptyQueue() {
         RallyQueueTracker tracker = new RallyQueueTracker();
         UUID gameId = UUID.randomUUID();
         RallyQueueTracker.QueueState underfilled = queue(gameId, true, 1, 2);
 
         assertTrue(tracker.observe(List.of(underfilled), 0).automaticCandidates().isEmpty());
-        assertTrue(tracker.observe(List.of(underfilled), 89_999).automaticCandidates().isEmpty());
-        assertEquals(List.of(gameId), tracker.observe(List.of(underfilled), 90_000).automaticCandidates());
+        assertTrue(tracker.observe(List.of(underfilled), 7_999).automaticCandidates().isEmpty());
+        assertEquals(List.of(gameId), tracker.observe(List.of(underfilled), 8_000).automaticCandidates());
+
+        RallyQueueTracker trackerStarting = new RallyQueueTracker();
+        RallyQueueTracker.QueueState starting = queue(gameId, true, 2, 2);
+        trackerStarting.observe(List.of(starting), 0);
+        assertEquals(List.of(gameId), trackerStarting.observe(List.of(starting), 8_000).automaticCandidates());
     }
 
     @Test
@@ -33,7 +38,7 @@ class RallyQueueTrackerTest {
         UUID gameId = UUID.randomUUID();
         UUID outboxId = UUID.randomUUID();
         tracker.observe(List.of(queue(gameId, true, 1, 2)), 0);
-        tracker.markScheduled(gameId, outboxId, 15_000, 300_000);
+        tracker.markScheduled(gameId, outboxId, 15_000, 300_000, true);
 
         RallyQueueTracker.Observation empty = tracker.observe(List.of(queue(gameId, true, 0, 2)), 1_000);
 
@@ -42,25 +47,39 @@ class RallyQueueTrackerTest {
         assertFalse(tracker.hasPending(gameId));
 
         tracker.observe(List.of(queue(gameId, true, 1, 2)), 2_000);
-        tracker.markScheduled(gameId, UUID.randomUUID(), 20_000, 300_000);
+        tracker.markScheduled(gameId, UUID.randomUUID(), 20_000, 300_000, true);
         assertEquals(1, tracker.observe(List.of(queue(gameId, false, 1, 2)), 3_000).cancellations().size());
 
         tracker.observe(List.of(queue(gameId, true, 1, 2)), 4_000);
-        tracker.markScheduled(gameId, UUID.randomUUID(), 20_000, 300_000);
+        tracker.markScheduled(gameId, UUID.randomUUID(), 20_000, 300_000, true);
         assertEquals(1, tracker.observe(List.of(queue(gameId, true, 2, 2)), 5_000).cancellations().size());
     }
 
     @Test
-    void aQueueThatRecoversMustWaitAnotherFullWindow() {
+    void automaticRallySurvivesTheCountdownAndStartUntilDelivery() {
+        RallyQueueTracker tracker = new RallyQueueTracker();
+        UUID gameId = UUID.randomUUID();
+        UUID outboxId = UUID.randomUUID();
+        tracker.observe(List.of(queue(gameId, true, 1, 2)), 0);
+        tracker.markScheduled(gameId, outboxId, 11_000, 300_000, false);
+
+        assertTrue(tracker.observe(List.of(queue(gameId, true, 2, 2)), 9_000).cancellations().isEmpty());
+        assertTrue(tracker.observe(List.of(queue(gameId, false, 2, 2)), 10_000).cancellations().isEmpty());
+        assertEquals(List.of(outboxId), tracker.releaseReady(11_000).stream()
+                .map(RallyQueueTracker.Pending::outboxId).toList());
+    }
+
+    @Test
+    void anEmptyQueueMustWaitAnotherFullWindow() {
         RallyQueueTracker tracker = new RallyQueueTracker();
         UUID gameId = UUID.randomUUID();
         tracker.observe(List.of(queue(gameId, true, 1, 2)), 0);
-        tracker.observe(List.of(queue(gameId, true, 2, 2)), 60_000);
+        tracker.observe(List.of(queue(gameId, true, 0, 2)), 60_000);
 
         assertTrue(tracker.observe(List.of(queue(gameId, true, 1, 2)), 61_000).automaticCandidates().isEmpty());
-        assertTrue(tracker.observe(List.of(queue(gameId, true, 1, 2)), 150_999).automaticCandidates().isEmpty());
+        assertTrue(tracker.observe(List.of(queue(gameId, true, 1, 2)), 68_999).automaticCandidates().isEmpty());
         assertEquals(List.of(gameId),
-                tracker.observe(List.of(queue(gameId, true, 1, 2)), 151_000).automaticCandidates());
+                tracker.observe(List.of(queue(gameId, true, 1, 2)), 69_000).automaticCandidates());
     }
 
     @Test
@@ -93,6 +112,10 @@ class RallyQueueTrackerTest {
                 UUID.randomUUID(), RallyRepository.Source.AUTOMATIC, "pitchout", 1, 1, "CookieFan"));
         assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
                 UUID.randomUUID(), RallyRepository.Source.PLAYER, "pitchout", 1, 1, "hello\nplayers"));
+        assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
+                UUID.randomUUID(), RallyRepository.Source.PLAYER, "pitchout", 2, 0, "CookieFan"));
+        assertEquals(0, new RallyRepository.Request(
+                UUID.randomUUID(), RallyRepository.Source.AUTOMATIC, "pitchout", 2, 0, null).neededCount());
     }
 
     @Test

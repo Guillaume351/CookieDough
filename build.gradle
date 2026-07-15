@@ -12,10 +12,16 @@ repositories {
         name = 'papermc'
         url = uri('https://repo.papermc.io/repository/maven-public/')
     }
+    maven {
+        name = 'opencollab-repo'
+        url = uri('https://repo.opencollab.dev/main/')
+    }
 }
 
 dependencies {
     compileOnly 'io.papermc.paper:paper-api:26.1.2.build.74-stable'
+    compileOnly 'org.geysermc.cumulus:cumulus:1.1.2'
+    compileOnly 'org.geysermc.floodgate:api:2.2.5-SNAPSHOT'
 
     // Hibernate dependencies
     implementation 'org.hibernate.orm:hibernate-core:7.4.5.Final'
@@ -33,6 +39,7 @@ dependencies {
 
     testImplementation platform('org.junit:junit-bom:6.0.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testCompileOnly 'io.papermc.paper:paper-api:26.1.2.build.74-stable'
     testRuntimeOnly 'io.papermc.paper:paper-api:26.1.2.build.74-stable'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 

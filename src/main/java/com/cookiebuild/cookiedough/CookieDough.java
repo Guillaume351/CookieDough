@@ -23,6 +23,7 @@ import com.cookiebuild.cookiedough.commands.EventsCommand;
 import com.cookiebuild.cookiedough.commands.GoalsCommand;
 import com.cookiebuild.cookiedough.commands.FeedbackCommand;
 import com.cookiebuild.cookiedough.commands.AppLinkCommand;
+import com.cookiebuild.cookiedough.commands.FriendCommand;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.listener.BaseEventBlocker;
 import com.cookiebuild.cookiedough.listener.NPCReloadListener;
@@ -31,12 +32,14 @@ import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.listener.WorldEventListener;
 import com.cookiebuild.cookiedough.lobby.GameNPC;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
+import com.cookiebuild.cookiedough.lobby.PlayerHubMenu;
 import com.cookiebuild.cookiedough.scheduler.MessageScheduler;
 import com.cookiebuild.cookiedough.retention.PartyManager;
 import com.cookiebuild.cookiedough.retention.PracticeManager;
 import com.cookiebuild.cookiedough.retention.RallyManager;
 import com.cookiebuild.cookiedough.retention.CommunityEventManager;
 import com.cookiebuild.cookiedough.retention.PlayerGoalTracker;
+import com.cookiebuild.cookiedough.retention.FriendManager;
 import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.service.MobileLinkService;
@@ -56,6 +59,8 @@ public final class CookieDough extends JavaPlugin {
     private PracticeManager practiceManager;
     private CommunityEventManager communityEventManager;
     private PlayerGoalTracker goalTracker;
+    private FriendManager friendManager;
+    private PlayerHubMenu playerHubMenu;
     private MobileLinkService mobileLinkService;
     private AppLinkCommand appLinkCommand;
 
@@ -70,6 +75,7 @@ public final class CookieDough extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new WorldEventListener(), this);
         getServer().getPluginManager().registerEvents(new PlayerChatListener(chatManager), this);
         getServer().getPluginManager().registerEvents(lobbyManager, this);
+        getServer().getPluginManager().registerEvents(playerHubMenu, this);
         getServer().getPluginManager().registerEvents(practiceManager, this);
     }
 
@@ -112,6 +118,14 @@ public final class CookieDough extends JavaPlugin {
         return goalTracker;
     }
 
+    public FriendManager getFriendManager() {
+        return friendManager;
+    }
+
+    public PlayerHubMenu getPlayerHubMenu() {
+        return playerHubMenu;
+    }
+
     public MessageScheduler getMessageScheduler() {
         return messageScheduler;
     }
@@ -132,6 +146,7 @@ public final class CookieDough extends JavaPlugin {
         partyManager = new PartyManager(this);
         rallyManager = new RallyManager(this);
         goalTracker = new PlayerGoalTracker(this);
+        friendManager = new FriendManager(this);
         practiceManager = new PracticeManager(this);
         communityEventManager = new CommunityEventManager(this);
         String mobileLinkPepper = System.getenv("MOBILE_LINK_PEPPER");
@@ -143,6 +158,7 @@ public final class CookieDough extends JavaPlugin {
 
         // Initialize managers
         lobbyManager = new LobbyManager(this);
+        playerHubMenu = new PlayerHubMenu(this, lobbyManager, goalTracker, friendManager);
         messageScheduler = new MessageScheduler(this, getLocaleManager());
         messageScheduler.start();
 
@@ -260,6 +276,17 @@ public final class CookieDough extends JavaPlugin {
         getCommand("practice").setExecutor(new PracticeCommand(practiceManager));
         getCommand("events").setExecutor(new EventsCommand(communityEventManager));
         getCommand("goals").setExecutor(new GoalsCommand(goalTracker));
+        FriendCommand friendCommand = new FriendCommand(friendManager);
+        getCommand("friend").setExecutor(friendCommand);
+        getCommand("friend").setTabCompleter(friendCommand);
+        getCommand("menu").setExecutor((sender, command, label, args) -> {
+            if (sender instanceof org.bukkit.entity.Player player) {
+                playerHubMenu.open(player);
+            } else {
+                sender.sendMessage("This command can only be used by players.");
+            }
+            return true;
+        });
         getCommand("feedback").setExecutor(new FeedbackCommand());
         if (mobileLinkService != null) {
             appLinkCommand = new AppLinkCommand(this, mobileLinkService);
@@ -288,6 +315,9 @@ public final class CookieDough extends JavaPlugin {
         }
         if (rallyManager != null) {
             rallyManager.shutdown(Duration.ofSeconds(5));
+        }
+        if (friendManager != null) {
+            friendManager.shutdown(Duration.ofSeconds(5));
         }
 
         PlayerWrapperListener.shutdownGracefully(Duration.ofSeconds(5));

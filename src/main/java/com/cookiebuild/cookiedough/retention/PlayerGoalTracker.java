@@ -22,6 +22,17 @@ import com.cookiebuild.cookiedough.game.FunnelTelemetry;
 
 /** Durable lightweight goals; coin claims are independently idempotent in the database. */
 public final class PlayerGoalTracker {
+    public record GoalView(int dailyMatches, int dailyWins, int weeklyMatches, int weeklyWins,
+            int weeklyEliminations, int achievements) {
+        public boolean dailyComplete() {
+            return dailyMatches >= 1 && dailyWins >= 1;
+        }
+
+        public boolean weeklyComplete() {
+            return weeklyMatches >= 3 && weeklyWins >= 1 && weeklyEliminations >= 10;
+        }
+    }
+
     private record Reward(int coins, int experience, String game, String label) {
     }
     private static final class Progress {
@@ -104,13 +115,19 @@ public final class PlayerGoalTracker {
     }
 
     public synchronized String summary(UUID playerId) {
+        GoalView view = view(playerId);
+        return "Daily — Match " + view.dailyMatches() + "/1, Win " + view.dailyWins()
+                + "/1 | Weekly — Matches " + view.weeklyMatches() + "/3, Wins " + view.weeklyWins()
+                + "/1, Eliminations " + view.weeklyEliminations() + "/10 | Achievements: " + view.achievements();
+    }
+
+    public synchronized GoalView view(UUID playerId) {
         Progress progress = progress(playerId);
         resetWeekIfNeeded(progress);
         resetDayIfNeeded(progress);
-        return "Daily — Match " + Math.min(progress.dailyMatches, 1) + "/1, Win "
-                + Math.min(progress.dailyWins, 1) + "/1 | Weekly — Matches " + Math.min(progress.matches, 3) + "/3, Wins "
-                + Math.min(progress.wins, 1) + "/1, Eliminations " + Math.min(progress.kills, 10)
-                + "/10 | Achievements: " + progress.achievements.size();
+        return new GoalView(Math.min(progress.dailyMatches, 1), Math.min(progress.dailyWins, 1),
+                Math.min(progress.matches, 3), Math.min(progress.wins, 1), Math.min(progress.kills, 10),
+                progress.achievements.size());
     }
 
     public synchronized void shutdown() {
