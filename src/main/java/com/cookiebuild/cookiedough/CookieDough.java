@@ -11,6 +11,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
 import com.cookiebuild.cookiedough.chat.ChatManager;
+import com.cookiebuild.cookiedough.admin.AdminBridge;
+import com.cookiebuild.cookiedough.admin.moderation.ModerationService;
 import com.cookiebuild.cookiedough.commands.LobbyCommand;
 import com.cookiebuild.cookiedough.commands.MessageTestCommand;
 import com.cookiebuild.cookiedough.commands.SessionDiagnosticCommand;
@@ -45,7 +47,6 @@ import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.service.MobileLinkService;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
-import com.cookiebuild.cookiedough.utils.RabbitMQInitializer;
 
 public final class CookieDough extends JavaPlugin {
     private static CookieDough instance;
@@ -63,6 +64,7 @@ public final class CookieDough extends JavaPlugin {
     private PlayerHubMenu playerHubMenu;
     private MobileLinkService mobileLinkService;
     private AppLinkCommand appLinkCommand;
+    private AdminBridge adminBridge;
 
     public static CookieDough getInstance() {
         return instance;
@@ -130,6 +132,10 @@ public final class CookieDough extends JavaPlugin {
         return messageScheduler;
     }
 
+    public ModerationService getModerationService() {
+        return adminBridge == null ? null : adminBridge.moderation();
+    }
+
     @Override
     public void onEnable() {
         getLogger().info("Enabling CookieDough");
@@ -137,10 +143,10 @@ public final class CookieDough extends JavaPlugin {
         saveDefaultConfig();
         getConfig().options().copyDefaults(true);
         saveConfig();
+        GameManager.setGlobalAdmissionsOpen(true);
 
         // Initialize utilities
         HibernateUtil.initialize();
-        RabbitMQInitializer.initialize();
         getLocaleManager();
         chatManager = new ChatManager();
         partyManager = new PartyManager(this);
@@ -161,6 +167,10 @@ public final class CookieDough extends JavaPlugin {
         playerHubMenu = new PlayerHubMenu(this, lobbyManager, goalTracker, friendManager);
         messageScheduler = new MessageScheduler(this, getLocaleManager());
         messageScheduler.start();
+        adminBridge = AdminBridge.createIfEnabled(this).orElse(null);
+        if (adminBridge != null) {
+            adminBridge.start();
+        }
 
         NPCReloadListener npcReloadListener = new NPCReloadListener();
         getServer().getPluginManager().registerEvents(npcReloadListener, this);
@@ -301,6 +311,9 @@ public final class CookieDough extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (adminBridge != null) {
+            adminBridge.close();
+        }
         if (messageScheduler != null) {
             messageScheduler.stop();
         }

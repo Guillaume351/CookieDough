@@ -26,6 +26,14 @@ public class PlayerChatListener implements Listener {
         Player player = event.getPlayer();
         String message = PLAIN_TEXT_SERIALIZER.serialize(event.message());
 
+        var moderationService = CookieDough.getInstance().getModerationService();
+        if (moderationService != null && moderationService.isMuted(player.getUniqueId())) {
+            event.setCancelled(true);
+            player.sendMessage(net.kyori.adventure.text.Component.text(
+                    "You are currently muted.", net.kyori.adventure.text.format.NamedTextColor.RED));
+            return;
+        }
+
         ChatManager.ModerationResult moderation = chatManager.checkChat(player, message);
         if (moderation.blocked()) {
             event.setCancelled(true);

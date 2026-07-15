@@ -53,6 +53,18 @@ class GameLifecycleTest {
         }
     }
 
+    @Test
+    void defaultAdministrativeShutdownClosesAndUnregistersTheGame() {
+        TestGame game = new TestGame("BuildBattles");
+        GameManager.addGame(game);
+
+        game.shutdown();
+
+        assertEquals(GameState.FINISHED, game.getState());
+        assertFalse(game.isAdmissionsOpen());
+        assertFalse(GameManager.getGames().contains(game));
+    }
+
     @SuppressWarnings("unchecked")
     private static List<CookiePlayer> players(Game game) throws Exception {
         Field players = Game.class.getDeclaredField("players");

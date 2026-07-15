@@ -132,6 +132,37 @@ public final class RallyManager {
         enqueue(game, RallyRepository.Source.PLAYER, player, completion);
     }
 
+    /** AdminBridge entry point; does not impersonate a player or bypass durable cooldowns. */
+    public void requestAdmin(String requestedGamemode, Consumer<String> completion) {
+        if (!running) {
+            completion.accept(UNAVAILABLE);
+            return;
+        }
+        String gamemode = requestedGamemode == null ? null : normalizeGamemode(requestedGamemode);
+        if (gamemode == null) {
+            completion.accept("Unknown gamemode. Use MicroBattles, Pitchout, SkyWars, or BuildBattles.");
+            return;
+        }
+        Game game = GameManager.getGames().stream()
+                .filter(candidate -> gamemode.equals(gamemodeId(candidate.getGameName())))
+                .filter(candidate -> queueState(candidate).underfilled())
+                .findFirst().orElse(null);
+        if (game == null) {
+            completion.accept("No underfilled open queue exists for this gamemode.");
+            return;
+        }
+        if (tracker.hasPending(game.getGameId())) {
+            completion.accept("A player call is already scheduled for this queue.");
+            return;
+        }
+        if (!automaticInFlight.add(game.getGameId())) {
+            completion.accept("A player call for this queue is already being checked.");
+            return;
+        }
+        enqueue(game, RallyRepository.Source.AUTOMATIC, null, message -> completion.accept(
+                message == null || message.isBlank() ? "Player call scheduled." : message));
+    }
+
     public void shutdown(Duration timeout) {
         running = false;
         Set<UUID> cancellations = new HashSet<>(acceptedUnconfirmed);

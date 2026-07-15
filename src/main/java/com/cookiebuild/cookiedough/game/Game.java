@@ -30,6 +30,7 @@ public abstract class Game implements GameStatus {
     private int startTimer;
     private GameState state;
     private boolean isFilling;
+    private boolean admissionsOpen;
     private boolean replacementRegistrationRequested;
     private int replacementRegistrationAttemptTick = Integer.MIN_VALUE;
     protected boolean inQuickStart = false;
@@ -53,7 +54,7 @@ public abstract class Game implements GameStatus {
                     .getMessage("player.data_loading", player.getPlayer().locale()));
             return false;
         }
-        if (state != GameState.OPEN) {
+        if (state != GameState.OPEN || !admissionsOpen) {
             player.getPlayer().sendMessage(
                     ChatColor.RED + LocaleManager.getMessage("game.already_started", player.getPlayer().locale()));
             return false;
@@ -227,7 +228,9 @@ public abstract class Game implements GameStatus {
 
     public void startGame() {
         state = GameState.RUNNING;
+        admissionsOpen = false;
         isFilling = false;
+        GameManager.notifyGameChanged(this, "started");
         for (CookiePlayer player : players) {
             Long queuedAt = queueEnteredAt.remove(player.getPlayer().getUniqueId());
             long waitSeconds = queuedAt == null ? 0L
@@ -278,6 +281,7 @@ public abstract class Game implements GameStatus {
 
     public void resetGame() {
         state = GameState.OPEN;
+        admissionsOpen = GameManager.areGlobalAdmissionsOpen();
         time = 0;
         startTimer = 0;
         players.clear();
@@ -285,9 +289,27 @@ public abstract class Game implements GameStatus {
         inQuickStart = false;
         replacementRegistrationRequested = false;
         replacementRegistrationAttemptTick = Integer.MIN_VALUE;
+        GameManager.notifyGameChanged(this, "reset");
     }
 
     public abstract boolean isGameEnded();
+
+    /**
+     * Administrative/disable lifecycle hook. Game modules already overriding
+     * this method can persist interrupted outcomes and unload their map safely.
+     */
+    public void shutdown() {
+        closeAdmissions();
+        setState(GameState.FINISHED);
+        for (CookiePlayer player : getPlayers()) {
+            if (player.getPlayer().isOnline()) {
+                com.cookiebuild.cookiedough.lobby.LobbyManager.teleportPlayerToLobby(player);
+            } else {
+                removePlayer(player, "administrative_cancel");
+            }
+        }
+        GameManager.removeGame(this);
+    }
 
     /** Call once when the result is known to expose a consistent replay action. */
     public void offerReplay() {
@@ -327,6 +349,12 @@ public abstract class Game implements GameStatus {
         return startTimer;
     }
 
+    public int getCountdownSeconds() {
+        if (startTimer <= 0) return 0;
+        int delay = inQuickStart ? QUICK_START_DELAY_SECONDS : START_DELAY_SECONDS;
+        return Math.max(0, delay - startTimer);
+    }
+
     public void setStartTimer(int startTimer) {
         this.startTimer = startTimer;
     }
@@ -337,6 +365,24 @@ public abstract class Game implements GameStatus {
 
     public void setState(GameState state) {
         this.state = state;
+        if (state != GameState.OPEN) admissionsOpen = false;
+        GameManager.notifyGameChanged(this, "state_changed");
+    }
+
+    public boolean isAdmissionsOpen() {
+        return admissionsOpen && state == GameState.OPEN;
+    }
+
+    public void closeAdmissions() {
+        admissionsOpen = false;
+        GameManager.notifyGameChanged(this, "admissions_closed");
+    }
+
+    public boolean reopenAdmissions() {
+        if (state != GameState.OPEN || !GameManager.areGlobalAdmissionsOpen()) return false;
+        admissionsOpen = true;
+        GameManager.notifyGameChanged(this, "admissions_reopened");
+        return true;
     }
 
     public boolean isFilling() {
