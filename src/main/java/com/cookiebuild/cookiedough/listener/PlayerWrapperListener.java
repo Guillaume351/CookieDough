@@ -31,6 +31,10 @@ import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerSession;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
+import com.cookiebuild.cookiedough.retention.ChangelogCoordinator;
+import com.cookiebuild.cookiedough.retention.ChangelogDigest;
+import com.cookiebuild.cookiedough.retention.ChangelogEntry;
+import com.cookiebuild.cookiedough.retention.PostgresChangelogRepository;
 import com.cookiebuild.cookiedough.utils.DiscordUtils;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
@@ -57,6 +61,7 @@ public class PlayerWrapperListener implements Listener {
     private final Set<UUID> queuedQuickPlay = ConcurrentHashMap.newKeySet();
     private final Set<UUID> newPlayerSessions = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> disconnectReasons = new ConcurrentHashMap<>();
+    private final ChangelogCoordinator changelog = new ChangelogCoordinator(new PostgresChangelogRepository());
     private final ExecutorService persistenceExecutor = Executors.newFixedThreadPool(4, runnable -> {
         Thread thread = new Thread(runnable, "CookieDough-player-persistence");
         thread.setDaemon(true);
@@ -173,6 +178,7 @@ public class PlayerWrapperListener implements Listener {
             boolean newPlayer = newPlayerSessions.remove(handle.sessionId());
             FunnelTelemetry.record(player, FunnelTelemetry.Event.PLAYER_DATA_READY,
                     "session=" + handle.sessionId() + " new_player=" + newPlayer);
+            showUnreadChangelog(player, handle);
             if (queuedQuickPlay.remove(handle.playerId())) {
                 CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
             }
@@ -180,6 +186,52 @@ public class PlayerWrapperListener implements Listener {
         });
 
         sendPlayerStatusWebhook(player, true);
+    }
+
+    private void showUnreadChangelog(Player player, SessionHandle handle) {
+        CompletableFuture.supplyAsync(() -> changelog.unread(handle.playerId()), persistenceExecutor)
+                .whenComplete((digest, error) -> {
+                    if (!acceptingPlayers) {
+                        return;
+                    }
+                    Bukkit.getScheduler().runTask(CookieDough.getInstance(), () -> {
+                        SessionHandle current = activePlayerSessions.get(handle.playerId());
+                        if (current == null || current.generation() != handle.generation() || !player.isOnline()) {
+                            return;
+                        }
+                        if (error != null) {
+                            CookieDough.getInstance().getLogger().warning("Could not load changelog for "
+                                    + player.getName() + ": " + rootMessage(error));
+                            return;
+                        }
+                        if (digest == null || digest.isEmpty()) {
+                            return;
+                        }
+
+                        player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD
+                                + LocaleManager.getMessage("changelog.join.header", player.locale()));
+                        for (ChangelogEntry entry : digest.entries()) {
+                            player.sendMessage(ChatColor.YELLOW + "• " + entry.title()
+                                    + ChatColor.GRAY + " — " + entry.summary());
+                        }
+                        if (digest.hiddenCount() > 0) {
+                            player.sendMessage(ChatColor.GRAY + LocaleManager.getMessage(
+                                    "changelog.join.more", player.locale(), digest.hiddenCount()));
+                        }
+                        player.sendMessage(Component.text("www.cookie-build.com/changelog", NamedTextColor.AQUA)
+                                .hoverEvent(HoverEvent.showText(Component.text(
+                                        LocaleManager.getMessage("changelog.join.link_hover", player.locale()))))
+                                .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com/changelog")));
+
+                        String playerName = player.getName();
+                        CompletableFuture.runAsync(() -> changelog.acknowledge(handle.playerId(), digest),
+                                persistenceExecutor).exceptionally(ackError -> {
+                                    CookieDough.getInstance().getLogger().warning("Could not acknowledge changelog for "
+                                            + playerName + ": " + rootMessage(ackError));
+                                    return null;
+                                });
+                    });
+                });
     }
 
     @EventHandler
