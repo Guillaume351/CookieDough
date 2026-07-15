@@ -12,6 +12,8 @@ import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 
+import java.util.function.LongConsumer;
+
 public class WorldEventListener implements Listener {
 
     public WorldEventListener() {
@@ -64,7 +66,20 @@ public class WorldEventListener implements Listener {
             world.setGameRule(GameRules.SPAWN_MOBS, Boolean.FALSE);
             world.setGameRule(GameRules.SPAWN_MONSTERS, Boolean.FALSE);
         }
-        world.setTime(0);
+        setTimeIfSupported(world::setTime, 0);
         world.setAutoSave(false);
+    }
+
+    static boolean setTimeIfSupported(LongConsumer timeSetter, long time) {
+        try {
+            // Paper 26.1 rejects setTime for dimensions without a world clock
+            // (for example, Nether worlds). Their fixed dimension time needs no
+            // adjustment, while the remaining lobby protections still apply.
+            timeSetter.accept(time);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            // Expected for worlds whose dimension type has no world clock.
+            return false;
+        }
     }
 }
