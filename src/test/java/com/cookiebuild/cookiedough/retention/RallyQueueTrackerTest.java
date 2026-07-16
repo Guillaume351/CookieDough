@@ -86,7 +86,8 @@ class RallyQueueTrackerTest {
     void producerPayloadIsStrictStructuredAndContainsNoFreeNotificationCopy() throws Exception {
         UUID rallyId = UUID.randomUUID();
         RallyRepository.Request request = new RallyRepository.Request(
-                rallyId, RallyRepository.Source.PLAYER, "microbattles", 1, 1, "CookieFan");
+                rallyId, RallyRepository.Source.PLAYER, "microbattles", 1, 1, "CookieFan",
+                UUID.randomUUID(), UUID.randomUUID());
 
         Map<String, Object> payload = new ObjectMapper().readValue(
                 PostgresRallyRepository.payload(request), new TypeReference<>() {
@@ -103,19 +104,68 @@ class RallyQueueTrackerTest {
     }
 
     @Test
+    void loginRallyUsesTheStrictNetworkSentinelWithoutFreeText() throws Exception {
+        UUID rallyId = UUID.randomUUID();
+        UUID targetPlayerId = UUID.randomUUID();
+        RallyRepository.Request request = new RallyRepository.Request(
+                rallyId, RallyRepository.Source.LOGIN, "network", 0, 0, "CookieFan",
+                targetPlayerId, null);
+
+        Map<String, Object> payload = new ObjectMapper().readValue(
+                PostgresRallyRepository.payload(request), new TypeReference<>() {
+                });
+
+        assertEquals(Set.of("schemaVersion", "rallyId", "source", "gamemode", "edition",
+                "queuedCount", "neededCount", "actorDisplayName"), payload.keySet());
+        assertEquals("login", payload.get("source"));
+        assertEquals("network", payload.get("gamemode"));
+        assertEquals(0, payload.get("queuedCount"));
+        assertEquals(0, payload.get("neededCount"));
+        assertEquals("CookieFan", payload.get("actorDisplayName"));
+        assertEquals(targetPlayerId, request.targetPlayerId());
+        assertEquals(null, request.gameId());
+    }
+
+    @Test
     void requestContractRejectsUnsupportedOrUnattributedPayloads() {
+        UUID targetPlayerId = UUID.randomUUID();
+        UUID gameId = UUID.randomUUID();
         assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
-                UUID.randomUUID(), RallyRepository.Source.PLAYER, "unknown", 1, 1, "CookieFan"));
+                UUID.randomUUID(), RallyRepository.Source.PLAYER, "unknown", 1, 1, "CookieFan",
+                targetPlayerId, gameId));
         assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
-                UUID.randomUUID(), RallyRepository.Source.PLAYER, "pitchout", 1, 1, null));
+                UUID.randomUUID(), RallyRepository.Source.PLAYER, "pitchout", 1, 1, null,
+                targetPlayerId, gameId));
         assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
-                UUID.randomUUID(), RallyRepository.Source.AUTOMATIC, "pitchout", 1, 1, "CookieFan"));
+                UUID.randomUUID(), RallyRepository.Source.AUTOMATIC, "pitchout", 1, 1, "CookieFan",
+                targetPlayerId, gameId));
         assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
-                UUID.randomUUID(), RallyRepository.Source.PLAYER, "pitchout", 1, 1, "hello\nplayers"));
+                UUID.randomUUID(), RallyRepository.Source.PLAYER, "pitchout", 1, 1, "hello\nplayers",
+                targetPlayerId, gameId));
         assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
-                UUID.randomUUID(), RallyRepository.Source.PLAYER, "pitchout", 2, 0, "CookieFan"));
+                UUID.randomUUID(), RallyRepository.Source.PLAYER, "pitchout", 2, 0, "CookieFan",
+                targetPlayerId, gameId));
+        assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
+                UUID.randomUUID(), RallyRepository.Source.LOGIN, "network", 1, 0, "CookieFan",
+                targetPlayerId, null));
+        assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
+                UUID.randomUUID(), RallyRepository.Source.LOGIN, "network", 0, 0, "CookieFan",
+                targetPlayerId, gameId));
+        assertThrows(IllegalArgumentException.class, () -> new RallyRepository.Request(
+                UUID.randomUUID(), RallyRepository.Source.AUTOMATIC, "pitchout", 1, 1, null,
+                targetPlayerId, null));
         assertEquals(0, new RallyRepository.Request(
-                UUID.randomUUID(), RallyRepository.Source.AUTOMATIC, "pitchout", 2, 0, null).neededCount());
+                UUID.randomUUID(), RallyRepository.Source.AUTOMATIC, "pitchout", 2, 0, null,
+                targetPlayerId, gameId).neededCount());
+    }
+
+    @Test
+    void runtimeServerIdUsesTheWebsiteCompatibleContract() {
+        assertEquals("minecraft-1", PostgresRallyRepository.serverId(Map.of()));
+        assertEquals("paper_EU-2", PostgresRallyRepository.serverId(
+                Map.of("ADMIN_BRIDGE_SERVER_ID", " paper_EU-2 ")));
+        assertThrows(IllegalArgumentException.class, () -> PostgresRallyRepository.serverId(
+                Map.of("ADMIN_BRIDGE_SERVER_ID", "minecraft.1")));
     }
 
     @Test

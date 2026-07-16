@@ -192,6 +192,9 @@ public class PlayerWrapperListener implements Listener {
             if (experience.showAppPromotion()) {
                 showMobileAppPromotion(player, handle);
             }
+            if (Bukkit.getOnlinePlayers().size() <= 1) {
+                CookieDough.getInstance().getRallyManager().requestSoloLogin(player);
+            }
             if (quickPlayQueued) {
                 CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
             }
