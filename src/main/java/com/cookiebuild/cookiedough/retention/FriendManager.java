@@ -65,8 +65,38 @@ public final class FriendManager {
                     case PLAYER_NOT_FOUND -> "Player not found. Use their exact Minecraft name.";
                     case PLAYER_NAME_AMBIGUOUS -> "That player name is ambiguous. Ask an admin for help.";
                     case SELF -> "You cannot add yourself as a friend.";
+                    case TOO_MANY_PENDING -> "You already have 10 pending friend requests. Cancel one before adding someone else.";
+                    case RECENTLY_REQUESTED -> "Please wait before sending that player another friend request.";
                     case UNAVAILABLE -> "That player is unavailable.";
                 }), completion);
+    }
+
+    public void toggleBlock(Player actor, Player target,
+            Consumer<FriendRepository.BlockResult> completion, Consumer<String> failure) {
+        if (!profileReady(actor, failure)) return;
+        if (!PlayerWrapperListener.isPlayerDataReady(target.getUniqueId())) {
+            failure.accept("That player's profile is still loading. Please try again shortly.");
+            return;
+        }
+        submit(actor.getUniqueId(), "update player block",
+                () -> repository.toggleBlock(actor.getUniqueId(), target.getUniqueId()), completion, failure);
+    }
+
+    public void report(Player actor, Player target, String reason,
+            Consumer<FriendRepository.ReportResult> completion, Consumer<String> failure) {
+        if (!profileReady(actor, failure)) return;
+        if (!PlayerWrapperListener.isPlayerDataReady(target.getUniqueId())) {
+            failure.accept("That player's profile is still loading. Please try again shortly.");
+            return;
+        }
+        submit(actor.getUniqueId(), "record player report",
+                () -> repository.report(actor.getUniqueId(), target.getUniqueId(), reason), completion, failure);
+    }
+
+    public void loadBlocks(Player actor, Consumer<Set<UUID>> completion, Consumer<String> failure) {
+        if (!profileReady(actor, failure)) return;
+        submit(actor.getUniqueId(), "load player blocks",
+                () -> repository.blockedPlayers(actor.getUniqueId()), completion, failure);
     }
 
     public void accept(Player actor, String targetName, Consumer<String> completion) {

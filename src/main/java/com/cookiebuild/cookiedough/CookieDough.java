@@ -277,7 +277,7 @@ public final class CookieDough extends JavaPlugin {
         getCommand("messagetest").setExecutor(new MessageTestCommand());
         getCommand("sessiondiag").setExecutor(new SessionDiagnosticCommand());
         getCommand("quickplay").setExecutor(new QuickPlayCommand(lobbyManager));
-        SocialSafetyCommand socialSafety = new SocialSafetyCommand(chatManager);
+        SocialSafetyCommand socialSafety = new SocialSafetyCommand(chatManager, friendManager);
         getCommand("mute").setExecutor(socialSafety);
         getCommand("block").setExecutor(socialSafety);
         getCommand("report").setExecutor(socialSafety);

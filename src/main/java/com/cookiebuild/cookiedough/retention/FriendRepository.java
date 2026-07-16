@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough.retention;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /** Shared friend graph used by Minecraft and the Cookie Build mobile API. */
@@ -13,7 +14,20 @@ public interface FriendRepository {
         PLAYER_NOT_FOUND,
         PLAYER_NAME_AMBIGUOUS,
         SELF,
+        TOO_MANY_PENDING,
+        RECENTLY_REQUESTED,
         UNAVAILABLE
+    }
+
+    enum BlockResult {
+        BLOCKED,
+        UNBLOCKED
+    }
+
+    enum ReportResult {
+        RECORDED,
+        DUPLICATE,
+        TOO_MANY
     }
 
     enum AcceptResult {
@@ -51,4 +65,10 @@ public interface FriendRepository {
     DeleteResult remove(UUID actorId, String targetName);
 
     Snapshot snapshot(UUID actorId);
+
+    BlockResult toggleBlock(UUID actorId, UUID targetId);
+
+    ReportResult report(UUID actorId, UUID targetId, String reason);
+
+    Set<UUID> blockedPlayers(UUID actorId);
 }

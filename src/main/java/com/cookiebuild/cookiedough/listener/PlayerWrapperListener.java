@@ -170,6 +170,16 @@ public class PlayerWrapperListener implements Listener {
                 return;
             }
             readyPlayers.add(handle.playerId());
+            CookieDough.getInstance().getFriendManager().loadBlocks(player,
+                    blocked -> {
+                        SessionHandle active = activePlayerSessions.get(handle.playerId());
+                        if (active != null && active.generation() == handle.generation() && player.isOnline()) {
+                            CookieDough.getInstance().getChatManager()
+                                    .replaceBlockedPlayers(handle.playerId(), blocked);
+                        }
+                    },
+                    errorMessage -> CookieDough.getInstance().getLogger().warning(
+                            "Could not load persisted blocks for " + player.getName() + ": " + errorMessage));
             LobbyScoreboard.invalidatePlayerCache(handle.playerId());
             showLobbyScoreboard(player);
             boolean newPlayer = newPlayerSessions.remove(handle.sessionId());

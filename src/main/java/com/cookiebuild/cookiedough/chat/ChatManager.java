@@ -81,6 +81,18 @@ public class ChatManager {
         return true;
     }
 
+    public void setBlocked(UUID viewer, UUID sender, boolean blockedState) {
+        Set<UUID> blocked = blockedPlayers.computeIfAbsent(viewer, ignored -> ConcurrentHashMap.newKeySet());
+        if (blockedState) blocked.add(sender);
+        else blocked.remove(sender);
+    }
+
+    public void replaceBlockedPlayers(UUID viewer, Set<UUID> blocked) {
+        Set<UUID> replacement = ConcurrentHashMap.newKeySet();
+        replacement.addAll(blocked);
+        blockedPlayers.put(viewer, replacement);
+    }
+
     public boolean isBlocked(UUID viewer, UUID sender) {
         return blockedPlayers.getOrDefault(viewer, Set.of()).contains(sender);
     }
@@ -89,6 +101,5 @@ public class ChatManager {
         spamBlockers.remove(playerId);
         chatMessages.remove(playerId);
         blockedPlayers.remove(playerId);
-        blockedPlayers.values().forEach(blocked -> blocked.remove(playerId));
     }
 }

@@ -25,10 +25,10 @@ commands:
     usage: /<command> [MicroBattles|Pitchout|SkyWars|BuildBattles|TurfWars]
     aliases: [play]
   mute:
-    description: Hide or show messages from a player
+    description: Hide or show a player's messages for this session
     usage: /<command> <player>
   block:
-    description: Hide or show messages from a player
+    description: Persistently block or unblock a player across the game and app
     usage: /<command> <player>
   report:
     description: Report a player to the moderation team
