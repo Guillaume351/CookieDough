@@ -61,6 +61,7 @@ public class PlayerWrapperListener implements Listener {
     private final Set<UUID> readyPlayers = ConcurrentHashMap.newKeySet();
     private final Set<UUID> queuedQuickPlay = ConcurrentHashMap.newKeySet();
     private final Set<UUID> newPlayerSessions = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> onboardingPendingSessions = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> disconnectReasons = new ConcurrentHashMap<>();
     private final ChangelogCoordinator changelog = new ChangelogCoordinator(new PostgresChangelogRepository());
     private final MobilePromotionService mobilePromotion = new MobilePromotionService();
@@ -133,15 +134,6 @@ public class PlayerWrapperListener implements Listener {
                 Component.text(LocaleManager.getMessage("lobby.menu.subtitle", player.locale()),
                         NamedTextColor.YELLOW)));
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
-        player.sendMessage(Component.text(LocaleManager.getMessage("lobby.menu.action", player.locale()),
-                        NamedTextColor.GOLD)
-                .hoverEvent(HoverEvent.showText(Component.text(
-                        LocaleManager.getMessage("lobby.menu.hover", player.locale()))))
-                .clickEvent(ClickEvent.runCommand("/menu"))
-                .append(Component.text("  •  ", NamedTextColor.DARK_GRAY))
-                .append(Component.text("Discord", NamedTextColor.AQUA)
-                        .hoverEvent(HoverEvent.showText(Component.text("Open the Cookie Build Discord")))
-                        .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com"))));
 
         if (!acceptingPlayers) {
             return;
@@ -181,11 +173,26 @@ public class PlayerWrapperListener implements Listener {
             LobbyScoreboard.invalidatePlayerCache(handle.playerId());
             showLobbyScoreboard(player);
             boolean newPlayer = newPlayerSessions.remove(handle.sessionId());
+            boolean onboardingPending = onboardingPendingSessions.remove(handle.sessionId());
             FunnelTelemetry.record(player, FunnelTelemetry.Event.PLAYER_DATA_READY,
-                    "session=" + handle.sessionId() + " new_player=" + newPlayer);
-            showUnreadChangelog(player, handle);
-            showMobileAppPromotion(player, handle);
-            if (queuedQuickPlay.remove(handle.playerId())) {
+                    "session=" + handle.sessionId() + " new_player=" + newPlayer
+                            + " onboarding_pending=" + onboardingPending);
+            boolean quickPlayQueued = queuedQuickPlay.remove(handle.playerId());
+            JoinExperiencePlan experience = JoinExperiencePlan.forPlayer(onboardingPending);
+            if (experience.showOnboarding() && !quickPlayQueued) {
+                if (CookieDough.getInstance().getPlayerHubMenu().openOnboarding(player)) {
+                    markOnboardingCompleted(handle);
+                }
+            } else if (!onboardingPending) {
+                showLobbyHint(player);
+            }
+            if (experience.showUpdates()) {
+                showUnreadChangelog(player, handle);
+            }
+            if (experience.showAppPromotion()) {
+                showMobileAppPromotion(player, handle);
+            }
+            if (quickPlayQueued) {
                 CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
             }
             });
@@ -224,10 +231,10 @@ public class PlayerWrapperListener implements Listener {
                             player.sendMessage(ChatColor.GRAY + LocaleManager.getMessage(
                                     "changelog.join.more", player.locale(), digest.hiddenCount()));
                         }
-                        player.sendMessage(Component.text("www.cookie-build.com/changelog", NamedTextColor.AQUA)
+                        player.sendMessage(Component.text("www.cookie-build.com/updates", NamedTextColor.AQUA)
                                 .hoverEvent(HoverEvent.showText(Component.text(
                                         LocaleManager.getMessage("changelog.join.link_hover", player.locale()))))
-                                .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com/changelog")));
+                                .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com/updates")));
 
                         String playerName = player.getName();
                         CompletableFuture.runAsync(() -> changelog.acknowledge(handle.playerId(), digest),
@@ -238,6 +245,26 @@ public class PlayerWrapperListener implements Listener {
                                 });
                     });
                 });
+    }
+
+    private void showLobbyHint(Player player) {
+        Component hint = Component.text(LocaleManager.getMessage("lobby.menu.action", player.locale()),
+                        NamedTextColor.GOLD)
+                .hoverEvent(HoverEvent.showText(Component.text(
+                        LocaleManager.getMessage("lobby.menu.hover", player.locale()))))
+                .clickEvent(ClickEvent.runCommand("/menu"));
+        if (Bukkit.getOnlinePlayers().size() <= 1) {
+            hint = hint.append(Component.text("  •  ", NamedTextColor.DARK_GRAY))
+                    .append(Component.text(LocaleManager.getMessage("lobby.solo.prompt", player.locale()),
+                                    NamedTextColor.GRAY))
+                    .append(Component.text(" Discord", NamedTextColor.AQUA)
+                            .clickEvent(ClickEvent.openUrl("https://discord.gg/ajmPnwh9g8")))
+                    .append(Component.text(" + ", NamedTextColor.DARK_GRAY))
+                    .append(Component.text(LocaleManager.getMessage("lobby.solo.app", player.locale()),
+                                    NamedTextColor.LIGHT_PURPLE)
+                            .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com/#mobile-app")));
+        }
+        player.sendMessage(hint);
     }
 
     private void showMobileAppPromotion(Player player, SessionHandle handle) {
@@ -304,6 +331,7 @@ public class PlayerWrapperListener implements Listener {
 
     private void initializeSession(SessionHandle handle, String playerName) {
         boolean newPlayer = false;
+        boolean onboardingPending = false;
         try (EntityManager em = HibernateUtil.createEntityManager()) {
             EntityTransaction transaction = em.getTransaction();
             try {
@@ -316,6 +344,7 @@ public class PlayerWrapperListener implements Listener {
                     em.persist(playerData);
                     newPlayer = true;
                 }
+                onboardingPending = playerData.getOnboardingCompletedAt() == null;
                 playerData.setName(playerName);
                 playerData.setLastLogin(handle.startTime());
 
@@ -339,6 +368,35 @@ public class PlayerWrapperListener implements Listener {
             DiscordUtils.sendDiscordMessage(System.getenv("DISCORD_NEW_PLAYER_WEBHOOK_URL"),
                     "A new player, " + playerName + ", has joined the server!");
         }
+        if (onboardingPending) {
+            onboardingPendingSessions.add(handle.sessionId());
+        }
+    }
+
+    private void markOnboardingCompleted(SessionHandle handle) {
+        CompletableFuture.runAsync(() -> {
+            try (EntityManager em = HibernateUtil.createEntityManager()) {
+                EntityTransaction transaction = em.getTransaction();
+                try {
+                    transaction.begin();
+                    PlayerData playerData = em.find(PlayerData.class, handle.playerId());
+                    if (playerData != null && playerData.getOnboardingCompletedAt() == null) {
+                        playerData.setOnboardingCompletedAt(new Date());
+                    }
+                    transaction.commit();
+                } catch (RuntimeException error) {
+                    if (transaction.isActive()) {
+                        transaction.rollback();
+                    }
+                    throw error;
+                }
+            }
+        }, persistenceExecutor).whenComplete((ignored, error) -> {
+            if (error != null) {
+                CookieDough.getInstance().getLogger().warning("Could not save onboarding completion for "
+                        + handle.playerId() + ": " + rootMessage(error));
+            }
+        });
     }
 
     @EventHandler
@@ -361,6 +419,8 @@ public class PlayerWrapperListener implements Listener {
                 handle.sessionId(), CompletableFuture.completedFuture(null));
         initialization.handle((ignored, error) -> null).thenRunAsync(() -> {
             finalizeSession(handle, endTime);
+            newPlayerSessions.remove(handle.sessionId());
+            onboardingPendingSessions.remove(handle.sessionId());
             initializationFutures.remove(handle.sessionId());
         }, persistenceExecutor);
     }

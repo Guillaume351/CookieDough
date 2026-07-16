@@ -2,13 +2,15 @@ package com.cookiebuild.cookiedough.lobby;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
+import org.bukkit.DyeColor;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Zombie;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.entity.Sheep;
+import org.bukkit.entity.Slime;
+import org.bukkit.entity.Villager;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 import java.util.ArrayList;
@@ -33,13 +35,15 @@ public class GameNPC {
     private static NPCReloadListener reloadListener;
     private final CookieDough plugin;
     private final Location location;
-    private Zombie npc;
+    private final GamePresentation presentation;
+    private Mob npc;
     private final Map<UUID, Long> lastInteraction = new ConcurrentHashMap<>();
 
     public GameNPC(String gameName, Location location, CookieDough plugin) {
         this.gameName = gameName;
         this.plugin = plugin;
         this.location = location;
+        this.presentation = GamePresentation.forGame(gameName);
 
         if (reloadListener != null) {
             reloadListener.registerNPC(this);
@@ -54,24 +58,40 @@ public class GameNPC {
     }
 
     private void spawnNPC() {
-        this.npc = location.getWorld().spawn(location, Zombie.class);
+        Entity spawned = location.getWorld().spawnEntity(location, presentation.npcType());
+        if (!(spawned instanceof Mob mob)) {
+            spawned.remove();
+            throw new IllegalStateException("Configured lobby selector is not a mob: " + presentation.npcType());
+        }
+        this.npc = mob;
         configureNpc(this.npc);
     }
 
-    private void configureNpc(Zombie zombie) {
-        zombie.teleport(location);
-        zombie.setBaby(false);
-        zombie.setAI(false);
-        zombie.setSilent(true);
-        zombie.setCanPickupItems(false);
-        zombie.setRemoveWhenFarAway(false);
-        zombie.setInvulnerable(true);
-        zombie.setPersistent(true);
-        zombie.getPersistentDataContainer().set(markerKey(), PersistentDataType.STRING, gameName);
+    private void configureNpc(Mob mob) {
+        mob.teleport(location);
+        mob.setAI(false);
+        mob.setSilent(true);
+        mob.setCanPickupItems(false);
+        mob.setRemoveWhenFarAway(false);
+        mob.setInvulnerable(true);
+        mob.setPersistent(true);
+        mob.setCollidable(false);
+        mob.setFireTicks(0);
+        mob.getPersistentDataContainer().set(markerKey(), PersistentDataType.STRING, gameName);
         // Keep the legacy per-game marker until all persisted lobby data has been
         // through one reconciliation cycle.
-        zombie.getPersistentDataContainer().set(legacyMarkerKey(), PersistentDataType.BYTE, (byte) 1);
-        zombie.getEquipment().setItemInMainHand(new ItemStack(Material.DIAMOND_SWORD));
+        mob.getPersistentDataContainer().set(legacyMarkerKey(), PersistentDataType.BYTE, (byte) 1);
+        if (mob.getEquipment() != null) {
+            mob.getEquipment().clear();
+        }
+        if (mob instanceof Slime slime) {
+            slime.setSize(2);
+        } else if (mob instanceof Sheep sheep) {
+            sheep.setColor(DyeColor.LIME);
+            sheep.setSheared(false);
+        } else if (mob instanceof Villager villager) {
+            villager.setProfession(Villager.Profession.MASON);
+        }
         updateNPCName();
     }
 
@@ -80,23 +100,27 @@ public class GameNPC {
             return;
         }
 
-        List<Zombie> markedNpcs = new ArrayList<>();
+        List<Entity> markedNpcs = new ArrayList<>();
+        List<Mob> compatibleNpcs = new ArrayList<>();
         List<NpcReconciliation.Candidate> candidates = new ArrayList<>();
         for (Entity entity : chunk.getEntities()) {
-            if (!(entity instanceof Zombie zombie) || !matches(zombie)) {
+            if (!matches(entity)) {
                 continue;
             }
-            markedNpcs.add(zombie);
-            candidates.add(new NpcReconciliation.Candidate(zombie.getUniqueId(),
-                    npc != null && npc.getUniqueId().equals(zombie.getUniqueId()),
-                    zombie.getLocation().distanceSquared(location)));
+            markedNpcs.add(entity);
+            if (entity instanceof Mob mob && entity.getType() == presentation.npcType()) {
+                compatibleNpcs.add(mob);
+                candidates.add(new NpcReconciliation.Candidate(mob.getUniqueId(),
+                        npc != null && npc.getUniqueId().equals(mob.getUniqueId()),
+                        mob.getLocation().distanceSquared(location)));
+            }
         }
 
         UUID canonicalId = NpcReconciliation.selectCanonical(candidates);
         if (canonicalId == null) {
             spawnNPC();
         } else {
-            this.npc = markedNpcs.stream()
+            this.npc = compatibleNpcs.stream()
                     .filter(candidate -> candidate.getUniqueId().equals(canonicalId))
                     .findFirst()
                     .orElseThrow();
@@ -104,7 +128,7 @@ public class GameNPC {
         }
 
         int removed = 0;
-        for (Zombie candidate : markedNpcs) {
+        for (Entity candidate : markedNpcs) {
             if (!candidate.getUniqueId().equals(this.npc.getUniqueId())) {
                 candidate.remove();
                 removed++;
@@ -122,12 +146,9 @@ public class GameNPC {
     }
 
     public boolean matches(Entity entity) {
-        if (!(entity instanceof Zombie zombie)) {
-            return false;
-        }
-        String marker = zombie.getPersistentDataContainer().get(markerKey(), PersistentDataType.STRING);
+        String marker = entity.getPersistentDataContainer().get(markerKey(), PersistentDataType.STRING);
         return gameName.equalsIgnoreCase(marker)
-                || zombie.getPersistentDataContainer().has(legacyMarkerKey(), PersistentDataType.BYTE);
+                || entity.getPersistentDataContainer().has(legacyMarkerKey(), PersistentDataType.BYTE);
     }
 
     private NamespacedKey markerKey() {
@@ -145,6 +166,7 @@ public class GameNPC {
                 if (npc == null || !npc.isValid()) {
                     reconcileNpc(location.getChunk());
                 } else {
+                    npc.setFireTicks(0);
                     updateNPCName();
                 }
             }
@@ -190,17 +212,19 @@ public class GameNPC {
 
         if (game != null && game.getState() == GameState.OPEN) {
             if (game.addPlayerToAvailableTeam(cookiePlayer)) {
-                player.sendMessage(ChatColor.GREEN + "You've joined a " + gameName + " game!");
+                player.sendMessage(ChatColor.GREEN + "Joined " + gameName + ChatColor.GRAY + " — "
+                        + presentation.description(player.locale()));
             } else {
                 player.sendMessage(ChatColor.RED + "No available " + gameName + " games. Please wait.");
             }
         } else {
-            player.sendMessage(ChatColor.YELLOW + gameName
-                    + " is temporarily unavailable because no arena is ready yet.");
+            player.sendMessage(ChatColor.GOLD + gameName + ChatColor.GRAY + " — "
+                    + presentation.description(player.locale()) + ChatColor.YELLOW
+                    + " No arena is ready yet.");
         }
     }
 
-    public Zombie getNPC() {
+    public Mob getNPC() {
         return npc;
     }
 

@@ -26,6 +26,9 @@ public class PlayerData {
     private Date lastLogin;
     private Date createdAt;
 
+    @Column(name = "onboarding_completed_at")
+    private Date onboardingCompletedAt;
+
     @Column(columnDefinition = "integer default 0")
     private int coins = 0;
 
@@ -74,6 +77,14 @@ public class PlayerData {
 
     public void setCreatedAt(Date createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Date getOnboardingCompletedAt() {
+        return onboardingCompletedAt;
+    }
+
+    public void setOnboardingCompletedAt(Date onboardingCompletedAt) {
+        this.onboardingCompletedAt = onboardingCompletedAt;
     }
 
     public Set<PlayerSession> getPlayerSessions() {

@@ -26,13 +26,11 @@ import com.cookiebuild.cookiedough.retention.FriendManager;
 import com.cookiebuild.cookiedough.retention.PlayerGoalTracker;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 
 /** One discoverable lobby menu, rendered natively for Java and Bedrock players. */
 public final class PlayerHubMenu implements Listener {
-    private static final List<String> GAMES = List.of(
-            "MicroBattles", "Pitchout", "SkyWars", "BuildBattles", "TurfWars");
-
     private final CookieDough plugin;
     private final LobbyManager lobby;
     private final PlayerGoalTracker goals;
@@ -52,13 +50,20 @@ public final class PlayerHubMenu implements Listener {
         player.openInventory(mainInventory());
     }
 
+    /** Shown until its first successful display; it deliberately fits on one page. */
+    public boolean openOnboarding(Player player) {
+        if (openBedrock(player, MenuPage.ONBOARDING)) return true;
+        player.openInventory(onboardingInventory(player));
+        return true;
+    }
+
     private Inventory mainInventory() {
         MenuHolder holder = new MenuHolder(MenuPage.MAIN, 27, Component.text("Cookie Build Menu", NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
         inventory.setItem(10, item(Material.NETHER_STAR, "Quick Play", "quick",
                 "Join the game closest to starting"));
         inventory.setItem(12, item(Material.GRASS_BLOCK, "Choose a game", "games",
-                "MicroBattles, Pitchout, SkyWars, BuildBattles or TurfWars"));
+                "Compare all five games and join a lobby"));
         inventory.setItem(14, item(Material.EXPERIENCE_BOTTLE, "Daily & weekly quests", "goals",
                 "Track objectives, rewards and achievements"));
         inventory.setItem(16, item(Material.PLAYER_HEAD, "Friends", "friends",
@@ -71,17 +76,30 @@ public final class PlayerHubMenu implements Listener {
         return inventory;
     }
 
-    private Inventory gamesInventory() {
+    private Inventory onboardingInventory(Player player) {
+        MenuHolder holder = new MenuHolder(MenuPage.ONBOARDING, 27,
+                Component.text("Welcome to Cookie Build", NamedTextColor.GOLD));
+        Inventory inventory = holder.inventory();
+        inventory.setItem(11, item(Material.NETHER_STAR, "Quick Play", "quick",
+                "Join the game closest to starting"));
+        inventory.setItem(13, item(Material.GRASS_BLOCK, "Choose a game", "games",
+                "Read the rules, then pick a game"));
+        inventory.setItem(15, item(Material.ENDER_EYE, "Playing alone?", "community",
+                "Discord helps you find teammates",
+                "The app can notify you when players join"));
+        inventory.setItem(22, item(Material.COMPASS, "Explore the full menu", "back",
+                "Quests, friends, parties and events"));
+        return inventory;
+    }
+
+    private Inventory gamesInventory(Player player) {
         MenuHolder holder = new MenuHolder(MenuPage.GAMES, 27, Component.text("Choose a game", NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
-        Material[] icons = {
-                Material.RED_CONCRETE, Material.SLIME_BALL, Material.ENDER_EYE,
-                Material.CRAFTING_TABLE, Material.BOW
-        };
         int[] slots = { 9, 11, 13, 15, 17 };
-        for (int index = 0; index < GAMES.size(); index++) {
-            String game = GAMES.get(index);
-            inventory.setItem(slots[index], item(icons[index], game, "game:" + game, "Join an open waiting lobby"));
+        for (int index = 0; index < GamePresentation.games().size(); index++) {
+            GamePresentation game = GamePresentation.games().get(index);
+            inventory.setItem(slots[index], item(game.icon(), game.gameName(), "game:" + game.gameName(),
+                    game.description(player.locale()), "Click to join an open lobby"));
         }
         inventory.setItem(22, item(Material.ARROW, "Back", "back", "Return to the Cookie Build menu"));
         return inventory;
@@ -150,6 +168,7 @@ public final class PlayerHubMenu implements Listener {
             case "party" -> run(player, "party list");
             case "events" -> run(player, "events");
             case "app" -> run(player, "app status");
+            case "community" -> showCommunityLinks(player);
             case "help" -> {
                 player.closeInventory();
                 player.sendMessage(ChatColor.GOLD + "Useful commands: " + ChatColor.YELLOW
@@ -167,11 +186,23 @@ public final class PlayerHubMenu implements Listener {
         player.performCommand(command);
     }
 
+    private void showCommunityLinks(Player player) {
+        player.closeInventory();
+        player.sendMessage(Component.text("Playing alone? ", NamedTextColor.GOLD)
+                .append(Component.text("Join Discord", NamedTextColor.AQUA)
+                        .clickEvent(ClickEvent.openUrl("https://discord.gg/ajmPnwh9g8")))
+                .append(Component.text(" or ", NamedTextColor.GRAY))
+                .append(Component.text("get app notifications", NamedTextColor.LIGHT_PURPLE)
+                        .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com/#mobile-app")))
+                .append(Component.text(" when someone plays.", NamedTextColor.GRAY)));
+    }
+
     private void openPage(Player player, MenuPage page) {
         if (openBedrock(player, page)) return;
         player.openInventory(switch (page) {
             case MAIN -> mainInventory();
-            case GAMES -> gamesInventory();
+            case ONBOARDING -> onboardingInventory(player);
+            case GAMES -> gamesInventory(player);
             case GOALS -> goalsInventory(player);
         });
     }
@@ -185,6 +216,14 @@ public final class PlayerHubMenu implements Listener {
             SimpleForm.Builder builder = SimpleForm.builder();
             List<String> actions = new ArrayList<>();
             switch (page) {
+                case ONBOARDING -> {
+                    builder.title("§l§6Welcome to Cookie Build")
+                            .content("§7Pick a game and start playing. If the lobby is quiet, Discord helps you find teammates and the app can notify you when players join.");
+                    button(builder, actions, "§a§lQuick Play\n§7Closest game to starting", "quick");
+                    button(builder, actions, "§6§lChoose a game\n§7Read the rules first", "games");
+                    button(builder, actions, "§b§lDiscord & app\n§7Find players and get notified", "community");
+                    button(builder, actions, "§f§lExplore the full menu", "back");
+                }
                 case MAIN -> {
                     builder.title("§l§6Cookie Build Menu")
                             .content("§7Play, track your quests and find other players.");
@@ -198,8 +237,11 @@ public final class PlayerHubMenu implements Listener {
                     button(builder, actions, "§f§lHelp & commands", "help");
                 }
                 case GAMES -> {
-                    builder.title("§l§6Choose a game").content("§7Join an open waiting lobby.");
-                    for (String game : GAMES) button(builder, actions, "§f§l" + game, "game:" + game);
+                    builder.title("§l§6Choose a game").content("§7Tap a game to join its open lobby.");
+                    for (GamePresentation game : GamePresentation.games()) {
+                        button(builder, actions, "§f§l" + game.gameName() + "\n§7"
+                                + game.description(player.locale()), "game:" + game.gameName());
+                    }
                     button(builder, actions, "§7Back", "back");
                 }
                 case GOALS -> {
@@ -248,6 +290,7 @@ public final class PlayerHubMenu implements Listener {
     }
 
     private enum MenuPage {
+        ONBOARDING,
         MAIN,
         GAMES,
         GOALS
