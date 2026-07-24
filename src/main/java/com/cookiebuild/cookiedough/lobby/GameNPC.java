@@ -176,21 +176,14 @@ public class GameNPC {
     private void updateNPCName() {
         GameStatus game = GameManager.getGameByName(gameName);
         if (game != null) {
-            int playerCount = game.getPlayerCount();
-            int maxPlayers = game.getCapacity();
-            String state = game.getState().toString();
-
-            String nameFormat = ChatColor.GOLD + "" + ChatColor.BOLD + "%s " +
-                    ChatColor.RESET + ChatColor.AQUA + "[" +
-                    ChatColor.YELLOW + "%d" + ChatColor.GOLD + "/" + ChatColor.YELLOW + "%d" +
-                    ChatColor.AQUA + "] " +
-                    ChatColor.GREEN + "%s";
-
-            String customName = String.format(nameFormat, gameName, playerCount, maxPlayers, state);
-            npc.setCustomName(customName);
+            npc.customName(LobbyDisplayText.gameNpc(
+                    gameName,
+                    game.getPlayerCount(),
+                    game.getCapacity(),
+                    game.getState()));
             npc.setCustomNameVisible(true);
         } else {
-            npc.setCustomName(ChatColor.RED + gameName + " (Unavailable)");
+            npc.customName(LobbyDisplayText.unavailableGameNpc(gameName));
             npc.setCustomNameVisible(true);
         }
     }

@@ -150,4 +150,14 @@ public class GameManager {
     public static int getAvailablePlayerCount() {
         return (int) PlayerManager.getPlayers().stream().filter(p -> p.getState() == PlayerState.LOBBY).count();
     }
+
+    /** Counts distinct online players owned by a game, including queues and live matches. */
+    public static int getOnlineGamePlayerCount() {
+        return (int) games.stream()
+                .flatMap(game -> game.getPlayers().stream())
+                .filter(player -> player.getPlayer() != null && player.getPlayer().isOnline())
+                .map(player -> player.getPlayer().getUniqueId())
+                .distinct()
+                .count();
+    }
 }

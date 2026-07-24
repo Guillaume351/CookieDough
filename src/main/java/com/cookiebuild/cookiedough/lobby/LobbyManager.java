@@ -46,6 +46,7 @@ public class LobbyManager implements Listener {
     private final List<GameNPC> gameNpcs = new ArrayList<>();
     private final List<Sign> gameSigns = new ArrayList<>();
     private final StatueManager statueManager;
+    private LobbyPlayerCountDisplay playerCountDisplay;
     private BukkitTask signRefreshTask;
 
     // Singleton
@@ -67,6 +68,8 @@ public class LobbyManager implements Listener {
                     entity.remove();
                 }
             }
+            Location playerCountLocation = lobbyWorld.getSpawnLocation().clone().add(0.5, 3.0, 0.5);
+            playerCountDisplay = new LobbyPlayerCountDisplay(plugin, playerCountLocation);
         }
 
         // enable NPC listeners
@@ -94,6 +97,10 @@ public class LobbyManager implements Listener {
         if (signRefreshTask != null) {
             signRefreshTask.cancel();
             signRefreshTask = null;
+        }
+        if (playerCountDisplay != null) {
+            playerCountDisplay.shutdown();
+            playerCountDisplay = null;
         }
         statueManager.shutdown();
         if (instance == this) {

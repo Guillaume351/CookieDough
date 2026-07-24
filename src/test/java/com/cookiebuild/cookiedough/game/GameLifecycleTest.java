@@ -54,6 +54,26 @@ class GameLifecycleTest {
     }
 
     @Test
+    void countsDistinctOnlinePlayersOwnedByGames() throws Exception {
+        TestGame waiting = new TestGame("Pitchout");
+        TestGame running = new TestGame("SkyWars");
+        CookiePlayer sharedPlayer = cookiePlayer(true);
+        CookiePlayer offlinePlayer = cookiePlayer(false);
+        players(waiting).add(sharedPlayer);
+        players(running).add(sharedPlayer);
+        players(running).add(offlinePlayer);
+        GameManager.addGame(waiting);
+        GameManager.addGame(running);
+
+        try {
+            assertEquals(1, GameManager.getOnlineGamePlayerCount());
+        } finally {
+            GameManager.removeGame(waiting);
+            GameManager.removeGame(running);
+        }
+    }
+
+    @Test
     void defaultAdministrativeShutdownClosesAndUnregistersTheGame() {
         TestGame game = new TestGame("BuildBattles");
         GameManager.addGame(game);
@@ -73,13 +93,17 @@ class GameLifecycleTest {
     }
 
     private static CookiePlayer cookiePlayer() {
+        return cookiePlayer(true);
+    }
+
+    private static CookiePlayer cookiePlayer(boolean online) {
         UUID id = UUID.randomUUID();
         Player player = (Player) Proxy.newProxyInstance(
                 Player.class.getClassLoader(), new Class<?>[] { Player.class }, (proxy, method, args) -> {
                     return switch (method.getName()) {
                         case "getUniqueId" -> id;
                         case "getName" -> "TestPlayer";
-                        case "isOnline" -> true;
+                        case "isOnline" -> online;
                         default -> defaultValue(method.getReturnType());
                     };
                 });
