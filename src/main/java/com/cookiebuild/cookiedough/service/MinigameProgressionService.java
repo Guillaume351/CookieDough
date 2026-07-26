@@ -15,6 +15,7 @@ import com.cookiebuild.cookiedough.game.FunnelTelemetry;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
+import jakarta.persistence.LockModeType;
 
 /** Transaction-scoped progression operations safe to call from different tasks. */
 public class MinigameProgressionService {
@@ -265,12 +266,22 @@ public class MinigameProgressionService {
         saveStats(stats);
     }
 
-    private MinigameProgression findOrCreate(EntityManager em, UUID playerId, String minigame) {
+    MinigameProgression findOrCreate(EntityManager em, UUID playerId, String minigame) {
         MinigameProgressionId id = new MinigameProgressionId(playerId, minigame);
         MinigameProgression stats = em.find(MinigameProgression.class, id);
         if (stats == null) {
-            stats = new MinigameProgression(playerId, minigame);
-            em.persist(stats);
+            // Serialize the first progression creation on the player's durable row.
+            // A second transaction may have inserted the same composite key while
+            // this transaction was waiting, so re-read after acquiring the lock.
+            PlayerData player = em.find(PlayerData.class, playerId, LockModeType.PESSIMISTIC_WRITE);
+            if (player == null) {
+                throw new IllegalStateException("Cannot initialize progression before player data: " + playerId);
+            }
+            stats = em.find(MinigameProgression.class, id);
+            if (stats == null) {
+                stats = new MinigameProgression(playerId, minigame);
+                em.persist(stats);
+            }
         }
         return stats;
     }
