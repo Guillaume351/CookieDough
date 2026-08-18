@@ -99,9 +99,7 @@ public final class PlayerHubMenu implements Listener {
         for (int index = 0; index < GamePresentation.games().size(); index++) {
             GamePresentation game = GamePresentation.games().get(index);
             inventory.setItem(slots[index], item(game.icon(), game.displayName(), "game:" + game.gameName(),
-                    game.description(player.locale()), game.comingSoon()
-                            ? "Limited preview • may be disabled after testing"
-                            : "Click to join an open lobby"));
+                    game.description(player.locale()), game.statusHint()));
         }
         inventory.setItem(22, item(Material.ARROW, "Back", "back", "Return to the Cookie Build menu"));
         return inventory;

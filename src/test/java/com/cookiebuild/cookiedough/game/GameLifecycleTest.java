@@ -8,6 +8,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.Test;
@@ -85,6 +86,52 @@ class GameLifecycleTest {
         assertFalse(GameManager.getGames().contains(game));
     }
 
+    @Test
+    void anIneligibleTeamCompositionNeverAdvancesTheCountdown() throws Exception {
+        TestGame game = new TestGame("BedWars");
+        game.setCountdownEligible(false);
+        players(game).add(cookiePlayer());
+        players(game).add(cookiePlayer());
+
+        game.tick();
+        game.tick();
+
+        assertEquals(0, game.getStartTimer());
+        assertEquals(0, game.startCalls());
+    }
+
+    @Test
+    void waitingActionBarIsRefreshedEverySecondForEveryPlayer() throws Exception {
+        TestGame game = new TestGame("BedWars");
+        AtomicInteger firstUpdates = new AtomicInteger();
+        AtomicInteger secondUpdates = new AtomicInteger();
+        players(game).add(cookiePlayer(true, firstUpdates));
+        players(game).add(cookiePlayer(true, secondUpdates));
+        game.setCountdownEligible(false);
+
+        game.tick();
+        game.tick();
+
+        assertEquals(2, firstUpdates.get());
+        assertEquals(2, secondUpdates.get());
+    }
+
+    @Test
+    void losingCountdownEligibilityImmediatelyResetsTheTimer() throws Exception {
+        TestGame game = new TestGame("BedWars");
+        players(game).add(cookiePlayer());
+        players(game).add(cookiePlayer());
+
+        game.tick();
+        assertEquals(1, game.getStartTimer());
+
+        game.setCountdownEligible(false);
+        game.tick();
+
+        assertEquals(0, game.getStartTimer());
+        assertEquals(0, game.startCalls());
+    }
+
     @SuppressWarnings("unchecked")
     private static List<CookiePlayer> players(Game game) throws Exception {
         Field players = Game.class.getDeclaredField("players");
@@ -97,6 +144,10 @@ class GameLifecycleTest {
     }
 
     private static CookiePlayer cookiePlayer(boolean online) {
+        return cookiePlayer(online, new AtomicInteger());
+    }
+
+    private static CookiePlayer cookiePlayer(boolean online, AtomicInteger actionBarUpdates) {
         UUID id = UUID.randomUUID();
         Player player = (Player) Proxy.newProxyInstance(
                 Player.class.getClassLoader(), new Class<?>[] { Player.class }, (proxy, method, args) -> {
@@ -104,6 +155,10 @@ class GameLifecycleTest {
                         case "getUniqueId" -> id;
                         case "getName" -> "TestPlayer";
                         case "isOnline" -> online;
+                        case "sendActionBar" -> {
+                            actionBarUpdates.incrementAndGet();
+                            yield null;
+                        }
                         default -> defaultValue(method.getReturnType());
                     };
                 });
@@ -123,10 +178,28 @@ class GameLifecycleTest {
     }
 
     private static final class TestGame extends Game {
+        private boolean countdownEligible = true;
+        private int startCalls;
+
         private TestGame(String name) {
             super(name);
         }
 
+        private void setCountdownEligible(boolean countdownEligible) {
+            this.countdownEligible = countdownEligible;
+        }
+
+        private int startCalls() {
+            return startCalls;
+        }
+
+        @Override protected boolean canStartCountdown() {
+            return countdownEligible && super.canStartCountdown();
+        }
+        @Override public void startGame() {
+            startCalls++;
+            super.startGame();
+        }
         @Override public void registerANewGame() { }
         @Override protected void teleportToGame(CookiePlayer player) { }
         @Override public boolean isGameEnded() { return false; }

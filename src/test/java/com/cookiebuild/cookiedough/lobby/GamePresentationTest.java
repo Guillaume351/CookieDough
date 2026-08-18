@@ -38,11 +38,14 @@ class GamePresentationTest {
     }
 
     @Test
-    void bedWarsIsTheOnlyComingSoonGame() {
-        assertTrue(GamePresentation.forGame("BedWars").comingSoon());
-        assertEquals("BedWars [COMING SOON]", GamePresentation.forGame("BedWars").displayName());
+    void bedWarsIsTheOnlyBetaGame() {
+        assertEquals(GamePresentation.ReleaseStage.BETA,
+                GamePresentation.forGame("BedWars").releaseStage());
+        assertEquals("BedWars [BETA]", GamePresentation.forGame("BedWars").displayName());
         assertTrue(GamePresentation.games().stream()
-                .filter(GamePresentation::comingSoon)
+                .filter(game -> game.releaseStage() == GamePresentation.ReleaseStage.BETA)
                 .allMatch(game -> game.gameName().equals("BedWars")));
+        assertTrue(GamePresentation.games().stream()
+                .noneMatch(game -> game.releaseStage() == GamePresentation.ReleaseStage.COMING_SOON));
     }
 }

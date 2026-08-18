@@ -155,7 +155,7 @@ public abstract class Game implements GameStatus {
         time++;
         if (state == GameState.OPEN) {
             int availablePlayers = GameManager.getAvailablePlayerCount();
-            if (players.size() >= minimumPlayers) {
+            if (canStartCountdown()) {
                 boolean quickStartCondition = availablePlayers == 0 || players.size() == capacity;
 
                 if (quickStartCondition && !inQuickStart) {
@@ -184,18 +184,15 @@ public abstract class Game implements GameStatus {
                     inQuickStart = false;
                 }
             } else {
-                startTimer = 0; // Reset timer if players are less than 2
+                startTimer = 0; // Reset whenever headcount or mode-specific composition is not ready.
                 inQuickStart = false;
-                if (!players.isEmpty() && time % 15 == 0) {
-                    CookiePlayer waiting = players.getFirst();
-                    long queuedAt = queueEnteredAt.getOrDefault(waiting.getPlayer().getUniqueId(),
-                            System.currentTimeMillis());
-                    long waitingSeconds = Math.max(0L, (System.currentTimeMillis() - queuedAt) / 1000);
-                    waiting.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text(
-                            "Waiting " + waitingSeconds + "s · "
-                                    + (minimumPlayers - players.size()) + " more player"
-                                    + (minimumPlayers - players.size() == 1 ? "" : "s") + " needed",
-                            net.kyori.adventure.text.format.NamedTextColor.YELLOW));
+                if (!players.isEmpty()) {
+                    long now = System.currentTimeMillis();
+                    for (CookiePlayer waiting : players) {
+                        long queuedAt = queueEnteredAt.getOrDefault(waiting.getPlayer().getUniqueId(), now);
+                        long waitingSeconds = Math.max(0L, (now - queuedAt) / 1000);
+                        waiting.getPlayer().sendActionBar(createWaitingActionBar(waiting, waitingSeconds));
+                    }
                 }
             }
 
@@ -204,6 +201,25 @@ public abstract class Game implements GameStatus {
                 notifyCountdown();
             }
         }
+    }
+
+    /**
+     * Allows team-based modes to require a playable team composition before the
+     * shared countdown begins. Headcount remains the default for free-for-all
+     * games.
+     */
+    protected boolean canStartCountdown() {
+        return players.size() >= minimumPlayers;
+    }
+
+    /** Creates the continuously refreshed status shown while a lobby cannot count down. */
+    protected net.kyori.adventure.text.Component createWaitingActionBar(
+            CookiePlayer waiting, long waitingSeconds) {
+        int missingPlayers = Math.max(0, minimumPlayers - players.size());
+        return net.kyori.adventure.text.Component.text(
+                "Waiting " + waitingSeconds + "s · "
+                        + missingPlayers + " more player" + (missingPlayers == 1 ? "" : "s") + " needed",
+                net.kyori.adventure.text.format.NamedTextColor.YELLOW);
     }
 
     private void notifyCountdown() {

@@ -14,20 +14,26 @@ public record GamePresentation(
         Material icon,
         EntityType npcType,
         String descriptionKey,
-        boolean comingSoon) {
+        ReleaseStage releaseStage) {
+    public enum ReleaseStage {
+        STABLE,
+        BETA,
+        COMING_SOON
+    }
+
     private static final List<GamePresentation> GAMES = List.of(
             new GamePresentation("MicroBattles", Material.RED_CONCRETE, EntityType.IRON_GOLEM,
-                    "game.description.microbattles", false),
+                    "game.description.microbattles", ReleaseStage.STABLE),
             new GamePresentation("Pitchout", Material.SLIME_BALL, EntityType.SLIME,
-                    "game.description.pitchout", false),
+                    "game.description.pitchout", ReleaseStage.STABLE),
             new GamePresentation("SkyWars", Material.ENDER_EYE, EntityType.ALLAY,
-                    "game.description.skywars", false),
+                    "game.description.skywars", ReleaseStage.STABLE),
             new GamePresentation("BuildBattles", Material.CRAFTING_TABLE, EntityType.VILLAGER,
-                    "game.description.buildbattles", false),
+                    "game.description.buildbattles", ReleaseStage.STABLE),
             new GamePresentation("TurfWars", Material.BOW, EntityType.SHEEP,
-                    "game.description.turfwars", false),
+                    "game.description.turfwars", ReleaseStage.STABLE),
             new GamePresentation("BedWars", Material.RED_BED, EntityType.FOX,
-                    "game.description.bedwars", true));
+                    "game.description.bedwars", ReleaseStage.BETA));
 
     public static List<GamePresentation> games() {
         return GAMES;
@@ -38,7 +44,7 @@ public record GamePresentation(
                 .filter(game -> game.gameName().equalsIgnoreCase(gameName))
                 .findFirst()
                 .orElse(new GamePresentation(gameName, Material.NETHER_STAR, EntityType.VILLAGER,
-                        "game.description.unknown", false));
+                        "game.description.unknown", ReleaseStage.STABLE));
     }
 
     public String description(Locale locale) {
@@ -46,6 +52,18 @@ public record GamePresentation(
     }
 
     public String displayName() {
-        return comingSoon ? gameName + " [COMING SOON]" : gameName;
+        return switch (releaseStage) {
+            case BETA -> gameName + " [BETA]";
+            case COMING_SOON -> gameName + " [COMING SOON]";
+            case STABLE -> gameName;
+        };
+    }
+
+    public String statusHint() {
+        return switch (releaseStage) {
+            case BETA -> "Open beta • report bugs on Discord or X";
+            case COMING_SOON -> "Coming soon";
+            case STABLE -> "Click to join an open lobby";
+        };
     }
 }
