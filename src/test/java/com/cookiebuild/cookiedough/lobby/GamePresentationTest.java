@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class GamePresentationTest {
     @Test
     void everyGameHasAConciseDiscoverableDescription() {
-        assertEquals(5, GamePresentation.games().size());
+        assertEquals(6, GamePresentation.games().size());
         for (GamePresentation game : GamePresentation.games()) {
             String description = game.description(Locale.ENGLISH);
             assertFalse(description.isBlank());
@@ -25,7 +25,7 @@ class GamePresentationTest {
 
     @Test
     void selectorsUseDistinctModelsAndTurfWarsDoesNotUseASunBurningMob() {
-        assertEquals(5, new HashSet<>(GamePresentation.games().stream()
+        assertEquals(6, new HashSet<>(GamePresentation.games().stream()
                 .map(GamePresentation::npcType)
                 .toList()).size());
 
@@ -35,5 +35,14 @@ class GamePresentationTest {
                 || turfWars == EntityType.SKELETON
                 || turfWars == EntityType.STRAY
                 || turfWars == EntityType.DROWNED);
+    }
+
+    @Test
+    void bedWarsIsTheOnlyComingSoonGame() {
+        assertTrue(GamePresentation.forGame("BedWars").comingSoon());
+        assertEquals("BedWars [COMING SOON]", GamePresentation.forGame("BedWars").displayName());
+        assertTrue(GamePresentation.games().stream()
+                .filter(GamePresentation::comingSoon)
+                .allMatch(game -> game.gameName().equals("BedWars")));
     }
 }

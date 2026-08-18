@@ -12,7 +12,7 @@ public interface RallyRepository {
     Pattern ACTOR_DISPLAY_NAME_PATTERN = Pattern.compile("^[\\p{L}\\p{N}_. -]{1,32}$");
 
     Set<String> SUPPORTED_GAMEMODES = Set.of(
-            "microbattles", "pitchout", "skywars", "buildbattles", "turfwars");
+            "microbattles", "pitchout", "skywars", "buildbattles", "turfwars", "bedwars");
     String NETWORK_GAMEMODE = "network";
 
     enum Source {

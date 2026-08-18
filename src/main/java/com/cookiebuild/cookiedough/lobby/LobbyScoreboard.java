@@ -49,7 +49,9 @@ public class LobbyScoreboard {
             new GameStatsSpec("BuildBattles", MinigameProgressionService.BUILDBATTLES, "BUILD",
                     NamedTextColor.GREEN, NamedTextColor.DARK_GREEN, "S", "score"),
             new GameStatsSpec("TurfWars", MinigameProgressionService.TURFWARS, "TURF",
-                    NamedTextColor.RED, NamedTextColor.DARK_RED, "K", null));
+                    NamedTextColor.RED, NamedTextColor.DARK_RED, "K", null),
+            new GameStatsSpec("BedWars", MinigameProgressionService.BEDWARS, "BED",
+                    NamedTextColor.YELLOW, NamedTextColor.GOLD, "FK", "finalKills"));
     private final Player player;
     private final PluginTaskDispatcher tasks;
     private final Scoreboard scoreboard;
@@ -191,8 +193,8 @@ public class LobbyScoreboard {
         Map<String, List<PlayerMatchPerformance>> performancesByGame = allPerformances.stream()
                 .collect(Collectors.groupingBy(p -> p.getMatch().getGameType()));
 
-        // A sidebar renders at most fifteen entries. Keep five games visible by
-        // using every line for actionable progression or connection information.
+        // A sidebar renders at most fifteen entries. Six games stay visible by
+        // keeping each game to one compact progression/result line.
         int line = 14;
 
         // Global stats
@@ -219,15 +221,14 @@ public class LobbyScoreboard {
         for (GameStatsSpec game : GAME_STATS) {
             PlayerStatsService.ProgressionSnapshot progression = stats.progressionByGame.getOrDefault(
                     game.progressionKey(), PlayerStatsService.ProgressionSnapshot.empty());
-            setScore(Component.text(game.label() + " L" + progression.level() + " "
-                            + progression.experience() + "/" + progression.nextLevelExperience())
-                    .color(game.headerColor()).decorate(TextDecoration.BOLD), line--);
             List<PlayerMatchPerformance> performances = performancesByGame.getOrDefault(game.gameType(), List.of());
-            if (performances.isEmpty()) {
-                setScore(Component.text("  Play a game!").color(NamedTextColor.GRAY), line--);
-            } else {
-                displayGameStats(game, performances, line--);
-            }
+            int wins = (int) performances.stream().filter(p -> p.getMatch().getWinners().stream()
+                    .anyMatch(winner -> winner.getId().equals(player.getUniqueId()))).count();
+            setScore(Component.text(game.label() + " L" + progression.level())
+                    .color(game.headerColor()).decorate(TextDecoration.BOLD)
+                    .append(Component.text(performances.isEmpty()
+                            ? "  Play a game!" : "  W " + wins + " • P " + performances.size())
+                            .color(performances.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.WHITE)), line--);
         }
 
         // Website

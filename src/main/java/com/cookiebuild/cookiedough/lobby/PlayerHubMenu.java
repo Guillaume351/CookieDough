@@ -63,7 +63,7 @@ public final class PlayerHubMenu implements Listener {
         inventory.setItem(10, item(Material.NETHER_STAR, "Quick Play", "quick",
                 "Join the game closest to starting"));
         inventory.setItem(12, item(Material.GRASS_BLOCK, "Choose a game", "games",
-                "Compare all five games and join a lobby"));
+                "Compare all games and join a lobby"));
         inventory.setItem(14, item(Material.EXPERIENCE_BOTTLE, "Daily & weekly quests", "goals",
                 "Track objectives, rewards and achievements"));
         inventory.setItem(16, item(Material.PLAYER_HEAD, "Friends", "friends",
@@ -95,11 +95,13 @@ public final class PlayerHubMenu implements Listener {
     private Inventory gamesInventory(Player player) {
         MenuHolder holder = new MenuHolder(MenuPage.GAMES, 27, Component.text("Choose a game", NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
-        int[] slots = { 9, 11, 13, 15, 17 };
+        int[] slots = { 9, 11, 13, 15, 17, 21 };
         for (int index = 0; index < GamePresentation.games().size(); index++) {
             GamePresentation game = GamePresentation.games().get(index);
-            inventory.setItem(slots[index], item(game.icon(), game.gameName(), "game:" + game.gameName(),
-                    game.description(player.locale()), "Click to join an open lobby"));
+            inventory.setItem(slots[index], item(game.icon(), game.displayName(), "game:" + game.gameName(),
+                    game.description(player.locale()), game.comingSoon()
+                            ? "Limited preview • may be disabled after testing"
+                            : "Click to join an open lobby"));
         }
         inventory.setItem(22, item(Material.ARROW, "Back", "back", "Return to the Cookie Build menu"));
         return inventory;
@@ -239,7 +241,7 @@ public final class PlayerHubMenu implements Listener {
                 case GAMES -> {
                     builder.title("§l§6Choose a game").content("§7Tap a game to join its open lobby.");
                     for (GamePresentation game : GamePresentation.games()) {
-                        button(builder, actions, "§f§l" + game.gameName() + "\n§7"
+                        button(builder, actions, "§f§l" + game.displayName() + "\n§7"
                                 + game.description(player.locale()), "game:" + game.gameName());
                     }
                     button(builder, actions, "§7Back", "back");

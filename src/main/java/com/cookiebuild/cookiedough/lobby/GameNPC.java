@@ -177,13 +177,13 @@ public class GameNPC {
         GameStatus game = GameManager.getGameByName(gameName);
         if (game != null) {
             npc.customName(LobbyDisplayText.gameNpc(
-                    gameName,
+                    presentation.displayName(),
                     game.getPlayerCount(),
                     game.getCapacity(),
                     game.getState()));
             npc.setCustomNameVisible(true);
         } else {
-            npc.customName(LobbyDisplayText.unavailableGameNpc(gameName));
+            npc.customName(LobbyDisplayText.unavailableGameNpc(presentation.displayName()));
             npc.setCustomNameVisible(true);
         }
     }

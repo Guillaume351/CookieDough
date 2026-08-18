@@ -126,7 +126,7 @@ public final class RallyManager {
                 ? gameId
                 : normalizeGamemode(requestedGamemode);
         if (requested == null) {
-            completion.accept("Unknown gamemode. Use MicroBattles, Pitchout, SkyWars, BuildBattles, or TurfWars.");
+            completion.accept("Unknown gamemode. Use MicroBattles, Pitchout, SkyWars, BuildBattles, TurfWars, or BedWars.");
             return;
         }
         if (!requested.equals(gameId)) {
@@ -170,7 +170,7 @@ public final class RallyManager {
         }
         String gamemode = requestedGamemode == null ? null : normalizeGamemode(requestedGamemode);
         if (gamemode == null) {
-            completion.accept("Unknown gamemode. Use MicroBattles, Pitchout, SkyWars, or BuildBattles.");
+            completion.accept("Unknown gamemode. Use MicroBattles, Pitchout, SkyWars, BuildBattles, TurfWars, or BedWars.");
             return;
         }
         Game game = GameManager.getGames().stream()
@@ -469,6 +469,7 @@ public final class RallyManager {
             case "skywars" -> "SkyWars";
             case "buildbattles" -> "BuildBattles";
             case "turfwars" -> "TurfWars";
+            case "bedwars" -> "BedWars";
             case RallyRepository.NETWORK_GAMEMODE -> "Cookie Build";
             default -> "Cookie Build";
         };

@@ -21,6 +21,11 @@ import jakarta.persistence.LockModeType;
 
 class MinigameProgressionServiceTest {
     @Test
+    void recognizesBedWarsProgressionForMatchAndGoalRewards() {
+        assertEquals(MinigameProgressionService.BEDWARS,
+                MinigameProgressionService.supportedMinigameKey("BedWars"));
+    }
+    @Test
     void recognizesTurfWarsProgressionForMatchAndGoalRewards() {
         assertEquals(MinigameProgressionService.TURFWARS,
                 MinigameProgressionService.supportedMinigameKey("TurfWars"));

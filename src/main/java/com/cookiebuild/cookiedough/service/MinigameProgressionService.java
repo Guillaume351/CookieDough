@@ -26,6 +26,7 @@ public class MinigameProgressionService {
     public static final String SKYWARS = "skywars";
     public static final String BUILDBATTLES = "buildbattles";
     public static final String TURFWARS = "turfwars";
+    public static final String BEDWARS = "bedwars";
 
     private final EntityManager legacyEntityManager;
 
@@ -175,6 +176,7 @@ public class MinigameProgressionService {
             case "skywars" -> SKYWARS;
             case "buildbattles" -> BUILDBATTLES;
             case "turfwars" -> TURFWARS;
+            case "bedwars" -> BEDWARS;
             default -> null;
         };
     }
