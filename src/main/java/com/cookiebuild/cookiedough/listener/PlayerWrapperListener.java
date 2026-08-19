@@ -42,6 +42,7 @@ import com.cookiebuild.cookiedough.service.MobilePromotionService;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
+import jakarta.persistence.LockModeType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -108,6 +109,25 @@ public class PlayerWrapperListener implements Listener {
         if (scoreboard != null) {
             scoreboard.hide();
         }
+    }
+
+    /** Persists a bounded play-time checkpoint without touching Bukkit off-thread. */
+    public static void checkpointActiveSessions(Date checkpointAt) {
+        PlayerWrapperListener currentInstance = instance;
+        if (currentInstance == null || !currentInstance.acceptingPlayers || checkpointAt == null) {
+            return;
+        }
+        Map<UUID, SessionHandle> sessions = Map.copyOf(currentInstance.activePlayerSessions);
+        if (sessions.isEmpty()) {
+            return;
+        }
+        CompletableFuture.runAsync(
+                () -> currentInstance.checkpointSessions(sessions, checkpointAt),
+                currentInstance.persistenceExecutor).exceptionally(error -> {
+                    CookieDough.getInstance().getLogger().warning(
+                            "Could not checkpoint active player sessions: " + rootMessage(error));
+                    return null;
+                });
     }
 
     @EventHandler
@@ -443,7 +463,8 @@ public class PlayerWrapperListener implements Listener {
             EntityTransaction transaction = em.getTransaction();
             try {
                 transaction.begin();
-                PlayerSession session = em.find(PlayerSession.class, handle.sessionId());
+                PlayerSession session = em.find(
+                        PlayerSession.class, handle.sessionId(), LockModeType.PESSIMISTIC_WRITE);
                 if (session != null && (session.getEndTime() == null || session.isServerCrash())) {
                     session.setEndTime(endTime);
                     session.setDuration(Math.max(0L, endTime.getTime() - handle.startTime().getTime()));
@@ -459,6 +480,31 @@ public class PlayerWrapperListener implements Listener {
         } catch (RuntimeException error) {
             CookieDough.getInstance().getLogger().severe("Failed to finalize session " + handle.sessionId()
                     + ": " + rootMessage(error));
+        }
+    }
+
+    private void checkpointSessions(Map<UUID, SessionHandle> handles, Date checkpointAt) {
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            EntityTransaction transaction = em.getTransaction();
+            try {
+                transaction.begin();
+                for (SessionHandle handle : handles.values()) {
+                    PlayerSession session = em.find(
+                            PlayerSession.class, handle.sessionId(), LockModeType.PESSIMISTIC_WRITE);
+                    if (session == null || session.getEndTime() != null) {
+                        continue;
+                    }
+                    long duration = Math.max(0L, checkpointAt.getTime() - handle.startTime().getTime());
+                    long persisted = session.getDuration() == null ? 0L : session.getDuration();
+                    session.setDuration(Math.max(persisted, duration));
+                }
+                transaction.commit();
+            } catch (RuntimeException error) {
+                if (transaction.isActive()) {
+                    transaction.rollback();
+                }
+                throw error;
+            }
         }
     }
 

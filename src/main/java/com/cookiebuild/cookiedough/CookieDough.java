@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough;
 
 import java.time.Duration;
+import java.util.Date;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -44,6 +45,7 @@ import com.cookiebuild.cookiedough.retention.PlayerGoalTracker;
 import com.cookiebuild.cookiedough.retention.FriendManager;
 import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
+import com.cookiebuild.cookiedough.service.PlayerSessionRecoveryService;
 import com.cookiebuild.cookiedough.service.MobileLinkService;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
@@ -147,6 +149,11 @@ public final class CookieDough extends JavaPlugin {
 
         // Initialize utilities
         HibernateUtil.initialize();
+        int recoveredSessions = new PlayerSessionRecoveryService().recoverOpenSessions(new Date());
+        if (recoveredSessions > 0) {
+            getLogger().warning("Closed " + recoveredSessions
+                    + " player session(s) left open by the previous server process");
+        }
         getLocaleManager();
         chatManager = new ChatManager();
         partyManager = new PartyManager(this);
@@ -181,6 +188,13 @@ public final class CookieDough extends JavaPlugin {
 
         // Register listeners
         registerListeners();
+
+        // Persist a durable play-time checkpoint. After an unclean restart the
+        // recovery path closes sessions at this checkpoint instead of counting
+        // the whole server outage as play time.
+        Bukkit.getScheduler().runTaskTimer(this,
+                () -> PlayerWrapperListener.checkpointActiveSessions(new Date()),
+                20L * 30L, 20L * 30L);
 
         // Register commands
         registerCommands();

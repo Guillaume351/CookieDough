@@ -8,8 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.lang.reflect.Proxy;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -40,42 +41,40 @@ class MinigameProgressionServiceTest {
     }
 
     @Test
-    void rechecksProgressionAfterSerializingConcurrentCreation() {
+    void locksPlayerBeforeProgressionAndReturnsExistingRow() {
         UUID playerId = UUID.randomUUID();
         MinigameProgression concurrentWinner = new MinigameProgression(playerId,
                 MinigameProgressionService.SKYWARS);
-        AtomicInteger progressionLookups = new AtomicInteger();
-        AtomicReference<LockModeType> requestedLock = new AtomicReference<>();
+        List<String> lookups = new ArrayList<>();
         AtomicBoolean persisted = new AtomicBoolean();
         EntityManager entityManager = fakeEntityManager((entityType, lockMode) -> {
+            lookups.add(entityType.getSimpleName() + ":" + lockMode);
             if (entityType == PlayerData.class) {
-                requestedLock.set(lockMode);
                 return new PlayerData();
             }
-            return progressionLookups.getAndIncrement() == 0 ? null : concurrentWinner;
+            return concurrentWinner;
         }, ignored -> persisted.set(true));
 
         MinigameProgression result = new MinigameProgressionService(null).findOrCreate(
                 entityManager, playerId, MinigameProgressionService.SKYWARS);
 
         assertSame(concurrentWinner, result);
-        assertEquals(2, progressionLookups.get());
-        assertEquals(LockModeType.PESSIMISTIC_WRITE, requestedLock.get());
+        assertEquals(List.of(
+                "PlayerData:PESSIMISTIC_WRITE",
+                "MinigameProgression:PESSIMISTIC_WRITE"), lookups);
         assertFalse(persisted.get());
     }
 
     @Test
     void createsProgressionWhenLockedRecheckStillFindsNothing() {
         UUID playerId = UUID.randomUUID();
-        AtomicInteger progressionLookups = new AtomicInteger();
-        AtomicReference<LockModeType> requestedLock = new AtomicReference<>();
+        List<String> lookups = new ArrayList<>();
         AtomicReference<Object> persisted = new AtomicReference<>();
         EntityManager entityManager = fakeEntityManager((entityType, lockMode) -> {
+            lookups.add(entityType.getSimpleName() + ":" + lockMode);
             if (entityType == PlayerData.class) {
-                requestedLock.set(lockMode);
                 return new PlayerData();
             }
-            progressionLookups.incrementAndGet();
             return null;
         }, persisted::set);
 
@@ -85,8 +84,9 @@ class MinigameProgressionServiceTest {
         assertSame(result, persisted.get());
         assertEquals(playerId, result.getPlayerId());
         assertEquals(MinigameProgressionService.SKYWARS, result.getMinigame());
-        assertEquals(2, progressionLookups.get());
-        assertEquals(LockModeType.PESSIMISTIC_WRITE, requestedLock.get());
+        assertEquals(List.of(
+                "PlayerData:PESSIMISTIC_WRITE",
+                "MinigameProgression:PESSIMISTIC_WRITE"), lookups);
     }
 
     @Test

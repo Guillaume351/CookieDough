@@ -16,12 +16,24 @@ repositories {
         name = 'opencollab-repo'
         url = uri('https://repo.opencollab.dev/main/')
     }
+    ivy {
+        name = 'floodgatePinnedSnapshot'
+        url = uri('https://repo.opencollab.dev/main/')
+        patternLayout {
+            artifact 'org/geysermc/floodgate/api/2.2.5-SNAPSHOT/api-[revision].[ext]'
+        }
+        metadataSources { artifact() }
+        content { includeModule('org.geysermc.floodgate', 'api') }
+    }
 }
 
 dependencies {
     compileOnly 'io.papermc.paper:paper-api:26.1.2.build.74-stable'
     compileOnly 'org.geysermc.cumulus:cumulus:1.1.2'
-    compileOnly 'org.geysermc.floodgate:api:2.2.5-SNAPSHOT'
+    // Immutable timestamped artifact from the upstream 2.2.5 snapshot repository.
+    compileOnly('org.geysermc.floodgate:api:2.2.5-20260809.110940-20') {
+        transitive = false
+    }
 
     // Hibernate dependencies
     implementation 'org.hibernate.orm:hibernate-core:7.4.5.Final'

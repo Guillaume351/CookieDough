@@ -49,11 +49,14 @@ public class MinigameProgressionService {
         }
     }
 
+    /**
+     * Detached full-row saves cannot participate in the player-first locking
+     * contract and can overwrite a concurrent mobile purchase. Use the atomic
+     * service operations instead.
+     */
+    @Deprecated(forRemoval = true)
     public void saveStats(MinigameProgression stats) {
-        inTransaction(em -> {
-            em.merge(stats);
-            return null;
-        });
+        throw new UnsupportedOperationException("Use an atomic MinigameProgressionService operation");
     }
 
     public boolean canAfford(UUID playerId, String minigame, int cost) {
@@ -264,26 +267,24 @@ public class MinigameProgressionService {
                 "game=" + minigame + " kit=" + kitName + " level=" + level);
     }
 
+    @Deprecated(forRemoval = true)
     public void save(MinigameProgression stats) {
         saveStats(stats);
     }
 
     MinigameProgression findOrCreate(EntityManager em, UUID playerId, String minigame) {
+        // Every progression read-modify-write transaction serializes on the
+        // durable player row first. The mobile shop follows the same order, so
+        // selection, unlock, XP and coin writes cannot overwrite one another.
+        PlayerData player = em.find(PlayerData.class, playerId, LockModeType.PESSIMISTIC_WRITE);
+        if (player == null) {
+            throw new IllegalStateException("Cannot initialize progression before player data: " + playerId);
+        }
         MinigameProgressionId id = new MinigameProgressionId(playerId, minigame);
-        MinigameProgression stats = em.find(MinigameProgression.class, id);
+        MinigameProgression stats = em.find(MinigameProgression.class, id, LockModeType.PESSIMISTIC_WRITE);
         if (stats == null) {
-            // Serialize the first progression creation on the player's durable row.
-            // A second transaction may have inserted the same composite key while
-            // this transaction was waiting, so re-read after acquiring the lock.
-            PlayerData player = em.find(PlayerData.class, playerId, LockModeType.PESSIMISTIC_WRITE);
-            if (player == null) {
-                throw new IllegalStateException("Cannot initialize progression before player data: " + playerId);
-            }
-            stats = em.find(MinigameProgression.class, id);
-            if (stats == null) {
-                stats = new MinigameProgression(playerId, minigame);
-                em.persist(stats);
-            }
+            stats = new MinigameProgression(playerId, minigame);
+            em.persist(stats);
         }
         return stats;
     }
