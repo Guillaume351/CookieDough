@@ -31,6 +31,19 @@ class GameLifecycleTest {
     }
 
     @Test
+    void leavingAQueueRestoresLobbyState() throws Exception {
+        TestGame game = new TestGame("SkyWars");
+        CookiePlayer player = cookiePlayer();
+        player.setState(PlayerState.QUEUED);
+        players(game).add(player);
+
+        game.removePlayer(player, "left_queue");
+
+        assertEquals(PlayerState.LOBBY, player.getState());
+        assertFalse(game.getPlayers().contains(player));
+    }
+
+    @Test
     void aRealOrphanStillKeepsItsGameStateForLobbyDiagnostics() {
         CookiePlayer orphan = cookiePlayer();
         orphan.setState(PlayerState.IN_GAME);

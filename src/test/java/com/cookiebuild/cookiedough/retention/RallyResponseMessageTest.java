@@ -21,7 +21,7 @@ class RallyResponseMessageTest {
 
         Component message = RallyManager.responseMessage(response, Locale.FRENCH);
 
-        assertEquals("CookieFan a répondu « J’arrive » pour Pitchout. Encore 2 à 3 minutes !",
+        assertEquals("CookieFan a répondu « J’arrive » pour Pitchout. Laisse-lui 2 à 3 minutes !",
                 PlainTextComponentSerializer.plainText().serialize(message));
         assertFalse(message.children().stream().anyMatch(child -> child.clickEvent() != null));
     }

@@ -28,6 +28,7 @@ import com.cookiebuild.cookiedough.game.FunnelTelemetry;
 import com.cookiebuild.cookiedough.listener.NPCReloadListener;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 public class GameNPC {
     private static final String NPC_MARKER_KEY = "game_npc";
@@ -177,13 +178,14 @@ public class GameNPC {
         GameStatus game = GameManager.getGameByName(gameName);
         if (game != null) {
             npc.customName(LobbyDisplayText.gameNpc(
-                    presentation.displayName(),
+                    presentation.displayName(java.util.Locale.ENGLISH),
                     game.getPlayerCount(),
                     game.getCapacity(),
                     game.getState()));
             npc.setCustomNameVisible(true);
         } else {
-            npc.customName(LobbyDisplayText.unavailableGameNpc(presentation.displayName()));
+            npc.customName(LobbyDisplayText.unavailableGameNpc(
+                    presentation.displayName(java.util.Locale.ENGLISH)));
             npc.setCustomNameVisible(true);
         }
     }
@@ -199,21 +201,23 @@ public class GameNPC {
         GameStatus game = GameManager.getGameByName(gameName);
 
         if (cookiePlayer == null) {
-            player.sendMessage(ChatColor.YELLOW + "Your profile is still loading. Please try again.");
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage(
+                    "player.data_loading", player.locale()));
             return;
         }
 
+        String displayName = presentation.displayName(player.locale());
         if (game != null && game.getState() == GameState.OPEN) {
             if (game.addPlayerToAvailableTeam(cookiePlayer)) {
-                player.sendMessage(ChatColor.GREEN + "Joined " + gameName + ChatColor.GRAY + " — "
-                        + presentation.description(player.locale()));
+                player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("lobby.npc.joined",
+                        player.locale(), displayName, presentation.description(player.locale())));
             } else {
-                player.sendMessage(ChatColor.RED + "No available " + gameName + " games. Please wait.");
+                player.sendMessage(ChatColor.RED + LocaleManager.getMessage("lobby.npc.no_available",
+                        player.locale(), displayName));
             }
         } else {
-            player.sendMessage(ChatColor.GOLD + gameName + ChatColor.GRAY + " — "
-                    + presentation.description(player.locale()) + ChatColor.YELLOW
-                    + " No arena is ready yet.");
+            player.sendMessage(ChatColor.GOLD + LocaleManager.getMessage("lobby.npc.no_arena",
+                    player.locale(), displayName, presentation.description(player.locale())));
         }
     }
 

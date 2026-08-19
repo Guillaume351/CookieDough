@@ -23,16 +23,19 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.game.FunnelTelemetry;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 /** Five-round reaction drill that gives solo lobby visitors an immediate activity. */
 public final class PracticeManager implements Listener {
     private static final int ROUNDS = 5;
+    private static final int PRACTICE_SLOT = 7;
     private static final class Session {
         int completed;
         long totalMillis;
         long targetAt;
         boolean armed;
         int taskId = -1;
+        ItemStack previousItem;
     }
 
     private final JavaPlugin plugin;
@@ -50,20 +53,26 @@ public final class PracticeManager implements Listener {
             return false;
         }
         var cookiePlayer = PlayerManager.getPlayer(player);
-        if (cookiePlayer == null || cookiePlayer.getState() != PlayerState.LOBBY) {
-            player.sendMessage(ChatColor.RED + "Practice is only available in the lobby.");
+        if (cookiePlayer == null || (cookiePlayer.getState() != PlayerState.LOBBY
+                && cookiePlayer.getState() != PlayerState.QUEUED)) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "practice.unavailable", player.locale()));
             return false;
         }
         Session session = new Session();
+        ItemStack existing = player.getInventory().getItem(PRACTICE_SLOT);
+        session.previousItem = existing == null ? null : existing.clone();
         sessions.put(player.getUniqueId(), session);
         ItemStack target = new ItemStack(Material.BLAZE_ROD);
         ItemMeta meta = target.getItemMeta();
-        meta.displayName(Component.text("Reaction Trainer", NamedTextColor.AQUA));
-        meta.lore(java.util.List.of(Component.text("Right-click only when GO! appears", NamedTextColor.GRAY)));
+        meta.displayName(Component.text(LocaleManager.getMessage(
+                "practice.item.name", player.locale()), NamedTextColor.AQUA));
+        meta.lore(java.util.List.of(Component.text(LocaleManager.getMessage(
+                "practice.item.lore", player.locale()), NamedTextColor.GRAY)));
         meta.getPersistentDataContainer().set(practiceKey, PersistentDataType.BYTE, (byte) 1);
         target.setItemMeta(meta);
-        player.getInventory().setItem(1, target);
-        player.sendMessage(ChatColor.AQUA + "Reaction practice started: wait for GO!, then right-click the rod.");
+        player.getInventory().setItem(PRACTICE_SLOT, target);
+        player.sendMessage(ChatColor.AQUA + LocaleManager.getMessage("practice.started", player.locale()));
         FunnelTelemetry.record(player, FunnelTelemetry.Event.TUTORIAL_STARTED, "tutorial=reaction");
         scheduleRound(player, session);
         return true;
@@ -81,17 +90,20 @@ public final class PracticeManager implements Listener {
             return;
         }
         if (!session.armed) {
-            event.getPlayer().sendActionBar(Component.text("Too soon — wait for GO!", NamedTextColor.RED));
+            event.getPlayer().sendActionBar(Component.text(LocaleManager.getMessage(
+                    "practice.too_soon", event.getPlayer().locale()), NamedTextColor.RED));
             return;
         }
         session.armed = false;
         long reaction = Math.max(0, System.currentTimeMillis() - session.targetAt);
         session.totalMillis += reaction;
         session.completed++;
-        event.getPlayer().sendMessage(ChatColor.GREEN + "Round " + session.completed + ": " + reaction + " ms");
+        event.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
+                "practice.round", event.getPlayer().locale(), session.completed, reaction));
         if (session.completed >= ROUNDS) {
             long average = session.totalMillis / ROUNDS;
-            event.getPlayer().sendMessage(ChatColor.GOLD + "Practice complete — average reaction: " + average + " ms.");
+            event.getPlayer().sendMessage(ChatColor.GOLD + LocaleManager.getMessage(
+                    "practice.complete", event.getPlayer().locale(), average));
             FunnelTelemetry.record(event.getPlayer(), FunnelTelemetry.Event.TUTORIAL_COMPLETED,
                     "tutorial=reaction average_ms=" + average);
             stop(event.getPlayer(), false);
@@ -106,14 +118,16 @@ public final class PracticeManager implements Listener {
 
     private void scheduleRound(Player player, Session session) {
         long delay = ThreadLocalRandom.current().nextLong(40, 101);
-        player.sendActionBar(Component.text("Wait…", NamedTextColor.YELLOW));
+        player.sendActionBar(Component.text(LocaleManager.getMessage(
+                "practice.wait", player.locale()), NamedTextColor.YELLOW));
         session.taskId = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline() || sessions.get(player.getUniqueId()) != session) {
                 return;
             }
             session.targetAt = System.currentTimeMillis();
             session.armed = true;
-            player.sendActionBar(Component.text("GO!", NamedTextColor.GREEN));
+            player.sendActionBar(Component.text(LocaleManager.getMessage(
+                    "practice.go", player.locale()), NamedTextColor.GREEN));
             player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1, 1.5f);
         }, delay).getTaskId();
     }
@@ -123,13 +137,14 @@ public final class PracticeManager implements Listener {
         if (session != null && session.taskId >= 0) {
             plugin.getServer().getScheduler().cancelTask(session.taskId);
         }
-        ItemStack item = player.getInventory().getItem(1);
+        ItemStack item = player.getInventory().getItem(PRACTICE_SLOT);
         if (item != null && item.hasItemMeta()
                 && item.getItemMeta().getPersistentDataContainer().has(practiceKey, PersistentDataType.BYTE)) {
-            player.getInventory().setItem(1, null);
+            player.getInventory().setItem(PRACTICE_SLOT, session == null ? null : session.previousItem);
         }
         if (notify) {
-            player.sendMessage(ChatColor.YELLOW + "Reaction practice stopped.");
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage(
+                    "practice.stopped", player.locale()));
         }
     }
 }

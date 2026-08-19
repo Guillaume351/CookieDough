@@ -5,7 +5,7 @@
 ## Requirements
 
 - Java 25
-- Paper 26.1.2 build 74 or newer 26.1.2 build
+- Paper 26.2 or newer compatible build
 
 Build the shaded plugin with:
 

@@ -38,6 +38,7 @@ import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 public class LobbyManager implements Listener {
     private static final PlainTextComponentSerializer PLAIN_TEXT_SERIALIZER = PlainTextComponentSerializer.plainText();
@@ -384,7 +385,8 @@ public class LobbyManager implements Listener {
             Game currentGame = GameManager.getGameOfPlayer(cookiePlayer);
             if (currentGame != null) {
                 currentGame.removePlayer(cookiePlayer, "returned_lobby");
-            } else if (cookiePlayer.getState() == PlayerState.IN_GAME
+            } else if (cookiePlayer.getState() == PlayerState.QUEUED
+                    || cookiePlayer.getState() == PlayerState.IN_GAME
                     || cookiePlayer.getState() == PlayerState.SPECTATING) {
                     CookieDough.getInstance().getLogger().severe("Player " + cookiePlayer.getPlayer().getName()
                             + " is in a game but no game was found.");
@@ -407,23 +409,27 @@ public class LobbyManager implements Listener {
     public void joinAvailableGame(CookiePlayer player) {
         Game game = GameManager.getBestOpenGame();
         if (game != null && game.addPlayerToAvailableTeam(player)) {
-            player.getPlayer().sendMessage(ChatColor.GREEN + "Quick Play: joined " + game.getGameName()
-                    + " (" + game.getPlayerCount() + "/" + game.getCapacity() + ").");
+            player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
+                    "lobby.join.quick_success", player.getPlayer().locale(),
+                    GamePresentation.forGame(game.getGameName()).displayName(player.getPlayer().locale()),
+                    game.getPlayerCount(), game.getCapacity()));
             return;
         }
-        player.getPlayer().sendMessage(ChatColor.RED + "No available games. Please try again shortly.");
+        player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                "lobby.join.no_available", player.getPlayer().locale()));
     }
 
     public void requestQuickPlay(Player player) {
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         FunnelTelemetry.record(player, FunnelTelemetry.Event.SELECTOR_OPENED, "selector=quick_play");
         if (cookiePlayer == null) {
-            player.sendMessage(ChatColor.RED + "Your player profile is still loading. Please try again.");
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage("player.data_loading", player.locale()));
             return;
         }
         if (!PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())) {
             PlayerWrapperListener.queueQuickPlayWhenReady(player.getUniqueId());
-            player.sendMessage(ChatColor.YELLOW + "Quick Play is queued while your profile loads…");
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage(
+                    "lobby.quick_queued", player.locale()));
             return;
         }
         joinAvailableGame(cookiePlayer);
@@ -434,7 +440,8 @@ public class LobbyManager implements Listener {
         FunnelTelemetry.record(player, FunnelTelemetry.Event.SELECTOR_OPENED,
                 "selector=direct game=" + gameName.replaceAll("[^A-Za-z0-9_-]", ""));
         if (cookiePlayer == null || !PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())) {
-            player.sendMessage(ChatColor.YELLOW + "Your profile is still loading. Please try again shortly.");
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage(
+                    "player.data_loading", player.locale()));
             return;
         }
 
@@ -442,26 +449,32 @@ public class LobbyManager implements Listener {
         if (game == null) {
             String available = GameManager.getGames().stream().map(Game::getGameName).distinct().sorted().toList()
                     .toString();
-            player.sendMessage(ChatColor.RED + "No open game named '" + gameName + "'. Available: " + available);
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.game.no_open", player.locale(), gameName, available));
             return;
         }
         if (game.addPlayerToAvailableTeam(cookiePlayer)) {
-            player.sendMessage(ChatColor.GREEN + "Joined " + game.getGameName() + " ("
-                    + game.getPlayerCount() + "/" + game.getCapacity() + ").");
+            player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("lobby.game.joined", player.locale(),
+                    GamePresentation.forGame(game.getGameName()).displayName(player.locale()),
+                    game.getPlayerCount(), game.getCapacity()));
         } else {
-            player.sendMessage(ChatColor.RED + game.getGameName() + " is not available. Please try again shortly.");
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage("lobby.game.unavailable", player.locale(),
+                    GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
         }
     }
 
     private static void giveQuickPlayItem(Player player) {
         ItemStack quickPlay = new ItemStack(Material.COMPASS);
         ItemMeta meta = quickPlay.getItemMeta();
-        meta.displayName(net.kyori.adventure.text.Component.text("Cookie Build Menu",
+        meta.displayName(net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
+                        "lobby.menu.item_name", player.locale()),
                 net.kyori.adventure.text.format.NamedTextColor.GOLD));
         meta.lore(List.of(
-                net.kyori.adventure.text.Component.text("Games • Quests • Friends • Party • App",
+                net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
+                                "lobby.menu.item_lore", player.locale()),
                         net.kyori.adventure.text.format.NamedTextColor.GRAY),
-                net.kyori.adventure.text.Component.text("Right-click to open",
+                net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
+                                "lobby.menu.item_action", player.locale()),
                         net.kyori.adventure.text.format.NamedTextColor.YELLOW)));
         meta.getPersistentDataContainer().set(new NamespacedKey(CookieDough.getInstance(), "quick_play"),
                 PersistentDataType.BYTE, (byte) 1);
@@ -503,21 +516,24 @@ public class LobbyManager implements Listener {
         }
 
         if (game.getState() != GameState.OPEN) {
-            event.getPlayer().sendMessage(ChatColor.RED + "This game is not available.");
+            event.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.sign.unavailable", event.getPlayer().locale()));
             return;
         }
 
         Player player = event.getPlayer();
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         if (cookiePlayer == null) {
-            player.sendMessage(ChatColor.RED + "Could not find your player data. Please try again.");
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.sign.profile_missing", player.locale()));
             return;
         }
 
-        if (cookiePlayer.getState() != PlayerState.IN_GAME) {
+        if (cookiePlayer.getState() == PlayerState.LOBBY) {
             if (!game.addPlayerToAvailableTeam(cookiePlayer)) {
-                player.sendMessage(ChatColor.RED + "Failed to join " + game.getGameName()
-                        + ". The game might be full.");
+                player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                        "lobby.sign.join_failed", player.locale(),
+                        GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
             }
         }
     }

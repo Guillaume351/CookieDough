@@ -63,6 +63,7 @@ public class PlayerWrapperListener implements Listener {
     private final Set<UUID> queuedQuickPlay = ConcurrentHashMap.newKeySet();
     private final Set<UUID> newPlayerSessions = ConcurrentHashMap.newKeySet();
     private final Set<UUID> onboardingPendingSessions = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> onboardingCompletionRequested = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> disconnectReasons = new ConcurrentHashMap<>();
     private final ChangelogCoordinator changelog = new ChangelogCoordinator(new PostgresChangelogRepository());
     private final MobilePromotionService mobilePromotion = new MobilePromotionService();
@@ -90,6 +91,27 @@ public class PlayerWrapperListener implements Listener {
         if (instance != null) {
             instance.queuedQuickPlay.add(playerId);
         }
+    }
+
+    /**
+     * Marks onboarding complete only after a player explicitly chooses one of its
+     * actions. Merely displaying or closing the menu is intentionally not enough,
+     * so an interrupted onboarding is offered again after reconnecting.
+     */
+    public static void completeOnboarding(Player player, String action) {
+        PlayerWrapperListener current = instance;
+        if (current == null || player == null) {
+            return;
+        }
+        SessionHandle handle = current.activePlayerSessions.get(player.getUniqueId());
+        if (handle == null || !current.readyPlayers.contains(player.getUniqueId())
+                || !current.onboardingCompletionRequested.add(player.getUniqueId())) {
+            return;
+        }
+        String safeAction = action == null ? "unknown" : action.replaceAll("[^A-Za-z0-9:_-]", "");
+        FunnelTelemetry.record(player, FunnelTelemetry.Event.ONBOARDING_COMPLETED,
+                "action=" + safeAction);
+        current.markOnboardingCompleted(handle);
     }
 
     public static void showLobbyScoreboard(Player player) {
@@ -210,9 +232,7 @@ public class PlayerWrapperListener implements Listener {
             boolean quickPlayQueued = queuedQuickPlay.remove(handle.playerId());
             JoinExperiencePlan experience = JoinExperiencePlan.forPlayer(onboardingPending);
             if (experience.showOnboarding() && !quickPlayQueued) {
-                if (CookieDough.getInstance().getPlayerHubMenu().openOnboarding(player)) {
-                    markOnboardingCompleted(handle);
-                }
+                CookieDough.getInstance().getPlayerHubMenu().openOnboarding(player);
             } else if (!onboardingPending) {
                 showLobbyHint(player);
             }
@@ -226,6 +246,9 @@ public class PlayerWrapperListener implements Listener {
                 CookieDough.getInstance().getRallyManager().requestSoloLogin(player);
             }
             if (quickPlayQueued) {
+                if (onboardingPending) {
+                    completeOnboarding(player, "quick");
+                }
                 CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
             }
             });
@@ -333,6 +356,8 @@ public class PlayerWrapperListener implements Listener {
         Player player = event.getPlayer();
         readyPlayers.remove(player.getUniqueId());
         queuedQuickPlay.remove(player.getUniqueId());
+        onboardingCompletionRequested.remove(player.getUniqueId());
+        CookieDough.getInstance().getPlayerHubMenu().clearPlayer(player.getUniqueId());
         cleanupScoreboard(player.getUniqueId());
 
         SessionHandle handle = activePlayerSessions.remove(player.getUniqueId());
@@ -426,6 +451,7 @@ public class PlayerWrapperListener implements Listener {
             }
         }, persistenceExecutor).whenComplete((ignored, error) -> {
             if (error != null) {
+                onboardingCompletionRequested.remove(handle.playerId());
                 CookieDough.getInstance().getLogger().warning("Could not save onboarding completion for "
                         + handle.playerId() + ": " + rootMessage(error));
             }

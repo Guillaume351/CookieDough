@@ -27,6 +27,7 @@ import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.service.MinigameProgressionService;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -79,13 +80,20 @@ public class LobbyScoreboard {
         Long totalPlayTime;
         int coins;
         Map<String, PlayerStatsService.ProgressionSnapshot> progressionByGame;
+        boolean loaded;
 
         PlayerStats(List<PlayerMatchPerformance> performances, Long playTime, int coins,
                 Map<String, PlayerStatsService.ProgressionSnapshot> progressionByGame) {
+            this(performances, playTime, coins, progressionByGame, true);
+        }
+
+        PlayerStats(List<PlayerMatchPerformance> performances, Long playTime, int coins,
+                Map<String, PlayerStatsService.ProgressionSnapshot> progressionByGame, boolean loaded) {
             this.allPerformances = performances;
             this.totalPlayTime = playTime;
             this.coins = coins;
             this.progressionByGame = Map.copyOf(progressionByGame);
+            this.loaded = loaded;
         }
     }
 
@@ -136,7 +144,7 @@ public class LobbyScoreboard {
             return cachedStats;
         }
         refreshStatsAsync(playerId);
-        return cachedStats != null ? cachedStats : new PlayerStats(new ArrayList<>(), 0L, 0, Map.of());
+        return cachedStats != null ? cachedStats : new PlayerStats(new ArrayList<>(), 0L, 0, Map.of(), false);
     }
 
     private void refreshStatsAsync(java.util.UUID playerId) {
@@ -197,11 +205,28 @@ public class LobbyScoreboard {
         // keeping each game to one compact progression/result line.
         int line = 14;
 
+        if (stats.loaded && allPerformances.isEmpty()) {
+            setScore(Component.text(LocaleManager.getMessage("beginner.scoreboard.title", player.locale()))
+                    .color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD), line--);
+            setScore(Component.text("1. " + LocaleManager.getMessage(
+                    "beginner.scoreboard.menu", player.locale())).color(NamedTextColor.WHITE), line--);
+            setScore(Component.text("2. " + LocaleManager.getMessage(
+                    "beginner.scoreboard.queue", player.locale())).color(NamedTextColor.WHITE), line--);
+            setScore(Component.text("3. " + LocaleManager.getMessage(
+                    "beginner.scoreboard.practice", player.locale())).color(NamedTextColor.WHITE), line--);
+            setScore(Component.text(" "), line--);
+            setScore(Component.text(websiteUrl).color(NamedTextColor.GRAY)
+                    .decorate(TextDecoration.ITALIC), line);
+            clearScoresBelow(line - 1);
+            if (player.getScoreboard() != this.scoreboard) player.setScoreboard(this.scoreboard);
+            return;
+        }
+
         // Global stats
-        setScore(Component.text("PROGRESS").color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD), line--);
-        setScore(Component.text("  Coins: ").color(NamedTextColor.GOLD)
-                .append(Component.text(stats.coins).color(NamedTextColor.WHITE))
-                .append(Component.text(" • " + allPerformances.size() + " games").color(NamedTextColor.GRAY)), line--);
+        setScore(Component.text(LocaleManager.getMessage("scoreboard.progress", player.locale()))
+                .color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD), line--);
+        setScore(Component.text("  " + LocaleManager.getMessage("scoreboard.coins_games", player.locale(),
+                        stats.coins, allPerformances.size())).color(NamedTextColor.WHITE), line--);
 
         // Play Time - use cached data
         Long pastSessionsPlayTime = stats.totalPlayTime;
@@ -214,8 +239,8 @@ public class LobbyScoreboard {
         }
         long totalPlayTime = pastSessionsPlayTime + currentSessionLivePlayTime;
 
-        setScore(Component.text("  Play: ").color(NamedTextColor.GOLD)
-                .append(Component.text(formatPlayTime(totalPlayTime)).color(NamedTextColor.WHITE)), line--);
+        setScore(Component.text("  " + LocaleManager.getMessage("scoreboard.play", player.locale(),
+                        formatPlayTime(totalPlayTime))).color(NamedTextColor.WHITE), line--);
         setScore(Component.text(" "), line--);
 
         for (GameStatsSpec game : GAME_STATS) {
@@ -226,13 +251,16 @@ public class LobbyScoreboard {
                     .anyMatch(winner -> winner.getId().equals(player.getUniqueId()))).count();
             setScore(Component.text(game.label() + " L" + progression.level())
                     .color(game.headerColor()).decorate(TextDecoration.BOLD)
-                    .append(Component.text(performances.isEmpty()
-                            ? "  Play a game!" : "  W " + wins + " • P " + performances.size())
+                    .append(Component.text("  " + (performances.isEmpty()
+                            ? LocaleManager.getMessage("scoreboard.game_empty", player.locale())
+                            : LocaleManager.getMessage("scoreboard.game_record", player.locale(),
+                                    wins, performances.size())))
                             .color(performances.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.WHITE)), line--);
         }
 
         // Website
         setScore(Component.text(websiteUrl).color(NamedTextColor.GRAY).decorate(TextDecoration.ITALIC), line--);
+        clearScoresBelow(line);
 
         if (player.getScoreboard() != this.scoreboard) {
             player.setScoreboard(this.scoreboard);
@@ -277,6 +305,22 @@ public class LobbyScoreboard {
         }
 
         objective.getScore(entry).setScore(score);
+    }
+
+    private void clearScoresBelow(int highestUnusedScore) {
+        for (int score : unusedScores(highestUnusedScore)) {
+            String entry = getEntryForScore(score);
+            scoreboard.resetScores(entry);
+            Team team = scoreboard.getTeam("line" + score);
+            if (team != null) team.unregister();
+        }
+    }
+
+    static List<Integer> unusedScores(int highestUnusedScore) {
+        if (highestUnusedScore < 0) return List.of();
+        List<Integer> scores = new ArrayList<>(highestUnusedScore + 1);
+        for (int score = highestUnusedScore; score >= 0; score--) scores.add(score);
+        return List.copyOf(scores);
     }
 
     private String getEntryForScore(int score) {

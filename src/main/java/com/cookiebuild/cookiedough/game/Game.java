@@ -59,7 +59,9 @@ public abstract class Game implements GameStatus {
                     ChatColor.RED + LocaleManager.getMessage("game.already_started", player.getPlayer().locale()));
             return false;
         }
-        if (players.contains(player) || player.getState() == PlayerState.IN_GAME) {
+        if (players.contains(player) || player.getState() == PlayerState.QUEUED
+                || player.getState() == PlayerState.IN_GAME
+                || player.getState() == PlayerState.SPECTATING) {
             player.getPlayer().sendMessage(ChatColor.YELLOW + LocaleManager
                     .getMessage("game.already_joined", player.getPlayer().locale()));
             return false;
@@ -73,12 +75,15 @@ public abstract class Game implements GameStatus {
         CookieDough.getInstance().getPracticeManager().stop(player.getPlayer(), false);
         players.add(player);
         queueEnteredAt.put(player.getPlayer().getUniqueId(), System.currentTimeMillis());
-        player.setState(PlayerState.IN_GAME);
+        player.setState(PlayerState.QUEUED);
         getPlayers().forEach(p -> p.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager
                 .getMessage("player.joined.game", p.getPlayer().locale(), player.getPlayer().getName())));
         PlayerWrapperListener.hideLobbyScoreboard(player.getPlayer());
         FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.QUEUE_JOINED,
                 "game=" + gameName + " players=" + players.size());
+        if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
+            CookieDough.getInstance().getPlayerHubMenu().enterQueue(player.getPlayer(), gameName);
+        }
         return true;
     }
 
@@ -118,12 +123,16 @@ public abstract class Game implements GameStatus {
                                 + " reason=" + reason);
             }
             onPlayerRemoved(player);
+            if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
+                CookieDough.getInstance().getPlayerHubMenu().leaveQueue(player.getPlayer());
+            }
             // A player that is no longer owned by any game must not keep a game-only
             // state. In particular, eliminated spectators are removed before the lobby
             // teleport during cleanup; leaving SPECTATING here made the lobby correctly
             // report them as apparent orphans even though the removal was intentional.
             if (player.getPlayer().isOnline()
-                    && (player.getState() == PlayerState.IN_GAME
+                    && (player.getState() == PlayerState.QUEUED
+                            || player.getState() == PlayerState.IN_GAME
                             || player.getState() == PlayerState.SPECTATING)) {
                 player.setState(PlayerState.LOBBY);
             }
@@ -192,6 +201,10 @@ public abstract class Game implements GameStatus {
                         long queuedAt = queueEnteredAt.getOrDefault(waiting.getPlayer().getUniqueId(), now);
                         long waitingSeconds = Math.max(0L, (now - queuedAt) / 1000);
                         waiting.getPlayer().sendActionBar(createWaitingActionBar(waiting, waitingSeconds));
+                        if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
+                            CookieDough.getInstance().getPlayerHubMenu().updateQueueWait(
+                                    waiting.getPlayer(), gameName, waitingSeconds);
+                        }
                     }
                 }
             }
@@ -217,8 +230,8 @@ public abstract class Game implements GameStatus {
             CookiePlayer waiting, long waitingSeconds) {
         int missingPlayers = Math.max(0, minimumPlayers - players.size());
         return net.kyori.adventure.text.Component.text(
-                "Waiting " + waitingSeconds + "s · "
-                        + missingPlayers + " more player" + (missingPlayers == 1 ? "" : "s") + " needed",
+                LocaleManager.getMessage("game.waiting.players", waiting.getPlayer().locale(),
+                        waitingSeconds, missingPlayers),
                 net.kyori.adventure.text.format.NamedTextColor.YELLOW);
     }
 
@@ -228,7 +241,8 @@ public abstract class Game implements GameStatus {
 
         for (CookiePlayer player : players) {
             player.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text(
-                    "Starting in " + Math.max(0, remainingTime) + "s · " + players.size() + "/" + capacity,
+                    LocaleManager.getMessage("game.waiting.starting", player.getPlayer().locale(),
+                            Math.max(0, remainingTime), players.size(), capacity),
                     net.kyori.adventure.text.format.NamedTextColor.GREEN));
         }
 
@@ -253,6 +267,15 @@ public abstract class Game implements GameStatus {
                     : Math.max(0L, (System.currentTimeMillis() - queuedAt) / 1000);
             FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.QUEUE_LEFT,
                     "game=" + gameName + " wait_seconds=" + waitSeconds + " reason=match_started");
+            if (CookieDough.getInstance() != null) {
+                if (CookieDough.getInstance().getPracticeManager() != null) {
+                    CookieDough.getInstance().getPracticeManager().stop(player.getPlayer(), false);
+                }
+                if (CookieDough.getInstance().getPlayerHubMenu() != null) {
+                    CookieDough.getInstance().getPlayerHubMenu().leaveQueue(player.getPlayer());
+                }
+            }
+            player.setState(PlayerState.IN_GAME);
             teleportToGame(player);
             // send localized message
             player.getPlayer().sendMessage(
@@ -335,16 +358,16 @@ public abstract class Game implements GameStatus {
             }
             FunnelTelemetry.record(cookiePlayer.getPlayer(), FunnelTelemetry.Event.MATCH_COMPLETED,
                     "game=" + gameName);
-            cookiePlayer.getPlayer().sendMessage(net.kyori.adventure.text.Component.text("Play again",
-                            net.kyori.adventure.text.format.NamedTextColor.GREEN)
-                    .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/quickplay replay"))
-                    .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
-                            net.kyori.adventure.text.Component.text("Join the next available match"))));
-            cookiePlayer.getPlayer().sendMessage(net.kyori.adventure.text.Component.text("Share feedback",
+            cookiePlayer.getPlayer().sendMessage(net.kyori.adventure.text.Component.text(
+                            LocaleManager.getMessage("feedback.action", cookiePlayer.getPlayer().locale()),
                             net.kyori.adventure.text.format.NamedTextColor.AQUA)
                     .clickEvent(net.kyori.adventure.text.event.ClickEvent.suggestCommand("/feedback "))
                     .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
-                            net.kyori.adventure.text.Component.text("Tell us what would make the next match better"))));
+                            net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
+                                    "feedback.hover", cookiePlayer.getPlayer().locale())))));
+            if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
+                CookieDough.getInstance().getPlayerHubMenu().openReplay(cookiePlayer.getPlayer(), gameName);
+            }
         }
     }
 

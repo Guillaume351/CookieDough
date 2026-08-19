@@ -1,15 +1,25 @@
 package com.cookiebuild.cookiedough.utils;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class LocaleManager {
 
     private static final String BASE_BUNDLE_NAME = "messages";
+    private static final Locale BRAZILIAN_PORTUGUESE = Locale.of("pt", "BR");
+    private static final List<Locale> AVAILABLE_BUNDLE_LOCALES = List.of(
+            Locale.ENGLISH,
+            Locale.FRENCH,
+            Locale.of("es"),
+            BRAZILIAN_PORTUGUESE,
+            Locale.GERMAN,
+            Locale.of("pa"));
+    private static final ResourceBundle.Control NO_SYSTEM_LOCALE_FALLBACK =
+            ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES);
     private static final Map<String, ResourceBundle> bundles = new ConcurrentHashMap<>();
 
     static {
@@ -18,9 +28,13 @@ public class LocaleManager {
     }
 
     private static void loadBundle(String bundleName) {
-        for (Locale locale : Locale.getAvailableLocales()) {
+        for (Locale locale : AVAILABLE_BUNDLE_LOCALES) {
             try {
-                ResourceBundle bundle = ResourceBundle.getBundle(bundleName, locale);
+                ResourceBundle bundle = ResourceBundle.getBundle(
+                        bundleName,
+                        locale,
+                        LocaleManager.class.getClassLoader(),
+                        NO_SYSTEM_LOCALE_FALLBACK);
                 bundles.put(bundleName + "_" + locale.toString(), bundle);
             } catch (MissingResourceException e) {
                 // Bundle not available for this locale
@@ -62,6 +76,12 @@ public class LocaleManager {
         ResourceBundle exact = bundles.get(bundleKey);
         if (exact != null) {
             return exact;
+        }
+        if ("pt".equals(effectiveLocale.getLanguage())) {
+            ResourceBundle brazilianPortuguese = bundles.get(bundleName + "_pt_BR");
+            if (brazilianPortuguese != null) {
+                return brazilianPortuguese;
+            }
         }
         ResourceBundle language = bundles.get(bundleName + "_" + effectiveLocale.getLanguage());
         return language != null ? language : bundles.get(bundleName + "_en");

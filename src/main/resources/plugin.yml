@@ -42,6 +42,9 @@ commands:
   practice:
     description: Toggle the solo reaction trainer
     usage: /<command>
+  rules:
+    description: Open the official Cookie Build server rules
+    usage: /<command>
   events:
     description: Show the next community session or toggle reminders
     usage: /<command> [remind]

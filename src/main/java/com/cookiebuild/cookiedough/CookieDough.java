@@ -19,6 +19,7 @@ import com.cookiebuild.cookiedough.commands.MessageTestCommand;
 import com.cookiebuild.cookiedough.commands.SessionDiagnosticCommand;
 import com.cookiebuild.cookiedough.commands.QuickPlayCommand;
 import com.cookiebuild.cookiedough.commands.RallyCommand;
+import com.cookiebuild.cookiedough.commands.RulesCommand;
 import com.cookiebuild.cookiedough.commands.SocialSafetyCommand;
 import com.cookiebuild.cookiedough.commands.PartyCommand;
 import com.cookiebuild.cookiedough.commands.PracticeCommand;
@@ -297,6 +298,7 @@ public final class CookieDough extends JavaPlugin {
         getCommand("report").setExecutor(socialSafety);
         getCommand("party").setExecutor(new PartyCommand(partyManager));
         getCommand("rally").setExecutor(new RallyCommand(rallyManager));
+        getCommand("rules").setExecutor(new RulesCommand());
         getCommand("practice").setExecutor(new PracticeCommand(practiceManager));
         getCommand("events").setExecutor(new EventsCommand(communityEventManager));
         getCommand("goals").setExecutor(new GoalsCommand(goalTracker));

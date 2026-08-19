@@ -51,19 +51,20 @@ public record GamePresentation(
         return LocaleManager.getMessage(descriptionKey, locale);
     }
 
-    public String displayName() {
+    public String displayName(Locale locale) {
         return switch (releaseStage) {
-            case BETA -> gameName + " [BETA]";
-            case COMING_SOON -> gameName + " [COMING SOON]";
+            case BETA -> gameName + " [" + LocaleManager.getMessage("game.stage.beta", locale) + "]";
+            case COMING_SOON -> gameName + " ["
+                    + LocaleManager.getMessage("game.stage.coming_soon", locale) + "]";
             case STABLE -> gameName;
         };
     }
 
-    public String statusHint() {
+    public String statusHint(Locale locale) {
         return switch (releaseStage) {
-            case BETA -> "Open beta • report bugs on Discord or X";
-            case COMING_SOON -> "Coming soon";
-            case STABLE -> "Click to join an open lobby";
+            case BETA -> LocaleManager.getMessage("game.stage.beta_hint", locale);
+            case COMING_SOON -> LocaleManager.getMessage("game.stage.coming_soon_hint", locale);
+            case STABLE -> LocaleManager.getMessage("game.stage.stable_hint", locale);
         };
     }
 }

@@ -41,7 +41,7 @@ class GamePresentationTest {
     void bedWarsIsTheOnlyBetaGame() {
         assertEquals(GamePresentation.ReleaseStage.BETA,
                 GamePresentation.forGame("BedWars").releaseStage());
-        assertEquals("BedWars [BETA]", GamePresentation.forGame("BedWars").displayName());
+        assertEquals("BedWars [BETA]", GamePresentation.forGame("BedWars").displayName(Locale.ENGLISH));
         assertTrue(GamePresentation.games().stream()
                 .filter(game -> game.releaseStage() == GamePresentation.ReleaseStage.BETA)
                 .allMatch(game -> game.gameName().equals("BedWars")));
