@@ -39,8 +39,12 @@ public abstract class Game implements GameStatus {
     private int minimumPlayers = 2;
 
     public Game(String gameName) {
+        this(gameName, UUID.randomUUID());
+    }
+
+    protected Game(String gameName, UUID gameId) {
         this.gameName = gameName;
-        this.gameId = UUID.randomUUID();
+        this.gameId = java.util.Objects.requireNonNull(gameId, "gameId");
         this.players = new ArrayList<>();
         this.resetGame();
     }

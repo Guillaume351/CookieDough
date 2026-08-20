@@ -41,4 +41,19 @@ class StandbyGamePoolTest {
         StandbyGamePool<String> pool = new StandbyGamePool<>(1);
         assertThrows(NullPointerException.class, () -> pool.offer(null));
     }
+
+    @Test
+    void oneStandbySupportsRepeatedRematchesWhileLobbyPlayersStayOnline() {
+        StandbyGamePool<String> pool = new StandbyGamePool<>(StandbyRefillPolicy.TARGET_SIZE);
+        assertTrue(pool.offer("startup-standby"));
+
+        // Online lobby players are intentionally absent from the policy: each
+        // promotion is followed by one bounded refill, so the pool remains
+        // available across a long replay chain without an empty-server window.
+        for (int match = 1; match <= 12; match++) {
+            assertTrue(pool.poll() != null, "rematch " + match + " needs a prepared arena");
+            assertEquals(1, StandbyRefillPolicy.runtimeBatchSize(pool.size(), pool.targetSize()));
+            assertTrue(pool.offer("runtime-standby-" + match));
+        }
+    }
 }

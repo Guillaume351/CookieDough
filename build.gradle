@@ -74,6 +74,14 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 25
 }
 
+tasks.register('bootstrapE2eSchema', JavaExec) {
+    group = 'verification'
+    description = 'Creates the core Hibernate schema used by the local E2E environment.'
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath + configurations.compileClasspath
+    mainClass = 'com.cookiebuild.cookiedough.utils.HibernateSchemaBootstrap'
+}
+
 processResources {
     def props = [version: version]
     inputs.properties props
