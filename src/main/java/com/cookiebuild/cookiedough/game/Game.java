@@ -17,6 +17,8 @@ import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 public abstract class Game implements GameStatus {
 
+    private static final int QUEUE_TELEMETRY_INTERVAL_SECONDS = 15;
+
     private final String gameName;
 
     protected int START_DELAY_SECONDS = 30;
@@ -85,6 +87,7 @@ public abstract class Game implements GameStatus {
         PlayerWrapperListener.hideLobbyScoreboard(player.getPlayer());
         FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.QUEUE_JOINED,
                 "game=" + gameName + " players=" + players.size());
+        emitQueueState();
         if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
             CookieDough.getInstance().getPlayerHubMenu().enterQueue(player.getPlayer(), gameName);
         }
@@ -144,6 +147,7 @@ public abstract class Game implements GameStatus {
                 startTimer = 0;
                 inQuickStart = false;
             }
+            emitQueueState();
 
             // Only send notification if player was actually removed and game is not
             // finished
@@ -166,6 +170,10 @@ public abstract class Game implements GameStatus {
 
     public void tick() {
         time++;
+        if (state == GameState.OPEN && !players.isEmpty()
+                && time % QUEUE_TELEMETRY_INTERVAL_SECONDS == 0) {
+            emitQueueState();
+        }
         if (state == GameState.OPEN) {
             int availablePlayers = GameManager.getAvailablePlayerCount();
             if (canStartCountdown()) {
@@ -264,6 +272,7 @@ public abstract class Game implements GameStatus {
         state = GameState.RUNNING;
         admissionsOpen = false;
         isFilling = false;
+        emitQueueState();
         GameManager.notifyGameChanged(this, "started");
         for (CookiePlayer player : players) {
             Long queuedAt = queueEnteredAt.remove(player.getPlayer().getUniqueId());
@@ -418,14 +427,37 @@ public abstract class Game implements GameStatus {
 
     public void closeAdmissions() {
         admissionsOpen = false;
+        emitQueueState();
         GameManager.notifyGameChanged(this, "admissions_closed");
     }
 
     public boolean reopenAdmissions() {
         if (state != GameState.OPEN || !GameManager.areGlobalAdmissionsOpen()) return false;
         admissionsOpen = true;
+        emitQueueState();
         GameManager.notifyGameChanged(this, "admissions_reopened");
         return true;
+    }
+
+    private void emitQueueState() {
+        CookieDough plugin = CookieDough.getInstance();
+        if (plugin == null) return;
+        boolean queueOpen = state == GameState.OPEN && admissionsOpen;
+        int eligiblePlayers = queueOpen ? players.size() : 0;
+        long oldestWaitSeconds = 0L;
+        if (eligiblePlayers > 0 && !queueEnteredAt.isEmpty()) {
+            long oldestEnteredAt = queueEnteredAt.values().stream()
+                    .mapToLong(Long::longValue)
+                    .min()
+                    .orElse(System.currentTimeMillis());
+            oldestWaitSeconds = Math.max(0L, (System.currentTimeMillis() - oldestEnteredAt) / 1000L);
+        }
+        plugin.getLogger().info("[queue] event=state"
+                + " game=" + gameName
+                + " eligible_players=" + eligiblePlayers
+                + " minimum_players=" + minimumPlayers
+                + " ready_to_start=" + (queueOpen && canStartCountdown())
+                + " oldest_wait_seconds=" + oldestWaitSeconds);
     }
 
     public boolean isFilling() {
