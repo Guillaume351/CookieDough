@@ -32,8 +32,10 @@ public final class FunnelTelemetry {
         if (player == null) {
             return;
         }
-        String context = "edition=" + edition(player)
-                + " protocol=" + protocol(player)
+        ClientConnection connection = clientConnection(player);
+        String context = "edition=" + connection.edition()
+                + " protocol=" + connection.protocol()
+                + " client_version=" + connection.clientVersion()
                 + " locale=" + player.locale().toLanguageTag()
                 + " ready=" + PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())
                 + " mspt=" + averageTickTime();
@@ -78,21 +80,39 @@ public final class FunnelTelemetry {
         }
     }
 
-    private static String edition(Player player) {
+    private static ClientConnection clientConnection(Player player) {
         try {
             Class<?> apiClass = Class.forName("org.geysermc.floodgate.api.FloodgateApi");
             Object api = apiClass.getMethod("getInstance").invoke(null);
             boolean bedrock = (boolean) apiClass.getMethod("isFloodgatePlayer", UUID.class)
                     .invoke(api, player.getUniqueId());
-            return bedrock ? "bedrock" : "java";
+            if (bedrock) {
+                Object floodgatePlayer = apiClass.getMethod("getPlayer", UUID.class)
+                        .invoke(api, player.getUniqueId());
+                String version = "unknown";
+                if (floodgatePlayer != null) {
+                    Class<?> playerClass = Class.forName("org.geysermc.floodgate.api.player.FloodgatePlayer");
+                    Object rawVersion = playerClass.getMethod("getVersion").invoke(floodgatePlayer);
+                    if (rawVersion instanceof String value && value.matches("\\d+(?:\\.\\d+){0,3}")) {
+                        version = value;
+                    }
+                }
+                // Bukkit exposes the emulated Java protocol for a Floodgate player, not the
+                // Bedrock wire protocol. Keep it unknown instead of publishing a misleading label.
+                return new ClientConnection("bedrock", "unknown", version);
+            }
         } catch (ReflectiveOperationException ignored) {
-            return "java";
+            // Floodgate is optional. A Bukkit player without usable Floodgate metadata is Java.
         }
+        String protocol = protocol(player);
+        String clientVersion = protocol.equals("unknown") ? "unknown" : "protocol-" + protocol;
+        return new ClientConnection("java", protocol, clientVersion);
     }
 
     private static String protocol(Player player) {
         try {
-            return String.valueOf(player.getClass().getMethod("getProtocolVersion").invoke(player));
+            String value = String.valueOf(player.getClass().getMethod("getProtocolVersion").invoke(player));
+            return value.matches("\\d{1,5}") ? value : "unknown";
         } catch (ReflectiveOperationException ignored) {
             return "unknown";
         }
@@ -105,5 +125,8 @@ public final class FunnelTelemetry {
         } catch (ReflectiveOperationException | ClassCastException ignored) {
             return "unknown";
         }
+    }
+
+    private record ClientConnection(String edition, String protocol, String clientVersion) {
     }
 }
