@@ -12,6 +12,7 @@ import com.cookiebuild.cookiedough.utils.LocaleManager;
 public record GamePresentation(
         String gameName,
         Material icon,
+        String bedrockTexture,
         EntityType npcType,
         String descriptionKey,
         ReleaseStage releaseStage) {
@@ -22,19 +23,19 @@ public record GamePresentation(
     }
 
     private static final List<GamePresentation> GAMES = List.of(
-            new GamePresentation("MicroBattles", Material.RED_CONCRETE, EntityType.IRON_GOLEM,
+            new GamePresentation("MicroBattles", Material.RED_CONCRETE, "modes/microbattles", EntityType.IRON_GOLEM,
                     "game.description.microbattles", ReleaseStage.STABLE),
-            new GamePresentation("Pitchout", Material.SLIME_BALL, EntityType.SLIME,
+            new GamePresentation("Pitchout", Material.SLIME_BALL, "modes/pitchout", EntityType.SLIME,
                     "game.description.pitchout", ReleaseStage.STABLE),
-            new GamePresentation("SkyWars", Material.ENDER_EYE, EntityType.ALLAY,
+            new GamePresentation("SkyWars", Material.ENDER_EYE, "modes/skywars", EntityType.ALLAY,
                     "game.description.skywars", ReleaseStage.STABLE),
-            new GamePresentation("BuildBattles", Material.CRAFTING_TABLE, EntityType.VILLAGER,
+            new GamePresentation("BuildBattles", Material.CRAFTING_TABLE, "modes/buildbattles", EntityType.VILLAGER,
                     "game.description.buildbattles", ReleaseStage.STABLE),
-            new GamePresentation("TurfWars", Material.BOW, EntityType.SHEEP,
+            new GamePresentation("TurfWars", Material.BOW, "modes/turfwars", EntityType.SHEEP,
                     "game.description.turfwars", ReleaseStage.STABLE),
-            new GamePresentation("BedWars", Material.RED_BED, EntityType.FOX,
+            new GamePresentation("BedWars", Material.RED_BED, "modes/bedwars", EntityType.FOX,
                     "game.description.bedwars", ReleaseStage.BETA),
-            new GamePresentation("Skyblock", Material.GRASS_BLOCK, EntityType.BEE,
+            new GamePresentation("Skyblock", Material.GRASS_BLOCK, "modes/skyblock", EntityType.BEE,
                     "game.description.skyblock", ReleaseStage.BETA));
 
     public static List<GamePresentation> games() {
@@ -42,11 +43,16 @@ public record GamePresentation(
     }
 
     public static GamePresentation forGame(String gameName) {
+        return find(gameName)
+                .orElse(new GamePresentation(gameName, Material.NETHER_STAR, "modes/unknown",
+                        EntityType.VILLAGER, "game.description.unknown", ReleaseStage.STABLE));
+    }
+
+    public static java.util.Optional<GamePresentation> find(String gameName) {
+        if (gameName == null || gameName.isBlank()) return java.util.Optional.empty();
         return GAMES.stream()
                 .filter(game -> game.gameName().equalsIgnoreCase(gameName))
-                .findFirst()
-                .orElse(new GamePresentation(gameName, Material.NETHER_STAR, EntityType.VILLAGER,
-                        "game.description.unknown", ReleaseStage.STABLE));
+                .findFirst();
     }
 
     public String description(Locale locale) {
@@ -68,6 +74,10 @@ public record GamePresentation(
             case COMING_SOON -> LocaleManager.getMessage("game.stage.coming_soon_hint", locale);
             case STABLE -> LocaleManager.getMessage("game.stage.stable_hint", locale);
         };
+    }
+
+    public String rules(Locale locale) {
+        return LocaleManager.getMessage("game.rules." + gameName.toLowerCase(Locale.ROOT), locale);
     }
 
     public boolean persistent() {

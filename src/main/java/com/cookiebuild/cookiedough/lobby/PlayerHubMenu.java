@@ -40,6 +40,7 @@ import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.retention.FriendManager;
 import com.cookiebuild.cookiedough.retention.PlayerGoalTracker;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
+import com.cookiebuild.cookiedough.ui.BedrockFormImages;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -52,6 +53,7 @@ public final class PlayerHubMenu implements Listener {
     private final PlayerGoalTracker goals;
     private final FriendManager friends;
     private final NamespacedKey actionKey;
+    private final HubMenuSessionRegistry bedrockSessions = new HubMenuSessionRegistry();
     private final Map<UUID, String> queuedGames = new ConcurrentHashMap<>();
     private final Set<String> rulesShown = ConcurrentHashMap.newKeySet();
     private final Set<UUID> queueHelpShown = ConcurrentHashMap.newKeySet();
@@ -90,6 +92,7 @@ public final class PlayerHubMenu implements Listener {
     public void enterQueue(Player player, String gameName) {
         if (player == null || gameName == null || gameName.isBlank()) return;
         queuedGames.put(player.getUniqueId(), gameName);
+        bedrockSessions.invalidate(player.getUniqueId());
         queueHelpShown.remove(player.getUniqueId());
         boolean onboardingPending = onboardingPlayers.remove(player.getUniqueId());
         if (onboardingPending) {
@@ -134,6 +137,7 @@ public final class PlayerHubMenu implements Listener {
     public void leaveQueue(Player player) {
         if (player == null) return;
         queuedGames.remove(player.getUniqueId());
+        bedrockSessions.invalidate(player.getUniqueId());
         queueHelpShown.remove(player.getUniqueId());
         ItemStack item = player.getInventory().getItem(8);
         if (hasAction(item, "queue")) player.getInventory().setItem(8, null);
@@ -142,6 +146,7 @@ public final class PlayerHubMenu implements Listener {
     public void clearPlayer(UUID playerId) {
         if (playerId == null) return;
         queuedGames.remove(playerId);
+        bedrockSessions.invalidate(playerId);
         queueHelpShown.remove(playerId);
         rulesShown.removeIf(value -> value.startsWith(playerId + ":"));
         onboardingPlayers.remove(playerId);
@@ -208,17 +213,32 @@ public final class PlayerHubMenu implements Listener {
     }
 
     private Inventory gamesInventory(Player player) {
+        HubGameMenuModel model = HubGameMenuModel.index(player.locale());
         MenuHolder holder = new MenuHolder(MenuPage.GAMES, 36,
-                Component.text(message(player, "hub.games.title"), NamedTextColor.GOLD));
+                Component.text(model.title(), NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
         int[] slots = { 9, 11, 13, 15, 17, 21, 23 };
-        for (int index = 0; index < GamePresentation.games().size(); index++) {
-            GamePresentation game = GamePresentation.games().get(index);
-            inventory.setItem(slots[index], item(game.icon(), game.displayName(player.locale()), "game:" + game.gameName(),
-                    game.description(player.locale()), game.statusHint(player.locale())));
+        for (int index = 0; index < model.entries().size(); index++) {
+            HubGameMenuModel.Entry entry = model.entries().get(index);
+            inventory.setItem(slots[index], item(entry.icon(), entry.label(), entry.action(), entry.detail()));
         }
         inventory.setItem(31, item(Material.ARROW, message(player, "hub.back"), "back",
                 message(player, "hub.back_lore")));
+        return inventory;
+    }
+
+    private Inventory gameDetailInventory(Player player, String gameName) {
+        HubGameMenuModel model = HubGameMenuModel.detail(gameName, player.locale());
+        MenuHolder holder = new MenuHolder(MenuPage.GAME_DETAIL, gameName, 27,
+                Component.text(model.title(), NamedTextColor.GOLD));
+        Inventory inventory = holder.inventory();
+        GamePresentation game = GamePresentation.find(gameName).orElseThrow();
+        inventory.setItem(4, item(game.icon(), model.title(), "noop", model.content().split("\\n")));
+        int[] slots = { 11, 15, 22 };
+        for (int index = 0; index < model.entries().size(); index++) {
+            HubGameMenuModel.Entry entry = model.entries().get(index);
+            inventory.setItem(slots[index], item(entry.icon(), entry.label(), entry.action(), entry.detail()));
+        }
         return inventory;
     }
 
@@ -316,9 +336,16 @@ public final class PlayerHubMenu implements Listener {
             onboardingPlayers.remove(player.getUniqueId());
             PlayerWrapperListener.completeOnboarding(player, action);
         }
-        if (action.startsWith("game:")) {
+        if (action.startsWith("game:details:")) {
+            String gameName = action.substring("game:details:".length());
+            if (GamePresentation.find(gameName).isPresent()) openPage(player, MenuPage.GAME_DETAIL, gameName);
+            return;
+        }
+        if (action.startsWith("game:join:")) {
+            String gameName = action.substring("game:join:".length());
+            if (GamePresentation.find(gameName).isEmpty()) return;
             player.closeInventory();
-            lobby.requestActivity(player, action.substring("game:".length()));
+            lobby.requestActivity(player, gameName);
             return;
         }
         if (action.startsWith("queue:")) {
@@ -350,6 +377,7 @@ public final class PlayerHubMenu implements Listener {
                         + "/menu, /quickplay, /practice, /friend, /party, /mute, /block, /report, /rules, /lobby");
             }
             case "back" -> openPage(player, MenuPage.MAIN);
+            case "close" -> player.closeInventory();
             default -> {
                 // Decorative goal entries deliberately have no action.
             }
@@ -417,11 +445,16 @@ public final class PlayerHubMenu implements Listener {
     }
 
     private void openPage(Player player, MenuPage page) {
-        if (openBedrock(player, page)) return;
+        openPage(player, page, null);
+    }
+
+    private void openPage(Player player, MenuPage page, String context) {
+        if (openBedrock(player, page, context)) return;
         player.openInventory(switch (page) {
             case MAIN -> mainInventory(player);
             case ONBOARDING -> onboardingInventory(player);
             case GAMES -> gamesInventory(player);
+            case GAME_DETAIL -> gameDetailInventory(player, context);
             case GOALS -> goalsInventory(player);
             case QUEUE, REPLAY -> throw new IllegalArgumentException("Context is required for " + page);
         });
@@ -436,6 +469,8 @@ public final class PlayerHubMenu implements Listener {
         try {
             FloodgatePlayer floodgate = FloodgateApi.getInstance().getPlayer(player.getUniqueId());
             if (floodgate == null) return false;
+            String scope = page.name() + ":" + (context == null ? "" : context);
+            UUID nonce = bedrockSessions.issue(player.getUniqueId(), scope);
             PlayerGoalTracker.GoalView view = goals.view(player.getUniqueId());
             SimpleForm.Builder builder = SimpleForm.builder();
             List<String> actions = new ArrayList<>();
@@ -466,13 +501,21 @@ public final class PlayerHubMenu implements Listener {
                     button(builder, actions, "§f§l" + message(player, "hub.help.name"), "help");
                 }
                 case GAMES -> {
-                    builder.title("§l§6" + message(player, "hub.games.title"))
-                            .content("§7" + message(player, "hub.games.content"));
-                    for (GamePresentation game : GamePresentation.games()) {
-                        button(builder, actions, "§f§l" + game.displayName(player.locale()) + "\n§7"
-                                + game.description(player.locale()), "game:" + game.gameName());
+                    HubGameMenuModel model = HubGameMenuModel.index(player.locale());
+                    builder.title("§l§6" + model.title()).content("§7" + model.content());
+                    for (HubGameMenuModel.Entry entry : model.entries()) {
+                        button(builder, actions, "§f§l" + entry.label() + "\n§7" + entry.detail(),
+                                entry.action(), entry.bedrockTexture());
                     }
                     button(builder, actions, "§7" + message(player, "hub.back"), "back");
+                }
+                case GAME_DETAIL -> {
+                    HubGameMenuModel model = HubGameMenuModel.detail(context, player.locale());
+                    builder.title("§l§6" + model.title()).content("§7" + model.content());
+                    for (HubGameMenuModel.Entry entry : model.entries()) {
+                        button(builder, actions, "§f§l" + entry.label() + "\n§7" + entry.detail(),
+                                entry.action(), entry.bedrockTexture());
+                    }
                 }
                 case GOALS -> {
                     builder.title("§l§6" + message(player, "hub.goals.title"))
@@ -512,10 +555,15 @@ public final class PlayerHubMenu implements Listener {
                 int index = response.getClickedButtonId();
                 if (index >= 0 && index < actions.size()) {
                     Bukkit.getScheduler().runTask(plugin, () -> {
-                        if (player.isOnline()) dispatch(player, actions.get(index), page, context);
+                        if (player.isOnline() && bedrockSessions.consume(player.getUniqueId(), nonce, scope)
+                                && bedrockResponseStillValid(player, page, context)) {
+                            dispatch(player, actions.get(index), page, context);
+                        }
                     });
                 }
             });
+            builder.closedOrInvalidResultHandler(() ->
+                    bedrockSessions.invalidate(player.getUniqueId(), nonce, scope));
             floodgate.sendForm(builder.build());
             return true;
         } catch (RuntimeException | LinkageError error) {
@@ -525,8 +573,31 @@ public final class PlayerHubMenu implements Listener {
         }
     }
 
+    private boolean bedrockResponseStillValid(Player player, MenuPage page, String context) {
+        if (page == MenuPage.QUEUE) {
+            CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+            Game game = cookiePlayer == null ? null : GameManager.getGameOfPlayer(cookiePlayer);
+            return HubBedrockResponsePolicy.queueValid(context, queuedGames.get(player.getUniqueId()),
+                    cookiePlayer != null && cookiePlayer.getState() == PlayerState.QUEUED,
+                    game == null ? null : game.getGameName());
+        }
+        if (page == MenuPage.REPLAY) {
+            CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+            return HubBedrockResponsePolicy.replayValid(
+                    cookiePlayer != null && cookiePlayer.getState() == PlayerState.LOBBY,
+                    cookiePlayer != null && GameManager.getGameOfPlayer(cookiePlayer) != null);
+        }
+        return true;
+    }
+
     private static void button(SimpleForm.Builder builder, List<String> actions, String label, String action) {
         builder.button(label);
+        actions.add(action);
+    }
+
+    private static void button(SimpleForm.Builder builder, List<String> actions, String label, String action,
+            String texturePath) {
+        BedrockFormImages.button(builder, label, texturePath);
         actions.add(action);
     }
 
@@ -562,6 +633,7 @@ public final class PlayerHubMenu implements Listener {
         ONBOARDING,
         MAIN,
         GAMES,
+        GAME_DETAIL,
         GOALS,
         QUEUE,
         REPLAY
