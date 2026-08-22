@@ -2,6 +2,7 @@ package com.cookiebuild.cookiedough.player;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.GameManager;
+import com.cookiebuild.cookiedough.activity.ActivityRegistry;
 import org.bukkit.GameMode;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
@@ -29,6 +30,7 @@ public class CookiePlayer {
     }
 
     public void disconnect() {
+        ActivityRegistry.leave(this, "disconnect");
         var currentGame = GameManager.getGameOfPlayer(this);
         if (currentGame != null) {
             try {

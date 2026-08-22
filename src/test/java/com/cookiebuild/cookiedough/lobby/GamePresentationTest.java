@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class GamePresentationTest {
     @Test
     void everyGameHasAConciseDiscoverableDescription() {
-        assertEquals(6, GamePresentation.games().size());
+        assertEquals(7, GamePresentation.games().size());
         for (GamePresentation game : GamePresentation.games()) {
             String description = game.description(Locale.ENGLISH);
             assertFalse(description.isBlank());
@@ -25,7 +25,7 @@ class GamePresentationTest {
 
     @Test
     void selectorsUseDistinctModelsAndTurfWarsDoesNotUseASunBurningMob() {
-        assertEquals(6, new HashSet<>(GamePresentation.games().stream()
+        assertEquals(7, new HashSet<>(GamePresentation.games().stream()
                 .map(GamePresentation::npcType)
                 .toList()).size());
 
@@ -38,13 +38,13 @@ class GamePresentationTest {
     }
 
     @Test
-    void bedWarsIsTheOnlyBetaGame() {
+    void betaModesAreExplicitAndNoModeIsComingSoon() {
         assertEquals(GamePresentation.ReleaseStage.BETA,
                 GamePresentation.forGame("BedWars").releaseStage());
         assertEquals("BedWars [BETA]", GamePresentation.forGame("BedWars").displayName(Locale.ENGLISH));
-        assertTrue(GamePresentation.games().stream()
+        assertEquals(java.util.Set.of("BedWars", "Skyblock"), GamePresentation.games().stream()
                 .filter(game -> game.releaseStage() == GamePresentation.ReleaseStage.BETA)
-                .allMatch(game -> game.gameName().equals("BedWars")));
+                .map(GamePresentation::gameName).collect(java.util.stream.Collectors.toSet()));
         assertTrue(GamePresentation.games().stream()
                 .noneMatch(game -> game.releaseStage() == GamePresentation.ReleaseStage.COMING_SOON));
     }

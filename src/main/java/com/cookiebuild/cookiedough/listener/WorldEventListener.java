@@ -24,7 +24,7 @@ public class WorldEventListener implements Listener {
 
     @EventHandler
     public void onWeatherChange(WeatherChangeEvent event) {
-        event.setCancelled(true);
+        if (!WorldPolicy.isPersistent(event.getWorld().getName())) event.setCancelled(true);
     }
 
     @EventHandler
@@ -54,20 +54,22 @@ public class WorldEventListener implements Listener {
             event.setCancelled(true);
             return;
         }
-        if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
+        if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL
+                && !WorldPolicy.isPersistent(event.getLocation().getWorld().getName())) {
             event.setCancelled(true);
         }
     }
 
     private static void configureWorld(World world) {
-        world.setGameRule(GameRules.ADVANCE_TIME, Boolean.FALSE);
-        world.setGameRule(GameRules.ADVANCE_WEATHER, Boolean.FALSE);
+        boolean persistent = WorldPolicy.isPersistent(world.getName());
+        world.setGameRule(GameRules.ADVANCE_TIME, persistent);
+        world.setGameRule(GameRules.ADVANCE_WEATHER, persistent);
         if (WorldPolicy.usesFrozenPhysics(world.getName())) {
             world.setGameRule(GameRules.SPAWN_MOBS, Boolean.FALSE);
             world.setGameRule(GameRules.SPAWN_MONSTERS, Boolean.FALSE);
         }
-        setTimeIfSupported(world::setTime, 0);
-        world.setAutoSave(false);
+        if (!persistent) setTimeIfSupported(world::setTime, 0);
+        world.setAutoSave(persistent);
     }
 
     static boolean setTimeIfSupported(LongConsumer timeSetter, long time) {

@@ -30,6 +30,8 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.activity.ActivityAdmissionResult;
+import com.cookiebuild.cookiedough.activity.ActivityRegistry;
 import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
@@ -381,6 +383,9 @@ public class LobbyManager implements Listener {
         World lobbyWorld = Bukkit.getWorld("lobby");
         if (lobbyWorld != null) {
             CookieDough.getInstance().getPracticeManager().stop(player, false);
+            if (!ActivityRegistry.leave(cookiePlayer, "returned_lobby")) {
+                return;
+            }
             // Remove active players and eliminated spectators from their roster.
             Game currentGame = GameManager.getGameOfPlayer(cookiePlayer);
             if (currentGame != null) {
@@ -399,6 +404,7 @@ public class LobbyManager implements Listener {
             CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
 
             giveQuickPlayItem(player);
+            player.saveData();
             PlayerWrapperListener.showLobbyScoreboard(player);
             FunnelTelemetry.record(player, FunnelTelemetry.Event.LOBBY_READY, "world=lobby");
         } else {
@@ -461,6 +467,34 @@ public class LobbyManager implements Listener {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage("lobby.game.unavailable", player.locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
         }
+    }
+
+    /** Routes persistent destinations without adding them to match Quick Play. */
+    public void requestActivity(Player player, String activityName) {
+        if (ActivityRegistry.find(activityName) == null) {
+            requestGame(player, activityName);
+            return;
+        }
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        FunnelTelemetry.record(player, FunnelTelemetry.Event.SELECTOR_OPENED,
+                "selector=persistent activity=" + activityName.replaceAll("[^A-Za-z0-9_-]", ""));
+        if (cookiePlayer == null) {
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage("player.data_loading", player.locale()));
+            return;
+        }
+        if (!PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())) {
+            PlayerWrapperListener.queueActivityWhenReady(player.getUniqueId(), activityName);
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage("player.data_loading", player.locale()));
+            return;
+        }
+        if (cookiePlayer.getState() != PlayerState.LOBBY
+                && cookiePlayer.getState() != PlayerState.PERSISTENT_MODE) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.game.unavailable", player.locale(), activityName));
+            return;
+        }
+        ActivityAdmissionResult result = ActivityRegistry.enter(activityName, cookiePlayer);
+        player.sendMessage((result.admitted() ? ChatColor.GREEN : ChatColor.RED) + result.message());
     }
 
     private static void giveQuickPlayItem(Player player) {

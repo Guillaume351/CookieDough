@@ -24,6 +24,8 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerKickEvent;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.activity.ActivityRegistry;
+import com.cookiebuild.cookiedough.activity.PersistentActivity;
 import com.cookiebuild.cookiedough.game.FunnelTelemetry;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.lobby.LobbyScoreboard;
@@ -61,6 +63,7 @@ public class PlayerWrapperListener implements Listener {
     private final Map<UUID, AtomicLong> generations = new ConcurrentHashMap<>();
     private final Set<UUID> readyPlayers = ConcurrentHashMap.newKeySet();
     private final Set<UUID> queuedQuickPlay = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, String> queuedPersistentActivities = new ConcurrentHashMap<>();
     private final Set<UUID> newPlayerSessions = ConcurrentHashMap.newKeySet();
     private final Set<UUID> onboardingPendingSessions = ConcurrentHashMap.newKeySet();
     private final Set<UUID> onboardingCompletionRequested = ConcurrentHashMap.newKeySet();
@@ -89,7 +92,16 @@ public class PlayerWrapperListener implements Listener {
 
     public static void queueQuickPlayWhenReady(UUID playerId) {
         if (instance != null) {
+            instance.queuedPersistentActivities.remove(playerId);
             instance.queuedQuickPlay.add(playerId);
+        }
+    }
+
+    /** Queues the last persistent destination selected while player data loads. */
+    public static void queueActivityWhenReady(UUID playerId, String activityName) {
+        if (instance != null && playerId != null && activityName != null && !activityName.isBlank()) {
+            instance.queuedQuickPlay.remove(playerId);
+            instance.queuedPersistentActivities.put(playerId, activityName);
         }
     }
 
@@ -168,14 +180,32 @@ public class PlayerWrapperListener implements Listener {
         if (cookiePlayer == null) {
             cookiePlayer = new CookiePlayer(player);
         }
-        LobbyManager.teleportPlayerToLobby(cookiePlayer);
+        String resumeName = ActivityRegistry.resumeName(player);
+        PersistentActivity resumeActivity = resumeName == null
+                ? (WorldPolicy.isPersistent(player.getWorld().getName())
+                        ? ActivityRegistry.forWorld(player.getWorld().getName()) : null)
+                : ActivityRegistry.resumeOwner(player);
+        boolean preservePersistentState = resumeName != null || resumeActivity != null;
+        if (!preservePersistentState) {
+            LobbyManager.teleportPlayerToLobby(cookiePlayer);
+        } else {
+            cookiePlayer.setState(com.cookiebuild.cookiedough.player.PlayerState.PERSISTENT_MODE);
+        }
+        if (resumeName != null && resumeActivity == null) {
+            player.kick(Component.text(LocaleManager.getMessage(
+                    "persistent.resume_unavailable", player.locale()), NamedTextColor.RED));
+            return;
+        }
+        CookiePlayer activeCookiePlayer = cookiePlayer;
 
         player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("welcome.message", player.locale(), player.getName()));
-        player.showTitle(net.kyori.adventure.title.Title.title(
-                Component.text("Cookie Build", NamedTextColor.GOLD),
-                Component.text(LocaleManager.getMessage("lobby.menu.subtitle", player.locale()),
-                        NamedTextColor.YELLOW)));
-        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
+        if (resumeActivity == null) {
+            player.showTitle(net.kyori.adventure.title.Title.title(
+                    Component.text("Cookie Build", NamedTextColor.GOLD),
+                    Component.text(LocaleManager.getMessage("lobby.menu.subtitle", player.locale()),
+                            NamedTextColor.YELLOW)));
+            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
+        }
 
         if (!acceptingPlayers) {
             return;
@@ -223,17 +253,24 @@ public class PlayerWrapperListener implements Listener {
                     errorMessage -> CookieDough.getInstance().getLogger().warning(
                             "Could not load persisted blocks for " + player.getName() + ": " + errorMessage));
             LobbyScoreboard.invalidatePlayerCache(handle.playerId());
-            showLobbyScoreboard(player);
+            boolean resumedPersistent = false;
+            if (resumeActivity != null) {
+                var admission = ActivityRegistry.enter(resumeActivity.name(), activeCookiePlayer);
+                resumedPersistent = admission.admitted();
+                if (!resumedPersistent) LobbyManager.teleportPlayerToLobby(activeCookiePlayer);
+            }
+            if (!resumedPersistent) showLobbyScoreboard(player);
             boolean newPlayer = newPlayerSessions.remove(handle.sessionId());
             boolean onboardingPending = onboardingPendingSessions.remove(handle.sessionId());
             FunnelTelemetry.record(player, FunnelTelemetry.Event.PLAYER_DATA_READY,
                     "session=" + handle.sessionId() + " new_player=" + newPlayer
                             + " onboarding_pending=" + onboardingPending);
+            String queuedActivity = queuedPersistentActivities.remove(handle.playerId());
             boolean quickPlayQueued = queuedQuickPlay.remove(handle.playerId());
             JoinExperiencePlan experience = JoinExperiencePlan.forPlayer(onboardingPending);
-            if (experience.showOnboarding() && !quickPlayQueued) {
+            if (!resumedPersistent && experience.showOnboarding() && !quickPlayQueued && queuedActivity == null) {
                 CookieDough.getInstance().getPlayerHubMenu().openOnboarding(player);
-            } else if (!onboardingPending) {
+            } else if (!resumedPersistent && !onboardingPending && queuedActivity == null) {
                 showLobbyHint(player);
             }
             if (experience.showUpdates()) {
@@ -242,14 +279,20 @@ public class PlayerWrapperListener implements Listener {
             if (experience.showAppPromotion()) {
                 showMobileAppPromotion(player, handle);
             }
-            if (Bukkit.getOnlinePlayers().size() <= 1) {
+            if (!resumedPersistent && queuedActivity == null && Bukkit.getOnlinePlayers().size() <= 1) {
                 CookieDough.getInstance().getRallyManager().requestSoloLogin(player);
             }
-            if (quickPlayQueued) {
+            if (!resumedPersistent && quickPlayQueued) {
                 if (onboardingPending) {
                     completeOnboarding(player, "quick");
                 }
                 CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
+            }
+            if (!resumedPersistent && queuedActivity != null) {
+                if (onboardingPending) {
+                    completeOnboarding(player, "activity:" + queuedActivity);
+                }
+                CookieDough.getInstance().getLobbyManager().requestActivity(player, queuedActivity);
             }
             });
         });
@@ -356,6 +399,7 @@ public class PlayerWrapperListener implements Listener {
         Player player = event.getPlayer();
         readyPlayers.remove(player.getUniqueId());
         queuedQuickPlay.remove(player.getUniqueId());
+        queuedPersistentActivities.remove(player.getUniqueId());
         onboardingCompletionRequested.remove(player.getUniqueId());
         CookieDough.getInstance().getPlayerHubMenu().clearPlayer(player.getUniqueId());
         cleanupScoreboard(player.getUniqueId());

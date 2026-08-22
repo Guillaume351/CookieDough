@@ -6,5 +6,7 @@ public enum PlayerState {
     QUEUED,
     IN_GAME,
     SPECTATING,
+    /** Player is owned by a long-lived activity such as Skyblock, never Quick Play. */
+    PERSISTENT_MODE,
     OFFLINE
 }

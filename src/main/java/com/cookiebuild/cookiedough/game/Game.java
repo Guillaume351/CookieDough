@@ -65,9 +65,7 @@ public abstract class Game implements GameStatus {
                     ChatColor.RED + LocaleManager.getMessage("game.already_started", player.getPlayer().locale()));
             return false;
         }
-        if (players.contains(player) || player.getState() == PlayerState.QUEUED
-                || player.getState() == PlayerState.IN_GAME
-                || player.getState() == PlayerState.SPECTATING) {
+        if (players.contains(player) || player.getState() != PlayerState.LOBBY) {
             player.getPlayer().sendMessage(ChatColor.YELLOW + LocaleManager
                     .getMessage("game.already_joined", player.getPlayer().locale()));
             return false;

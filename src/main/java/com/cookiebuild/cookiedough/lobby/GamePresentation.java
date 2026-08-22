@@ -33,7 +33,9 @@ public record GamePresentation(
             new GamePresentation("TurfWars", Material.BOW, EntityType.SHEEP,
                     "game.description.turfwars", ReleaseStage.STABLE),
             new GamePresentation("BedWars", Material.RED_BED, EntityType.FOX,
-                    "game.description.bedwars", ReleaseStage.BETA));
+                    "game.description.bedwars", ReleaseStage.BETA),
+            new GamePresentation("Skyblock", Material.GRASS_BLOCK, EntityType.BEE,
+                    "game.description.skyblock", ReleaseStage.BETA));
 
     public static List<GamePresentation> games() {
         return GAMES;
@@ -66,5 +68,9 @@ public record GamePresentation(
             case COMING_SOON -> LocaleManager.getMessage("game.stage.coming_soon_hint", locale);
             case STABLE -> LocaleManager.getMessage("game.stage.stable_hint", locale);
         };
+    }
+
+    public boolean persistent() {
+        return "Skyblock".equalsIgnoreCase(gameName);
     }
 }

@@ -208,16 +208,16 @@ public final class PlayerHubMenu implements Listener {
     }
 
     private Inventory gamesInventory(Player player) {
-        MenuHolder holder = new MenuHolder(MenuPage.GAMES, 27,
+        MenuHolder holder = new MenuHolder(MenuPage.GAMES, 36,
                 Component.text(message(player, "hub.games.title"), NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
-        int[] slots = { 9, 11, 13, 15, 17, 21 };
+        int[] slots = { 9, 11, 13, 15, 17, 21, 23 };
         for (int index = 0; index < GamePresentation.games().size(); index++) {
             GamePresentation game = GamePresentation.games().get(index);
             inventory.setItem(slots[index], item(game.icon(), game.displayName(player.locale()), "game:" + game.gameName(),
                     game.description(player.locale()), game.statusHint(player.locale())));
         }
-        inventory.setItem(22, item(Material.ARROW, message(player, "hub.back"), "back",
+        inventory.setItem(31, item(Material.ARROW, message(player, "hub.back"), "back",
                 message(player, "hub.back_lore")));
         return inventory;
     }
@@ -318,7 +318,7 @@ public final class PlayerHubMenu implements Listener {
         }
         if (action.startsWith("game:")) {
             player.closeInventory();
-            lobby.requestGame(player, action.substring("game:".length()));
+            lobby.requestActivity(player, action.substring("game:".length()));
             return;
         }
         if (action.startsWith("queue:")) {
