@@ -265,6 +265,7 @@ public class PlayerWrapperListener implements Listener {
                 return;
             }
             readyPlayers.add(handle.playerId());
+            CookieDough.getInstance().getGoalTracker().syncPlayer(handle.playerId());
             CookieDough.getInstance().getFriendManager().loadBlocks(player,
                     blocked -> {
                         SessionHandle active = activePlayerSessions.get(handle.playerId());
