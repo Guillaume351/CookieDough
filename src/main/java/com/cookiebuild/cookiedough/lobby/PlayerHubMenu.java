@@ -574,7 +574,7 @@ public final class PlayerHubMenu implements Listener {
                 }
             }
             builder.validResultHandler(response -> {
-                int index = response.getClickedButtonId();
+                int index = response.clickedButtonId();
                 if (index >= 0 && index < actions.size()) {
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         if (player.isOnline() && bedrockSessions.consume(player.getUniqueId(), nonce, scope)
