@@ -14,7 +14,7 @@ final class LobbyDisplayText {
         return Component.text()
                 .append(Component.text(gameName, NamedTextColor.GOLD, TextDecoration.BOLD))
                 .appendNewline()
-                .append(Component.text(totalPlayerCount + " PLAYING", NamedTextColor.AQUA,
+                .append(Component.text("👥 " + totalPlayerCount, NamedTextColor.AQUA,
                         TextDecoration.BOLD))
                 .append(Component.text(" • ", NamedTextColor.WHITE))
                 .append(Component.text(stateLabel(state), stateColor(state)))
@@ -25,10 +25,10 @@ final class LobbyDisplayText {
         return Component.text()
                 .append(Component.text(gameName, NamedTextColor.GOLD, TextDecoration.BOLD))
                 .appendNewline()
-                .append(Component.text(totalPlayerCount + " PLAYING", NamedTextColor.AQUA,
+                .append(Component.text("👥 " + totalPlayerCount, NamedTextColor.AQUA,
                         TextDecoration.BOLD))
                 .append(Component.text(" • ", NamedTextColor.WHITE))
-                .append(Component.text("OFFLINE", NamedTextColor.RED, TextDecoration.BOLD))
+                .append(Component.text("✖", NamedTextColor.RED, TextDecoration.BOLD))
                 .build();
     }
 
@@ -36,10 +36,10 @@ final class LobbyDisplayText {
         return Component.text()
                 .append(Component.text(activityName, NamedTextColor.GOLD, TextDecoration.BOLD))
                 .appendNewline()
-                .append(Component.text(totalPlayerCount + " PLAYING", NamedTextColor.AQUA,
+                .append(Component.text("👥 " + totalPlayerCount, NamedTextColor.AQUA,
                         TextDecoration.BOLD))
                 .append(Component.text(" • ", NamedTextColor.WHITE))
-                .append(Component.text("CLICK TO PLAY", NamedTextColor.GREEN, TextDecoration.BOLD))
+                .append(Component.text("✔", NamedTextColor.GREEN, TextDecoration.BOLD))
                 .build();
     }
 
@@ -47,30 +47,26 @@ final class LobbyDisplayText {
         return Component.text()
                 .append(Component.text("★ ", NamedTextColor.GOLD, TextDecoration.BOLD))
                 .append(Component.text(playerName, NamedTextColor.YELLOW, TextDecoration.BOLD))
-                .append(Component.text(" • " + wins + (wins == 1 ? " win" : " wins"), NamedTextColor.GREEN))
+                .append(Component.text(" • " + wins, NamedTextColor.GREEN))
                 .append(Component.text(" ★", NamedTextColor.GOLD, TextDecoration.BOLD))
                 .build();
     }
 
     static Component onlinePlayers(int playerCount, int gamePlayerCount) {
-        String playerNoun = playerCount == 1 ? "player" : "players";
-        String gameNoun = gamePlayerCount == 1 ? "game" : "games";
         return Component.text()
-                .append(Component.text(playerCount, NamedTextColor.GREEN, TextDecoration.BOLD))
-                .append(Component.text(" " + playerNoun + " online", NamedTextColor.WHITE))
+                .append(Component.text("👥 " + playerCount, NamedTextColor.GREEN, TextDecoration.BOLD))
                 .appendNewline()
-                .append(Component.text(gamePlayerCount, NamedTextColor.GOLD, TextDecoration.BOLD))
-                .append(Component.text(" in " + gameNoun, NamedTextColor.GRAY))
+                .append(Component.text("🎮 " + gamePlayerCount, NamedTextColor.GOLD, TextDecoration.BOLD))
                 .build();
     }
 
     private static String stateLabel(GameState state) {
         return switch (state) {
-            case LOADING -> "LOADING";
-            case OPEN -> "JOIN";
-            case STARTING -> "STARTING";
-            case RUNNING -> "IN GAME";
-            case FINISHED -> "ENDING";
+            case LOADING -> "…";
+            case OPEN -> "✔";
+            case STARTING -> "⏳";
+            case RUNNING -> "▶";
+            case FINISHED -> "■";
         };
     }
 

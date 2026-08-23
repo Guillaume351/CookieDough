@@ -7,11 +7,13 @@ import org.junit.jupiter.api.Test;
 
 class OnboardingCompletionPolicyTest {
     @Test
-    void onlyExplicitOnboardingChoicesCompleteTheFlow() {
-        assertTrue(OnboardingCompletionPolicy.completes("quick"));
-        assertTrue(OnboardingCompletionPolicy.completes("games"));
-        assertTrue(OnboardingCompletionPolicy.completes("community"));
-        assertTrue(OnboardingCompletionPolicy.completes("back"));
+    void onlySuccessfulAdmissionsCompleteTheFlow() {
+        assertTrue(OnboardingCompletionPolicy.completes("admission:MicroBattles"));
+        assertTrue(OnboardingCompletionPolicy.completes("activity:Skyblock"));
+        assertFalse(OnboardingCompletionPolicy.completes("quick"));
+        assertFalse(OnboardingCompletionPolicy.completes("games"));
+        assertFalse(OnboardingCompletionPolicy.completes("community"));
+        assertFalse(OnboardingCompletionPolicy.completes("back"));
         assertFalse(OnboardingCompletionPolicy.completes("noop"));
         assertFalse(OnboardingCompletionPolicy.completes(null));
     }

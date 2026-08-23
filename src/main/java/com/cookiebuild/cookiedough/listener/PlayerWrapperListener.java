@@ -255,7 +255,8 @@ public class PlayerWrapperListener implements Listener {
                 CookieDough.getInstance().getLogger().severe("Failed to initialize player " + handle.playerId()
                         + ": " + rootMessage(error));
                 if (player.isOnline()) {
-                    player.sendMessage(ChatColor.RED + "Your profile could not be loaded. Please reconnect shortly.");
+                    player.sendMessage(ChatColor.RED
+                            + LocaleManager.getMessage("player.profile_load_failed", player.locale()));
                 }
                 return;
             }

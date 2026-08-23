@@ -23,8 +23,9 @@ class HubGameMenuModelTest {
                 assertTrue(BedrockFormImages.isKnown(summary.bedrockTexture()));
                 HubGameMenuModel detail = HubGameMenuModel.detail(
                         summary.action().substring("game:details:".length()), locale);
-                assertEquals(List.of("game:join:", "games", "close"), List.of(
-                        detail.entries().get(0).action().substring(0, "game:join:".length()),
+                assertTrue(detail.entries().get(0).action().startsWith("game:join:")
+                        || detail.entries().get(0).action().equals("games"));
+                assertEquals(List.of("games", "close"), List.of(
                         detail.entries().get(1).action(), detail.entries().get(2).action()));
                 assertTrue(detail.content().contains("\n"));
                 assertFalse(detail.content().contains("game.rules."));

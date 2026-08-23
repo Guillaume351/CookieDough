@@ -552,6 +552,9 @@ public class LobbyManager implements Listener {
             return;
         }
         ActivityAdmissionResult result = ActivityRegistry.enter(activityName, cookiePlayer);
+        if (result.admitted()) {
+            PlayerWrapperListener.completeOnboarding(player, "activity:" + activityName);
+        }
         player.sendMessage((result.admitted() ? ChatColor.GREEN : ChatColor.RED) + result.message());
     }
 
