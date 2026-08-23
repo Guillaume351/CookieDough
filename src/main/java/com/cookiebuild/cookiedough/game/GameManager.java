@@ -153,7 +153,26 @@ public class GameManager {
 
     /** Counts distinct online players owned by a game, including queues and live matches. */
     public static int getOnlineGamePlayerCount() {
-        return (int) games.stream()
+        return countDistinctOnlinePlayers(games.stream());
+    }
+
+    /**
+     * Counts distinct online players across every arena for one game mode.
+     *
+     * A player can briefly be present in two arena rosters during replacement or
+     * reconnect hand-off, so lobby selectors must count UUIDs rather than roster
+     * entries. Offline reservations are intentionally excluded.
+     */
+    public static int getOnlineGamePlayerCount(String gameName) {
+        if (gameName == null || gameName.isBlank()) {
+            return 0;
+        }
+        return countDistinctOnlinePlayers(games.stream()
+                .filter(game -> game.getGameName().equalsIgnoreCase(gameName)));
+    }
+
+    private static int countDistinctOnlinePlayers(java.util.stream.Stream<Game> selectedGames) {
+        return (int) selectedGames
                 .flatMap(game -> game.getPlayers().stream())
                 .filter(player -> player.getPlayer() != null && player.getPlayer().isOnline())
                 .map(player -> player.getPlayer().getUniqueId())

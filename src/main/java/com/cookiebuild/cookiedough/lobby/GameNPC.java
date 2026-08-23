@@ -13,6 +13,7 @@ import org.bukkit.entity.Slime;
 import org.bukkit.entity.Villager;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +39,7 @@ public class GameNPC {
     private final Location location;
     private final GamePresentation presentation;
     private Mob npc;
+    private BukkitTask nameRefreshTask;
     private final Map<UUID, Long> lastInteraction = new ConcurrentHashMap<>();
 
     public GameNPC(String gameName, Location location, CookieDough plugin) {
@@ -166,7 +168,7 @@ public class GameNPC {
     }
 
     private void startNameRefreshTask() {
-        new BukkitRunnable() {
+        nameRefreshTask = new BukkitRunnable() {
             @Override
             public void run() {
                 if (npc == null || !npc.isValid()) {
@@ -182,23 +184,32 @@ public class GameNPC {
     private void updateNPCName() {
         if (presentation.persistent()) {
             npc.customName(LobbyDisplayText.persistentActivityNpc(
-                    presentation.displayName(java.util.Locale.ENGLISH)));
+                    presentation.displayName(java.util.Locale.ENGLISH),
+                    LobbyModePlayerCounter.forPersistentActivity(gameName)));
             npc.setCustomNameVisible(true);
             return;
         }
         GameStatus game = GameManager.getGameByName(gameName);
+        int totalPlayerCount = LobbyModePlayerCounter.forMinigame(gameName);
         if (game != null) {
             npc.customName(LobbyDisplayText.gameNpc(
                     presentation.displayName(java.util.Locale.ENGLISH),
-                    game.getPlayerCount(),
-                    game.getCapacity(),
+                    totalPlayerCount,
                     game.getState()));
             npc.setCustomNameVisible(true);
         } else {
             npc.customName(LobbyDisplayText.unavailableGameNpc(
-                    presentation.displayName(java.util.Locale.ENGLISH)));
+                    presentation.displayName(java.util.Locale.ENGLISH), totalPlayerCount));
             npc.setCustomNameVisible(true);
         }
+    }
+
+    public void shutdown() {
+        if (nameRefreshTask != null) {
+            nameRefreshTask.cancel();
+            nameRefreshTask = null;
+        }
+        lastInteraction.clear();
     }
 
     public void interactWithPlayer(Player player) {

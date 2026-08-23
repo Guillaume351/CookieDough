@@ -16,9 +16,10 @@ import org.junit.jupiter.api.Test;
 
 class LobbyConfigurationTest {
     @Test
-    void shipsAVisibleSkyblockSelectorWithoutWeeklySpawnClutter() {
+    void shipsCompactChampionHeadsWithoutLeaderboardPanels() {
         YamlConfiguration config = loadBundledConfig();
-        assertFalse(config.getBoolean("lobby.weekly-showcases-enabled", true));
+        assertTrue(config.getBoolean("lobby.champion-heads-enabled", false));
+        assertFalse(config.getBoolean("lobby.leaderboard-panels-enabled", true));
         assertTrue(config.getBoolean("lobby.skyblock-billboard.enabled"));
         assertEquals(-1, config.getInt("lobby.skyblock-billboard.map-id"));
         assertEquals("SOUTH", config.getString("lobby.skyblock-billboard.facing"));

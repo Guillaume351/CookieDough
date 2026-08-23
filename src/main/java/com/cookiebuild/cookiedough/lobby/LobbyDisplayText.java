@@ -10,29 +10,45 @@ final class LobbyDisplayText {
     private LobbyDisplayText() {
     }
 
-    static Component gameNpc(String gameName, int playerCount, int capacity, GameState state) {
+    static Component gameNpc(String gameName, int totalPlayerCount, GameState state) {
         return Component.text()
                 .append(Component.text(gameName, NamedTextColor.GOLD, TextDecoration.BOLD))
                 .appendNewline()
-                .append(Component.text(playerCount + "/" + capacity, NamedTextColor.AQUA))
-                .append(Component.text(" • ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(totalPlayerCount + " PLAYING", NamedTextColor.AQUA,
+                        TextDecoration.BOLD))
+                .append(Component.text(" • ", NamedTextColor.WHITE))
                 .append(Component.text(stateLabel(state), stateColor(state)))
                 .build();
     }
 
-    static Component unavailableGameNpc(String gameName) {
+    static Component unavailableGameNpc(String gameName, int totalPlayerCount) {
         return Component.text()
                 .append(Component.text(gameName, NamedTextColor.GOLD, TextDecoration.BOLD))
                 .appendNewline()
-                .append(Component.text("Unavailable", NamedTextColor.RED))
+                .append(Component.text(totalPlayerCount + " PLAYING", NamedTextColor.AQUA,
+                        TextDecoration.BOLD))
+                .append(Component.text(" • ", NamedTextColor.WHITE))
+                .append(Component.text("OFFLINE", NamedTextColor.RED, TextDecoration.BOLD))
                 .build();
     }
 
-    static Component persistentActivityNpc(String activityName) {
+    static Component persistentActivityNpc(String activityName, int totalPlayerCount) {
         return Component.text()
                 .append(Component.text(activityName, NamedTextColor.GOLD, TextDecoration.BOLD))
                 .appendNewline()
-                .append(Component.text("★ CLICK TO PLAY ★", NamedTextColor.GREEN, TextDecoration.BOLD))
+                .append(Component.text(totalPlayerCount + " PLAYING", NamedTextColor.AQUA,
+                        TextDecoration.BOLD))
+                .append(Component.text(" • ", NamedTextColor.WHITE))
+                .append(Component.text("CLICK TO PLAY", NamedTextColor.GREEN, TextDecoration.BOLD))
+                .build();
+    }
+
+    static Component championHead(String playerName, int wins) {
+        return Component.text()
+                .append(Component.text("★ ", NamedTextColor.GOLD, TextDecoration.BOLD))
+                .append(Component.text(playerName, NamedTextColor.YELLOW, TextDecoration.BOLD))
+                .append(Component.text(" • " + wins + (wins == 1 ? " win" : " wins"), NamedTextColor.GREEN))
+                .append(Component.text(" ★", NamedTextColor.GOLD, TextDecoration.BOLD))
                 .build();
     }
 

@@ -13,10 +13,11 @@ telemetry:
 # core change. Coordinates are centred on blocks and can be adjusted live in
 # this file before a restart.
 lobby:
-  # The old winner statues and leaderboard holograms made the compact spawn
-  # difficult to scan. Keep the code available for a future dedicated hall,
-  # but do not render those weekly showcases around the game selectors.
-  weekly-showcases-enabled: false
+  # Keep one compact vanilla player head beside each selector. Dense top-10
+  # hologram panels remain disabled so Java and Bedrock players can scan the
+  # spawn without visual clutter.
+  champion-heads-enabled: true
+  leaderboard-panels-enabled: false
   skyblock-billboard:
     # One vanilla 128x128 filled map is used instead of a multi-map wall or a
     # Java display entity. Keep this independently switchable for Bedrock

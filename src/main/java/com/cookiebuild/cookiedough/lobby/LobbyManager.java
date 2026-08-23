@@ -60,11 +60,15 @@ public class LobbyManager implements Listener {
         this.plugin = plugin;
         instance = this;
 
-        // Do not even schedule the old leaderboard/statue workers while the
-        // compact-spawn flag is off. Match completion refreshes stay a no-op
-        // because StatueManager has no active instance.
-        this.statueManager = plugin.getConfig().getBoolean("lobby.weekly-showcases-enabled", false)
-                ? new StatueManager(plugin)
+        // Champion heads and dense leaderboard panels are independently
+        // configurable. The compact default renders one vanilla ArmorStand head
+        // per selector and schedules no top-10 panel work.
+        boolean championHeadsEnabled = plugin.getConfig().getBoolean(
+                "lobby.champion-heads-enabled", true);
+        boolean leaderboardPanelsEnabled = plugin.getConfig().getBoolean(
+                "lobby.leaderboard-panels-enabled", false);
+        this.statueManager = championHeadsEnabled || leaderboardPanelsEnabled
+                ? new StatueManager(plugin, championHeadsEnabled, leaderboardPanelsEnabled)
                 : null;
 
         // Get lobby world, remove all entities
@@ -106,6 +110,8 @@ public class LobbyManager implements Listener {
             signRefreshTask.cancel();
             signRefreshTask = null;
         }
+        gameNpcs.forEach(GameNPC::shutdown);
+        gameNpcs.clear();
         if (playerCountDisplay != null) {
             playerCountDisplay.shutdown();
             playerCountDisplay = null;
@@ -381,9 +387,8 @@ public class LobbyManager implements Listener {
         // keep chunk loaded
         npc.getNPC().getLocation().getChunk().load(true);
 
-        // Weekly winner statues and leaderboard holograms are deliberately kept
-        // out of the compact spawn by default. The feature remains available for
-        // a future dedicated hall and can be restored with one configuration flag.
+        // The default showcase is one compact champion head. Dense leaderboard
+        // panels remain independently disabled for the lobby spawn.
         if (statueManager != null) {
             Location statueLocation = location.clone().add(statueOffset);
             statueManager.createStatue(gameName, statueLocation);

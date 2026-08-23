@@ -6,179 +6,182 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
-import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.utils.SkinUtils;
 
+/** Manages the compact, cross-edition champion showcase beside game NPCs. */
 public class StatueManager {
+    private static final long WEEKLY_REFRESH_TICKS = 20L * 60L * 60L * 24L * 7L;
     private static volatile StatueManager active;
+
     private record StatueData(UUID playerId, String playerName, int wins) {
     }
-    private final JavaPlugin plugin;
-    private final PluginTaskDispatcher tasks;
-    private final Map<String, ArmorStand> statues = new HashMap<>();
-    private final Map<String, ArmorStand> textDisplays = new HashMap<>();
-    private final Map<String, Integer> winCounts = new HashMap<>();
-    private final Map<String, Location> statueLocations = new HashMap<>();
-    private final LeaderboardManager leaderboardManager;
-    private BukkitTask weeklyUpdateTask;
 
-    public StatueManager(JavaPlugin plugin) {
-        this.plugin = plugin;
-        this.tasks = new PluginTaskDispatcher(plugin);
-        this.leaderboardManager = new LeaderboardManager(plugin);
-        active = this;
-        startWeeklyUpdateTask();
+    private record StatueLoad(boolean successful, StatueData data) {
+        static StatueLoad success(StatueData data) {
+            return new StatueLoad(true, data);
+        }
+
+        static StatueLoad failure() {
+            return new StatueLoad(false, null);
+        }
     }
 
-    /** Refreshes the visible weekly/monthly ranking after a completed match. */
+    private final JavaPlugin plugin;
+    private final PluginTaskDispatcher tasks;
+    private final boolean championHeadsEnabled;
+    private final LeaderboardManager leaderboardManager;
+    private final Map<String, ArmorStand> statues = new HashMap<>();
+    private final Map<String, Integer> winCounts = new HashMap<>();
+    private final Map<String, Location> statueLocations = new HashMap<>();
+    private final Map<String, Long> refreshGenerations = new HashMap<>();
+    private BukkitTask weeklyUpdateTask;
+
+    public StatueManager(JavaPlugin plugin, boolean championHeadsEnabled,
+            boolean leaderboardPanelsEnabled) {
+        this.plugin = plugin;
+        this.tasks = new PluginTaskDispatcher(plugin);
+        this.championHeadsEnabled = championHeadsEnabled;
+        this.leaderboardManager = leaderboardPanelsEnabled ? new LeaderboardManager(plugin) : null;
+        active = this;
+        if (championHeadsEnabled) {
+            startWeeklyUpdateTask();
+        }
+    }
+
+    /** Refreshes enabled showcase elements after a completed match. */
     public static void refreshAfterMatch(String gameMode) {
         StatueManager manager = active;
         if (manager == null || gameMode == null) {
             return;
         }
         manager.updateStatue(gameMode);
-        manager.leaderboardManager.updateLeaderboard(gameMode);
-    }
-
-    public void createStatue(String gameMode, Location location) {
-        CookieDough.getInstance().getLogger()
-                .info("Creating statue for gameMode: " + gameMode + " at location: " + location);
-
-        Location safeLocation = location.clone();
-        statueLocations.put(gameMode, safeLocation);
-        // Always render a leaderboard, including a useful "No Data" state for a
-        // newly added gamemode. Previously the whole popup was skipped until a
-        // weekly winner already existed.
-        leaderboardManager.createLeaderboard(gameMode, safeLocation.clone().add(0, 2, 0));
-        tasks.runAsync(() -> {
-            StatueData data = loadStatueData(gameMode);
-            if (data != null) {
-                tasks.runSync(() -> renderStatue(gameMode, safeLocation, data));
-            }
-        });
-    }
-
-    private StatueData loadStatueData(String gameMode) {
-        try {
-            PlayerData topPlayer = PlayerStatsService.getTopPlayerThisWeekStatic(gameMode);
-            if (topPlayer == null) {
-                return null;
-            }
-            return new StatueData(topPlayer.getId(), topPlayer.getName(),
-                    PlayerStatsService.getWinsThisWeekStatic(topPlayer.getId(), gameMode));
-        } catch (RuntimeException error) {
-            if (tasks.isActive()) {
-                plugin.getLogger().warning("Failed to load statue for " + gameMode + ": " + error.getMessage());
-            }
-            return null;
+        if (manager.leaderboardManager != null) {
+            manager.leaderboardManager.updateLeaderboard(gameMode);
         }
     }
 
+    public void createStatue(String gameMode, Location location) {
+        Location safeLocation = location.clone();
+        statueLocations.put(gameMode, safeLocation);
+        if (leaderboardManager != null) {
+            leaderboardManager.createLeaderboard(gameMode, safeLocation.clone().add(0, 2, 0));
+        }
+        if (championHeadsEnabled) {
+            requestHeadRefresh(gameMode, safeLocation);
+        }
+    }
+
+    private StatueLoad loadStatueData(String gameMode) {
+        try {
+            PlayerData topPlayer = PlayerStatsService.getTopPlayerThisWeekStatic(gameMode);
+            if (topPlayer == null) {
+                return StatueLoad.success(null);
+            }
+            return StatueLoad.success(new StatueData(topPlayer.getId(), topPlayer.getName(),
+                    PlayerStatsService.getWinsThisWeekStatic(topPlayer.getId(), gameMode)));
+        } catch (RuntimeException error) {
+            if (tasks.isActive()) {
+                plugin.getLogger().warning("Failed to load champion head for " + gameMode + ": "
+                        + error.getMessage());
+            }
+            return StatueLoad.failure();
+        }
+    }
+
+    private void requestHeadRefresh(String gameMode, Location location) {
+        long generation = refreshGenerations.merge(gameMode, 1L, Long::sum);
+        tasks.runAsync(() -> {
+            StatueLoad load = loadStatueData(gameMode);
+            if (!load.successful()) {
+                return;
+            }
+            tasks.runSync(() -> {
+                if (refreshGenerations.getOrDefault(gameMode, 0L) != generation
+                        || !statueLocations.containsKey(gameMode)) {
+                    return;
+                }
+                if (load.data() == null) {
+                    removeStatueEntity(gameMode);
+                } else if (statues.containsKey(gameMode)) {
+                    applyStatueUpdate(gameMode, load.data());
+                } else {
+                    renderStatue(gameMode, location, load.data());
+                }
+            });
+        });
+    }
+
     private void renderStatue(String gameMode, Location location, StatueData data) {
-        removeStatueEntities(gameMode);
-        winCounts.put(gameMode, data.wins());
+        removeStatueEntity(gameMode);
         ArmorStand statue = location.getWorld().spawn(location, ArmorStand.class);
         statue.setVisible(false);
         statue.setGravity(false);
         statue.setBasePlate(false);
         statue.setSmall(true);
-        statue.setInvulnerable(true); // Prevent breaking
-        statue.setDisabledSlots(org.bukkit.inventory.EquipmentSlot.values()); // Prevent item removal
-        statue.setMetadata("statue", new FixedMetadataValue(plugin, true));
-        statue.setMetadata("gameMode", new FixedMetadataValue(plugin, gameMode));
+        statue.setSilent(true);
+        statue.setCollidable(false);
+        statue.setInvulnerable(true);
+        statue.setPersistent(true);
+        statue.setDisabledSlots(org.bukkit.inventory.EquipmentSlot.values());
+        statue.getPersistentDataContainer().set(
+                new NamespacedKey(plugin, "champion_head"), PersistentDataType.STRING, gameMode);
 
-        // Set player head
         ItemStack head = SkinUtils.getPlayerHead(data.playerId());
         statue.getEquipment().setHelmet(head);
+        statue.customName(LobbyDisplayText.championHead(data.playerName(), data.wins()));
+        statue.setCustomNameVisible(true);
 
         statues.put(gameMode, statue);
-
-        // Create floating text
-        createFloatingText(gameMode, location.clone().add(0, 0.5, 0), data.playerName(), data.wins());
-    }
-
-    private void createFloatingText(String gameMode, Location location, String playerName, int wins) {
-        ArmorStand textDisplay = location.getWorld().spawn(location, ArmorStand.class);
-        textDisplay.setVisible(false);
-        textDisplay.setGravity(false);
-        textDisplay.customName(net.kyori.adventure.text.Component.text()
-                .append(net.kyori.adventure.text.Component.text(playerName)
-                        .color(net.kyori.adventure.text.format.NamedTextColor.YELLOW))
-                .appendNewline()
-                .append(net.kyori.adventure.text.Component.text("Top Player This Week: " + wins + " wins!")
-                        .color(net.kyori.adventure.text.format.NamedTextColor.GOLD))
-                .build());
-        textDisplay.setCustomNameVisible(true);
-        textDisplay.setMarker(true);
-        textDisplay.setInvulnerable(true); // Prevent breaking
-        textDisplay.setDisabledSlots(org.bukkit.inventory.EquipmentSlot.values()); // Prevent item removal
-        textDisplay.setMetadata("statue", new FixedMetadataValue(plugin, true));
-        textDisplay.setMetadata("gameMode", new FixedMetadataValue(plugin, gameMode));
-
-        textDisplays.put(gameMode, textDisplay);
+        winCounts.put(gameMode, data.wins());
     }
 
     public void updateStatue(String gameMode) {
-        Location location = statueLocations.get(gameMode);
-        if (location == null)
+        if (!championHeadsEnabled) {
             return;
-        tasks.runAsync(() -> {
-            StatueData data = loadStatueData(gameMode);
-            if (data != null) {
-                tasks.runSync(() -> {
-                    if (statues.containsKey(gameMode)) {
-                        applyStatueUpdate(gameMode, data);
-                    } else {
-                        renderStatue(gameMode, location, data);
-                    }
-                });
-            }
-        });
+        }
+        Location location = statueLocations.get(gameMode);
+        if (location != null) {
+            requestHeadRefresh(gameMode, location);
+        }
     }
 
     private void applyStatueUpdate(String gameMode, StatueData data) {
-        winCounts.put(gameMode, data.wins());
         ArmorStand statue = statues.get(gameMode);
-        if (statue != null) {
-            statue.getEquipment().setHelmet(SkinUtils.getPlayerHead(data.playerId()));
+        if (statue == null || !statue.isValid()) {
+            Location location = statueLocations.get(gameMode);
+            if (location != null) {
+                renderStatue(gameMode, location, data);
+            }
+            return;
         }
-
-        // Update floating text
-        ArmorStand textDisplay = textDisplays.get(gameMode);
-        if (textDisplay != null) {
-            textDisplay.customName(net.kyori.adventure.text.Component.text()
-                    .append(net.kyori.adventure.text.Component.text(data.playerName())
-                            .color(net.kyori.adventure.text.format.NamedTextColor.YELLOW))
-                    .appendNewline()
-                    .append(net.kyori.adventure.text.Component.text("Top Player This Week: " + data.wins() + " wins!")
-                            .color(net.kyori.adventure.text.format.NamedTextColor.GOLD))
-                    .build());
-        }
+        statue.getEquipment().setHelmet(SkinUtils.getPlayerHead(data.playerId()));
+        statue.customName(LobbyDisplayText.championHead(data.playerName(), data.wins()));
+        winCounts.put(gameMode, data.wins());
     }
 
     public void removeStatue(String gameMode) {
         statueLocations.remove(gameMode);
-        removeStatueEntities(gameMode);
-        leaderboardManager.removeLeaderboard(gameMode);
+        refreshGenerations.merge(gameMode, 1L, Long::sum);
+        removeStatueEntity(gameMode);
+        if (leaderboardManager != null) {
+            leaderboardManager.removeLeaderboard(gameMode);
+        }
     }
 
-    private void removeStatueEntities(String gameMode) {
-        if (statues.containsKey(gameMode)) {
-            statues.get(gameMode).remove();
-            statues.remove(gameMode);
-        }
-        if (textDisplays.containsKey(gameMode)) {
-            textDisplays.get(gameMode).remove();
-            textDisplays.remove(gameMode);
+    private void removeStatueEntity(String gameMode) {
+        ArmorStand statue = statues.remove(gameMode);
+        if (statue != null) {
+            statue.remove();
         }
         winCounts.remove(gameMode);
     }
@@ -191,18 +194,16 @@ public class StatueManager {
         weeklyUpdateTask = new BukkitRunnable() {
             @Override
             public void run() {
-                // Create a defensive copy to avoid ConcurrentModificationException
-                for (String gameMode : new HashMap<>(statues).keySet()) {
+                for (String gameMode : new ArrayList<>(statueLocations.keySet())) {
                     try {
                         updateStatue(gameMode);
-                        // Also update the leaderboard when updating the statue
-                        leaderboardManager.updateLeaderboard(gameMode);
-                    } catch (Exception e) {
-                        plugin.getLogger().warning("Failed to update statue for " + gameMode + ": " + e.getMessage());
+                    } catch (RuntimeException error) {
+                        plugin.getLogger().warning("Failed to update champion head for " + gameMode + ": "
+                                + error.getMessage());
                     }
                 }
             }
-        }.runTaskTimer(plugin, 0, 20 * 60 * 60 * 24 * 7); // Update weekly
+        }.runTaskTimer(plugin, WEEKLY_REFRESH_TICKS, WEEKLY_REFRESH_TICKS);
     }
 
     public void shutdown() {
@@ -211,9 +212,12 @@ public class StatueManager {
             weeklyUpdateTask.cancel();
             weeklyUpdateTask = null;
         }
-        leaderboardManager.shutdown();
-        for (String gameMode : new ArrayList<>(statueLocations.keySet())) {
-            removeStatueEntities(gameMode);
+        if (leaderboardManager != null) {
+            leaderboardManager.shutdown();
+        }
+        refreshGenerations.replaceAll((gameMode, generation) -> generation + 1L);
+        for (String gameMode : new ArrayList<>(statues.keySet())) {
+            removeStatueEntity(gameMode);
         }
         statueLocations.clear();
         if (active == this) {

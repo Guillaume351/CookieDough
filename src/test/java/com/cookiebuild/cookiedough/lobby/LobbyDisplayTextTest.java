@@ -14,25 +14,33 @@ class LobbyDisplayTextTest {
     @Test
     void splitsNpcNameAndStatusAcrossTwoCompactLines() {
         assertEquals(
-                "MicroBattles\n3/8 • IN GAME",
-                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc("MicroBattles", 3, 8, GameState.RUNNING)));
+                "MicroBattles\n13 PLAYING • IN GAME",
+                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc("MicroBattles", 13, GameState.RUNNING)));
         assertEquals(
-                "Pitchout\n0/4 • JOIN",
-                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc("Pitchout", 0, 4, GameState.OPEN)));
+                "Pitchout\n0 PLAYING • JOIN",
+                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc("Pitchout", 0, GameState.OPEN)));
     }
 
     @Test
     void keepsUnavailableNpcNamesCompact() {
         assertEquals(
-                "SkyWars\nUnavailable",
-                PLAIN_TEXT.serialize(LobbyDisplayText.unavailableGameNpc("SkyWars")));
+                "SkyWars\n0 PLAYING • OFFLINE",
+                PLAIN_TEXT.serialize(LobbyDisplayText.unavailableGameNpc("SkyWars", 0)));
     }
 
     @Test
     void makesPersistentActivitiesAnObviousLobbyDestination() {
         assertEquals(
-                "Skyblock [BETA]\n★ CLICK TO PLAY ★",
-                PLAIN_TEXT.serialize(LobbyDisplayText.persistentActivityNpc("Skyblock [BETA]")));
+                "Skyblock [BETA]\n7 PLAYING • CLICK TO PLAY",
+                PLAIN_TEXT.serialize(LobbyDisplayText.persistentActivityNpc("Skyblock [BETA]", 7)));
+    }
+
+    @Test
+    void keepsTheChampionLabelOnTheSameVanillaEntity() {
+        assertEquals("★ Alex • 1 win ★",
+                PLAIN_TEXT.serialize(LobbyDisplayText.championHead("Alex", 1)));
+        assertEquals("★ Steve • 4 wins ★",
+                PLAIN_TEXT.serialize(LobbyDisplayText.championHead("Steve", 4)));
     }
 
     @Test

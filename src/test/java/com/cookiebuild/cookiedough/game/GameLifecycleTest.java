@@ -88,6 +88,37 @@ class GameLifecycleTest {
     }
 
     @Test
+    void countsDistinctOnlinePlayersAcrossEveryArenaOfOneMode() throws Exception {
+        TestGame firstPitchoutArena = new TestGame("Pitchout");
+        TestGame secondPitchoutArena = new TestGame("pitchout");
+        TestGame skyWarsArena = new TestGame("SkyWars");
+        CookiePlayer sharedPitchoutPlayer = cookiePlayer(true);
+        CookiePlayer secondPitchoutPlayer = cookiePlayer(true);
+        CookiePlayer offlineReservation = cookiePlayer(false);
+        CookiePlayer skyWarsPlayer = cookiePlayer(true);
+
+        players(firstPitchoutArena).add(sharedPitchoutPlayer);
+        players(secondPitchoutArena).add(sharedPitchoutPlayer);
+        players(secondPitchoutArena).add(secondPitchoutPlayer);
+        players(secondPitchoutArena).add(offlineReservation);
+        players(skyWarsArena).add(skyWarsPlayer);
+        GameManager.addGame(firstPitchoutArena);
+        GameManager.addGame(secondPitchoutArena);
+        GameManager.addGame(skyWarsArena);
+
+        try {
+            assertEquals(2, GameManager.getOnlineGamePlayerCount("PITCHOUT"));
+            assertEquals(1, GameManager.getOnlineGamePlayerCount("skywars"));
+            assertEquals(0, GameManager.getOnlineGamePlayerCount("Skyblock"));
+            assertEquals(0, GameManager.getOnlineGamePlayerCount(null));
+        } finally {
+            GameManager.removeGame(firstPitchoutArena);
+            GameManager.removeGame(secondPitchoutArena);
+            GameManager.removeGame(skyWarsArena);
+        }
+    }
+
+    @Test
     void defaultAdministrativeShutdownClosesAndUnregistersTheGame() {
         TestGame game = new TestGame("BuildBattles");
         GameManager.addGame(game);
