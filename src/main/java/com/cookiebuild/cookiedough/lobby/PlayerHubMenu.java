@@ -41,6 +41,8 @@ import com.cookiebuild.cookiedough.retention.FriendManager;
 import com.cookiebuild.cookiedough.retention.PlayerGoalTracker;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
 import com.cookiebuild.cookiedough.ui.BedrockFormImages;
+import com.cookiebuild.cookiedough.ui.BedrockButtonText;
+import com.cookiebuild.cookiedough.ui.MenuLore;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -477,49 +479,51 @@ public final class PlayerHubMenu implements Listener {
             switch (page) {
                 case ONBOARDING -> {
                     builder.title("§l§6" + message(player, "hub.onboarding.title"))
-                            .content("§7" + message(player, "hub.onboarding.content"));
-                    hubButton(builder, actions, "§a§l" + message(player, "hub.quick.name")
-                            + "\n§7" + message(player, "hub.quick.lore"), "quick");
-                    hubButton(builder, actions, "§6§l" + message(player, "hub.games.name")
-                            + "\n§7" + message(player, "hub.onboarding.games_lore"), "games");
-                    hubButton(builder, actions, "§b§l" + message(player, "hub.onboarding.community_name")
-                            + "\n§7" + message(player, "hub.onboarding.community_lore_app"), "community");
-                    hubButton(builder, actions, "§f§l" + message(player, "hub.onboarding.full_name"), "back");
+                            .content(message(player, "hub.onboarding.content"));
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.quick.name"),
+                            message(player, "hub.quick.lore")), "quick");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.games.name"),
+                            message(player, "hub.onboarding.games_lore")), "games");
+                    hubButton(builder, actions, BedrockButtonText.format(
+                            message(player, "hub.onboarding.community_name"),
+                            message(player, "hub.onboarding.community_lore_app")), "community");
+                    hubButton(builder, actions,
+                            BedrockButtonText.format(message(player, "hub.onboarding.full_name")), "back");
                 }
                 case MAIN -> {
                     builder.title("§l§6" + message(player, "hub.title"))
-                            .content("§7" + message(player, "hub.content"));
-                    hubButton(builder, actions, "§a§l" + message(player, "hub.quick.name")
-                            + "\n§7" + message(player, "hub.quick.lore"), "quick");
-                    hubButton(builder, actions, "§6§l" + message(player, "hub.games.name")
-                            + "\n§7" + message(player, "hub.games.lore"), "games");
-                    hubButton(builder, actions, "§b§l" + message(player, "hub.goals.name")
-                            + "\n§7" + message(player, "hub.goals.lore"), "goals");
-                    hubButton(builder, actions, "§d§l" + message(player, "hub.friends.name")
-                            + "\n§7" + message(player, "hub.friends.lore"), "friends");
-                    hubButton(builder, actions, "§e§l" + message(player, "hub.party.name")
-                            + "\n§7" + message(player, "hub.party.lore"), "party");
-                    hubButton(builder, actions, "§9§l" + message(player, "hub.events.name")
-                            + "\n§7" + message(player, "hub.events.lore"), "events");
-                    hubButton(builder, actions, "§5§l" + message(player, "hub.app.name")
-                            + "\n§7" + message(player, "hub.app.lore"), "app");
-                    hubButton(builder, actions, "§f§l" + message(player, "hub.help.name")
-                            + "\n§7" + message(player, "hub.help.lore"), "help");
+                            .content(message(player, "hub.content"));
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.quick.name"),
+                            message(player, "hub.quick.lore")), "quick");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.games.name"),
+                            message(player, "hub.games.lore")), "games");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.goals.name"),
+                            message(player, "hub.goals.lore")), "goals");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.friends.name"),
+                            message(player, "hub.friends.lore")), "friends");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.party.name"),
+                            message(player, "hub.party.lore")), "party");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.events.name"),
+                            message(player, "hub.events.lore")), "events");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.app.name"),
+                            message(player, "hub.app.lore")), "app");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.help.name"),
+                            message(player, "hub.help.lore")), "help");
                 }
                 case GAMES -> {
                     HubGameMenuModel model = HubGameMenuModel.index(player.locale());
-                    builder.title("§l§6" + model.title()).content("§7" + model.content());
+                    builder.title("§l§6" + model.title()).content(model.content());
                     for (HubGameMenuModel.Entry entry : model.entries()) {
-                        button(builder, actions, "§f§l" + entry.label() + "\n§7" + entry.detail(),
+                        button(builder, actions, BedrockButtonText.format(entry.label(), entry.detail()),
                                 entry.action(), entry.bedrockTexture());
                     }
-                    button(builder, actions, "§7" + message(player, "hub.back"), "back");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.back")), "back");
                 }
                 case GAME_DETAIL -> {
                     HubGameMenuModel model = HubGameMenuModel.detail(context, player.locale());
-                    builder.title("§l§6" + model.title()).content("§7" + model.content());
+                    builder.title("§l§6" + model.title()).content(model.content());
                     for (HubGameMenuModel.Entry entry : model.entries()) {
-                        button(builder, actions, "§f§l" + entry.label() + "\n§7" + entry.detail(),
+                        button(builder, actions, BedrockButtonText.format(entry.label(), entry.detail()),
                                 entry.action(), entry.bedrockTexture());
                     }
                 }
@@ -531,30 +535,30 @@ public final class PlayerHubMenu implements Listener {
                                     + message(player, "hub.goals.bedrock_weekly", view.weeklyMatches(),
                                             view.weeklyWins(), view.weeklyEliminations())
                                     + "\n\n§d" + message(player, "hub.goals.bedrock_achievements", view.achievements()));
-                    button(builder, actions, "§7" + message(player, "hub.back"), "back");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.back")), "back");
                 }
                 case QUEUE -> {
                     builder.title("§l§6" + message(player, "queue.menu.title"))
-                            .content("§7" + message(player, "queue.menu.status", context) + "\n"
+                            .content(message(player, "queue.menu.status", context) + "\n"
                                     + message(player, "queue.menu.status_hint"));
-                    button(builder, actions, "§c§l" + message(player, "queue.menu.leave")
-                            + "\n§7" + message(player, "queue.menu.leave_hint"), "queue:leave");
-                    button(builder, actions, "§6§l" + message(player, "queue.menu.switch")
-                            + "\n§7" + message(player, "queue.menu.switch_hint"), "queue:switch");
-                    button(builder, actions, "§b§l" + message(player, "queue.menu.practice")
-                            + "\n§7" + message(player, "queue.menu.practice_hint"), "queue:practice");
-                    button(builder, actions, "§d§l" + message(player, "queue.menu.rally")
-                            + "\n§7" + message(player, "queue.menu.rally_hint"), "queue:rally");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "queue.menu.leave"),
+                            message(player, "queue.menu.leave_hint")), "queue:leave");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "queue.menu.switch"),
+                            message(player, "queue.menu.switch_hint")), "queue:switch");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "queue.menu.practice"),
+                            message(player, "queue.menu.practice_hint")), "queue:practice");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "queue.menu.rally"),
+                            message(player, "queue.menu.rally_hint")), "queue:rally");
                 }
                 case REPLAY -> {
                     builder.title("§l§6" + message(player, "replay.menu.title"))
-                            .content("§7" + message(player, "replay.menu.status", context));
-                    button(builder, actions, "§a§l" + message(player, "replay.menu.same", context)
-                            + "\n§7" + message(player, "replay.menu.same_hint"), "replay:same");
-                    button(builder, actions, "§6§l" + message(player, "replay.menu.quick")
-                            + "\n§7" + message(player, "replay.menu.quick_hint"), "replay:quick");
-                    button(builder, actions, "§f§l" + message(player, "replay.menu.lobby")
-                            + "\n§7" + message(player, "replay.menu.lobby_hint"), "replay:lobby");
+                            .content(message(player, "replay.menu.status", context));
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "replay.menu.same", context),
+                            message(player, "replay.menu.same_hint")), "replay:same");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "replay.menu.quick"),
+                            message(player, "replay.menu.quick_hint")), "replay:quick");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "replay.menu.lobby"),
+                            message(player, "replay.menu.lobby_hint")), "replay:lobby");
                 }
             }
             builder.validResultHandler(response -> {
@@ -597,7 +601,7 @@ public final class PlayerHubMenu implements Listener {
     }
 
     private static void button(SimpleForm.Builder builder, List<String> actions, String label, String action) {
-        builder.button(label);
+        BedrockFormImages.button(builder, label, null);
         actions.add(action);
     }
 
@@ -617,7 +621,7 @@ public final class PlayerHubMenu implements Listener {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text(name, NamedTextColor.GOLD));
-        meta.lore(java.util.Arrays.stream(lore).map(line -> Component.text(line, NamedTextColor.GRAY)).toList());
+        meta.lore(java.util.Arrays.stream(lore).map(MenuLore::detail).toList());
         meta.getPersistentDataContainer().set(actionKey, PersistentDataType.STRING, action);
         item.setItemMeta(meta);
         return item;

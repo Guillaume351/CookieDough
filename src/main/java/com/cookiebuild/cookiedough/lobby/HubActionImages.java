@@ -15,7 +15,14 @@ public final class HubActionImages {
             Map.entry("app", "actions/app"),
             Map.entry("help", "actions/help"),
             Map.entry("community", "actions/friends"),
-            Map.entry("back", "actions/back"));
+            Map.entry("back", "actions/back"),
+            Map.entry("queue:leave", "actions/close"),
+            Map.entry("queue:switch", "actions/games"),
+            Map.entry("queue:practice", "actions/preview"),
+            Map.entry("queue:rally", "actions/friends"),
+            Map.entry("replay:same", "actions/join"),
+            Map.entry("replay:quick", "actions/quick_play"),
+            Map.entry("replay:lobby", "actions/home"));
 
     private HubActionImages() { }
 

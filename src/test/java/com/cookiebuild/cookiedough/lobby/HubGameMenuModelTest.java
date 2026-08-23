@@ -9,6 +9,8 @@ import java.util.Locale;
 
 import org.junit.jupiter.api.Test;
 
+import com.cookiebuild.cookiedough.ui.BedrockFormImages;
+
 class HubGameMenuModelTest {
     @Test
     void everyLocaleGetsSevenReadableGameSubmenusWithImagesAndSafeActions() {
@@ -18,7 +20,7 @@ class HubGameMenuModelTest {
             assertEquals(7, index.entries().size());
             for (HubGameMenuModel.Entry summary : index.entries()) {
                 assertTrue(summary.action().startsWith("game:details:"));
-                assertTrue(summary.bedrockTexture().startsWith("modes/"));
+                assertTrue(BedrockFormImages.isKnown(summary.bedrockTexture()));
                 HubGameMenuModel detail = HubGameMenuModel.detail(
                         summary.action().substring("game:details:".length()), locale);
                 assertEquals(List.of("game:join:", "games", "close"), List.of(
@@ -26,7 +28,8 @@ class HubGameMenuModelTest {
                         detail.entries().get(1).action(), detail.entries().get(2).action()));
                 assertTrue(detail.content().contains("\n"));
                 assertFalse(detail.content().contains("game.rules."));
-                assertTrue(detail.entries().stream().allMatch(entry -> entry.bedrockTexture().startsWith("actions/")));
+                assertTrue(detail.entries().stream()
+                        .allMatch(entry -> BedrockFormImages.isKnown(entry.bedrockTexture())));
             }
         }
     }

@@ -23,6 +23,16 @@ class HubActionImagesTest {
                 texture, HubActionImages.texture(action).orElseThrow()));
         assertEquals("actions/friends", HubActionImages.texture("community").orElseThrow());
         assertEquals("actions/back", HubActionImages.texture("back").orElseThrow());
+        Map.of(
+                "queue:leave", "actions/close",
+                "queue:switch", "actions/games",
+                "queue:practice", "actions/preview",
+                "queue:rally", "actions/friends",
+                "replay:same", "actions/join",
+                "replay:quick", "actions/quick_play",
+                "replay:lobby", "actions/home")
+                .forEach((action, texture) -> assertEquals(
+                        texture, HubActionImages.texture(action).orElseThrow()));
         assertTrue(HubActionImages.texture("unknown").isEmpty());
     }
 }
