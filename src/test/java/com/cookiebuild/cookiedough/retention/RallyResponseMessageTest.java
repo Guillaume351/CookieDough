@@ -37,7 +37,8 @@ class RallyResponseMessageTest {
         assertEquals("Bad_Name_op _a isn't available for Cookie Build. Add Bad_Name_op _a as a friend",
                 PlainTextComponentSerializer.plainText().serialize(message));
         assertEquals(ClickEvent.Action.RUN_COMMAND, action.clickEvent().action());
-        assertEquals("/friend add Bad_Name_op _a", action.clickEvent().value());
+        assertEquals("/friend add Bad_Name_op _a",
+                ((ClickEvent.Payload.Text) action.clickEvent().payload()).value());
     }
 
     @Test
