@@ -86,6 +86,7 @@ public class GameNPC {
         mob.setGlowing(presentation.persistent());
         mob.setFireTicks(0);
         mob.getPersistentDataContainer().set(markerKey(), PersistentDataType.STRING, gameName);
+        LobbyEntityOwnership.mark(plugin, mob, "game_npc");
         // Keep the legacy per-game marker until all persisted lobby data has been
         // through one reconciliation cycle.
         mob.getPersistentDataContainer().set(legacyMarkerKey(), PersistentDataType.BYTE, (byte) 1);

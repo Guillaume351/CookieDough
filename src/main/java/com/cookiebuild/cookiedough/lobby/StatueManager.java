@@ -135,6 +135,7 @@ public class StatueManager {
         statue.setDisabledSlots(org.bukkit.inventory.EquipmentSlot.values());
         statue.getPersistentDataContainer().set(
                 new NamespacedKey(plugin, "champion_head"), PersistentDataType.STRING, gameMode);
+        LobbyEntityOwnership.mark(plugin, statue, "champion_head");
 
         ItemStack head = SkinUtils.getPlayerHead(data.playerId());
         statue.getEquipment().setHelmet(head);

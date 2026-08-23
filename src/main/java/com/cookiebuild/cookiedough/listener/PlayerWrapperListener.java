@@ -22,6 +22,14 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerKickEvent;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.scheduler.BukkitTask;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.activity.ActivityRegistry;
@@ -68,6 +76,7 @@ public class PlayerWrapperListener implements Listener {
     private final Set<UUID> onboardingPendingSessions = ConcurrentHashMap.newKeySet();
     private final Set<UUID> onboardingCompletionRequested = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> disconnectReasons = new ConcurrentHashMap<>();
+    private final PersistentActivityRecovery persistentRecovery = new PersistentActivityRecovery();
     private final ChangelogCoordinator changelog = new ChangelogCoordinator(new PostgresChangelogRepository());
     private final MobilePromotionService mobilePromotion = new MobilePromotionService();
     private final ExecutorService persistenceExecutor = Executors.newFixedThreadPool(4, runnable -> {
@@ -76,9 +85,25 @@ public class PlayerWrapperListener implements Listener {
         return thread;
     });
     private volatile boolean acceptingPlayers = true;
+    private final BukkitTask persistentRecoveryTask;
 
     public PlayerWrapperListener() {
         instance = this;
+        persistentRecoveryTask = Bukkit.getScheduler().runTaskTimer(CookieDough.getInstance(),
+                this::retryPersistentRecoveries, 20L, 20L);
+    }
+
+    /**
+     * Moves a player into a non-destructive holding state after an asynchronous
+     * persistent activity admission fails. The durable marker, inventory and
+     * location are deliberately preserved for a later retry.
+     */
+    public static void recoverPersistentActivity(Player player, String activityName) {
+        PlayerWrapperListener current = instance;
+        if (current == null || player == null || activityName == null || activityName.isBlank()) return;
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        if (cookiePlayer == null) cookiePlayer = new CookiePlayer(player);
+        current.holdPersistentActivity(player, cookiePlayer, activityName, true);
     }
 
     public static Date getPlayerLoginTime(UUID playerId) {
@@ -191,15 +216,12 @@ public class PlayerWrapperListener implements Listener {
         } else {
             cookiePlayer.setState(com.cookiebuild.cookiedough.player.PlayerState.PERSISTENT_MODE);
         }
-        if (resumeName != null && resumeActivity == null) {
-            player.kick(Component.text(LocaleManager.getMessage(
-                    "persistent.resume_unavailable", player.locale()), NamedTextColor.RED));
-            return;
-        }
+        String resumeTarget = resumeName != null ? resumeName
+                : resumeActivity == null ? null : resumeActivity.name();
         CookiePlayer activeCookiePlayer = cookiePlayer;
 
         player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("welcome.message", player.locale(), player.getName()));
-        if (resumeActivity == null) {
+        if (resumeTarget == null) {
             player.showTitle(net.kyori.adventure.title.Title.title(
                     Component.text("Cookie Build", NamedTextColor.GOLD),
                     Component.text(LocaleManager.getMessage("lobby.menu.subtitle", player.locale()),
@@ -253,13 +275,10 @@ public class PlayerWrapperListener implements Listener {
                     errorMessage -> CookieDough.getInstance().getLogger().warning(
                             "Could not load persisted blocks for " + player.getName() + ": " + errorMessage));
             LobbyScoreboard.invalidatePlayerCache(handle.playerId());
-            boolean resumedPersistent = false;
-            if (resumeActivity != null) {
-                var admission = ActivityRegistry.enter(resumeActivity.name(), activeCookiePlayer);
-                resumedPersistent = admission.admitted();
-                if (!resumedPersistent) LobbyManager.teleportPlayerToLobby(activeCookiePlayer);
-            }
-            if (!resumedPersistent) showLobbyScoreboard(player);
+            boolean resumedPersistent = resumeTarget != null
+                    && attemptPersistentResume(player, activeCookiePlayer, resumeTarget);
+            boolean awaitingPersistentRecovery = persistentRecovery.isHolding(handle.playerId());
+            if (!resumedPersistent && !awaitingPersistentRecovery) showLobbyScoreboard(player);
             boolean newPlayer = newPlayerSessions.remove(handle.sessionId());
             boolean onboardingPending = onboardingPendingSessions.remove(handle.sessionId());
             FunnelTelemetry.record(player, FunnelTelemetry.Event.PLAYER_DATA_READY,
@@ -268,9 +287,11 @@ public class PlayerWrapperListener implements Listener {
             String queuedActivity = queuedPersistentActivities.remove(handle.playerId());
             boolean quickPlayQueued = queuedQuickPlay.remove(handle.playerId());
             JoinExperiencePlan experience = JoinExperiencePlan.forPlayer(onboardingPending);
-            if (!resumedPersistent && experience.showOnboarding() && !quickPlayQueued && queuedActivity == null) {
+            if (!resumedPersistent && !awaitingPersistentRecovery && experience.showOnboarding()
+                    && !quickPlayQueued && queuedActivity == null) {
                 CookieDough.getInstance().getPlayerHubMenu().openOnboarding(player);
-            } else if (!resumedPersistent && !onboardingPending && queuedActivity == null) {
+            } else if (!resumedPersistent && !awaitingPersistentRecovery
+                    && !onboardingPending && queuedActivity == null) {
                 showLobbyHint(player);
             }
             if (experience.showUpdates()) {
@@ -279,16 +300,17 @@ public class PlayerWrapperListener implements Listener {
             if (experience.showAppPromotion()) {
                 showMobileAppPromotion(player, handle);
             }
-            if (!resumedPersistent && queuedActivity == null && Bukkit.getOnlinePlayers().size() <= 1) {
+            if (!resumedPersistent && !awaitingPersistentRecovery
+                    && queuedActivity == null && Bukkit.getOnlinePlayers().size() <= 1) {
                 CookieDough.getInstance().getRallyManager().requestSoloLogin(player);
             }
-            if (!resumedPersistent && quickPlayQueued) {
+            if (!resumedPersistent && !awaitingPersistentRecovery && quickPlayQueued) {
                 if (onboardingPending) {
                     completeOnboarding(player, "quick");
                 }
                 CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
             }
-            if (!resumedPersistent && queuedActivity != null) {
+            if (!resumedPersistent && !awaitingPersistentRecovery && queuedActivity != null) {
                 if (onboardingPending) {
                     completeOnboarding(player, "activity:" + queuedActivity);
                 }
@@ -398,6 +420,7 @@ public class PlayerWrapperListener implements Listener {
         event.quitMessage(null);
         Player player = event.getPlayer();
         readyPlayers.remove(player.getUniqueId());
+        persistentRecovery.remove(player.getUniqueId());
         queuedQuickPlay.remove(player.getUniqueId());
         queuedPersistentActivities.remove(player.getUniqueId());
         onboardingCompletionRequested.remove(player.getUniqueId());
@@ -584,6 +607,8 @@ public class PlayerWrapperListener implements Listener {
             return;
         }
         instance.acceptingPlayers = false;
+        instance.persistentRecoveryTask.cancel();
+        instance.persistentRecovery.clear();
         Date now = new Date();
         Map<UUID, SessionHandle> sessions = Map.copyOf(instance.activePlayerSessions);
         instance.activePlayerSessions.clear();
@@ -641,8 +666,104 @@ public class PlayerWrapperListener implements Listener {
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
+        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) {
+            if (event.getTo() != null && (event.getFrom().getBlockX() != event.getTo().getBlockX()
+                    || event.getFrom().getBlockY() != event.getTo().getBlockY()
+                    || event.getFrom().getBlockZ() != event.getTo().getBlockZ())) {
+                event.setTo(event.getFrom());
+            }
+            return;
+        }
         if (event.getPlayer().getWorld().getName().equals("lobby") && event.getPlayer().getLocation().getY() < 0) {
             LobbyManager.teleportPlayerToLobby(PlayerManager.getPlayer(event.getPlayer()));
+        }
+    }
+
+    @EventHandler public void onRecoveryDamage(EntityDamageEvent event) {
+        if (event.getEntity() instanceof Player player && persistentRecovery.isHolding(player.getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler public void onRecoveryDrop(PlayerDropItemEvent event) {
+        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) event.setCancelled(true);
+    }
+
+    @EventHandler public void onRecoveryPickup(EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player && persistentRecovery.isHolding(player.getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler public void onRecoveryInteract(PlayerInteractEvent event) {
+        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) event.setCancelled(true);
+    }
+
+    @EventHandler public void onRecoveryBreak(BlockBreakEvent event) {
+        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) event.setCancelled(true);
+    }
+
+    @EventHandler public void onRecoveryPlace(BlockPlaceEvent event) {
+        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) event.setCancelled(true);
+    }
+
+    @EventHandler public void onRecoveryInventory(InventoryClickEvent event) {
+        if (event.getWhoClicked() instanceof Player player
+                && persistentRecovery.isHolding(player.getUniqueId())) event.setCancelled(true);
+    }
+
+    private boolean attemptPersistentResume(Player player, CookiePlayer cookiePlayer, String activityName) {
+        boolean newHold = persistentRecovery.hold(
+                player.getUniqueId(), activityName, System.currentTimeMillis());
+        PersistentActivityRecovery.Ticket ticket = persistentRecovery.due(System.currentTimeMillis()).stream()
+                .filter(candidate -> candidate.playerId().equals(player.getUniqueId()))
+                .findFirst().orElse(null);
+        if (ticket == null) return false;
+        try {
+            var admission = ActivityRegistry.enter(activityName, cookiePlayer);
+            if (admission.admitted()) {
+                persistentRecovery.recovered(ticket);
+                player.setInvulnerable(false);
+                return true;
+            }
+        } catch (RuntimeException error) {
+            CookieDough.getInstance().getLogger().warning("Could not resume " + activityName + " for "
+                    + player.getUniqueId() + ": " + rootMessage(error));
+        }
+        persistentRecovery.rejected(ticket, System.currentTimeMillis());
+        holdPersistentActivity(player, cookiePlayer, activityName, newHold);
+        return false;
+    }
+
+    private void holdPersistentActivity(Player player, CookiePlayer cookiePlayer,
+            String activityName, boolean admissionFailed) {
+        boolean firstHold = persistentRecovery.hold(
+                player.getUniqueId(), activityName, System.currentTimeMillis());
+        if (admissionFailed) {
+            persistentRecovery.due(System.currentTimeMillis()).stream()
+                    .filter(ticket -> ticket.playerId().equals(player.getUniqueId()))
+                    .findFirst().ifPresent(ticket -> persistentRecovery.rejected(
+                            ticket, System.currentTimeMillis()));
+        }
+        cookiePlayer.setState(com.cookiebuild.cookiedough.player.PlayerState.PERSISTENT_MODE);
+        hideLobbyScoreboard(player);
+        player.closeInventory();
+        player.setInvulnerable(true);
+        if (firstHold || admissionFailed) {
+            player.sendMessage(Component.text(LocaleManager.getMessage(
+                    "persistent.resume_unavailable", player.locale()), NamedTextColor.RED));
+        }
+    }
+
+    private void retryPersistentRecoveries() {
+        if (!acceptingPlayers) return;
+        long now = System.currentTimeMillis();
+        for (PersistentActivityRecovery.Ticket ticket : persistentRecovery.due(now)) {
+            Player player = Bukkit.getPlayer(ticket.playerId());
+            CookiePlayer cookiePlayer = player == null ? null : PlayerManager.getPlayer(player);
+            if (player == null || !player.isOnline() || cookiePlayer == null
+                    || !readyPlayers.contains(ticket.playerId())) continue;
+            attemptPersistentResume(player, cookiePlayer, ticket.activityName());
         }
     }
 }

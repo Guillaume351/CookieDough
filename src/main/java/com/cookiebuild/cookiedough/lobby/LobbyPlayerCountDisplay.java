@@ -40,6 +40,7 @@ final class LobbyPlayerCountDisplay {
         display.setPersistent(true);
         display.setCustomNameVisible(true);
         display.setDisabledSlots(EquipmentSlot.values());
+        LobbyEntityOwnership.mark(plugin, display, "player_count");
         displayedPlayerCount = -1;
         displayedGamePlayerCount = -1;
     }
