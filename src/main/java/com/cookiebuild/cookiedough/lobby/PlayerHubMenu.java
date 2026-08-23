@@ -478,27 +478,33 @@ public final class PlayerHubMenu implements Listener {
                 case ONBOARDING -> {
                     builder.title("§l§6" + message(player, "hub.onboarding.title"))
                             .content("§7" + message(player, "hub.onboarding.content"));
-                    button(builder, actions, "§a§l" + message(player, "hub.quick.name")
+                    hubButton(builder, actions, "§a§l" + message(player, "hub.quick.name")
                             + "\n§7" + message(player, "hub.quick.lore"), "quick");
-                    button(builder, actions, "§6§l" + message(player, "hub.games.name")
+                    hubButton(builder, actions, "§6§l" + message(player, "hub.games.name")
                             + "\n§7" + message(player, "hub.onboarding.games_lore"), "games");
-                    button(builder, actions, "§b§l" + message(player, "hub.onboarding.community_name")
+                    hubButton(builder, actions, "§b§l" + message(player, "hub.onboarding.community_name")
                             + "\n§7" + message(player, "hub.onboarding.community_lore_app"), "community");
-                    button(builder, actions, "§f§l" + message(player, "hub.onboarding.full_name"), "back");
+                    hubButton(builder, actions, "§f§l" + message(player, "hub.onboarding.full_name"), "back");
                 }
                 case MAIN -> {
                     builder.title("§l§6" + message(player, "hub.title"))
                             .content("§7" + message(player, "hub.content"));
-                    button(builder, actions, "§a§l" + message(player, "hub.quick.name")
+                    hubButton(builder, actions, "§a§l" + message(player, "hub.quick.name")
                             + "\n§7" + message(player, "hub.quick.lore"), "quick");
-                    button(builder, actions, "§6§l" + message(player, "hub.games.name"), "games");
-                    button(builder, actions, "§b§l" + message(player, "hub.goals.name"), "goals");
-                    button(builder, actions, "§d§l" + message(player, "hub.friends.name"), "friends");
-                    button(builder, actions, "§e§l" + message(player, "hub.party.name"), "party");
-                    button(builder, actions, "§9§l" + message(player, "hub.events.name"), "events");
-                    button(builder, actions, "§5§l" + message(player, "hub.app.name")
+                    hubButton(builder, actions, "§6§l" + message(player, "hub.games.name")
+                            + "\n§7" + message(player, "hub.games.lore"), "games");
+                    hubButton(builder, actions, "§b§l" + message(player, "hub.goals.name")
+                            + "\n§7" + message(player, "hub.goals.lore"), "goals");
+                    hubButton(builder, actions, "§d§l" + message(player, "hub.friends.name")
+                            + "\n§7" + message(player, "hub.friends.lore"), "friends");
+                    hubButton(builder, actions, "§e§l" + message(player, "hub.party.name")
+                            + "\n§7" + message(player, "hub.party.lore"), "party");
+                    hubButton(builder, actions, "§9§l" + message(player, "hub.events.name")
+                            + "\n§7" + message(player, "hub.events.lore"), "events");
+                    hubButton(builder, actions, "§5§l" + message(player, "hub.app.name")
                             + "\n§7" + message(player, "hub.app.lore"), "app");
-                    button(builder, actions, "§f§l" + message(player, "hub.help.name"), "help");
+                    hubButton(builder, actions, "§f§l" + message(player, "hub.help.name")
+                            + "\n§7" + message(player, "hub.help.lore"), "help");
                 }
                 case GAMES -> {
                     HubGameMenuModel model = HubGameMenuModel.index(player.locale());
@@ -599,6 +605,12 @@ public final class PlayerHubMenu implements Listener {
             String texturePath) {
         BedrockFormImages.button(builder, label, texturePath);
         actions.add(action);
+    }
+
+    private static void hubButton(SimpleForm.Builder builder, List<String> actions, String label, String action) {
+        HubActionImages.texture(action).ifPresentOrElse(
+                texture -> button(builder, actions, label, action, texture),
+                () -> button(builder, actions, label, action));
     }
 
     private ItemStack item(Material material, String name, String action, String... lore) {

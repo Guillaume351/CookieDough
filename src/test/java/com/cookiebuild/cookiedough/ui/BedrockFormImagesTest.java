@@ -10,6 +10,8 @@ class BedrockFormImagesTest {
     void customPackPathsAreCentralizedAndVersionFlagIsFailClosed() {
         assertEquals("textures/ui/cookiebuild/modes/skyblock.png",
                 BedrockFormImages.path("modes/skyblock", true).orElseThrow());
+        assertEquals("textures/ui/cookiebuild/actions/games.png",
+                BedrockFormImages.path("actions/games", true).orElseThrow());
         assertTrue(BedrockFormImages.path("modes/skyblock", false).isEmpty());
         assertTrue(BedrockFormImages.path("../escape", true).isEmpty());
         assertTrue(BedrockFormImages.path("kits/skywars/scout", true).isEmpty());

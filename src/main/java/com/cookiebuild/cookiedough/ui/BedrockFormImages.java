@@ -16,6 +16,8 @@ public final class BedrockFormImages {
             "actions/join", "actions/back", "actions/close", "actions/shop", "actions/preview",
             "actions/select", "actions/purchase", "actions/upgrades", "actions/home", "actions/storage",
             "actions/generator", "actions/progress", "actions/workers", "actions/coop", "actions/market",
+            "actions/quick_play", "actions/games", "actions/goals", "actions/friends",
+            "actions/party", "actions/events", "actions/app", "actions/help",
             "categories/quick_buy", "categories/blocks", "categories/weapons", "categories/armor",
             "categories/tools", "categories/ranged", "categories/utility", "categories/cookie_specials");
 
