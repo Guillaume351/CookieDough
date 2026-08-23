@@ -15,7 +15,7 @@ class HubGameMenuModelTest {
     @Test
     void everyLocaleGetsSevenReadableGameSubmenusWithImagesAndSafeActions() {
         for (Locale locale : List.of(Locale.ENGLISH, Locale.FRENCH, Locale.of("es"), Locale.GERMAN,
-                Locale.of("pt", "BR"), Locale.of("pa"))) {
+                Locale.of("pt", "BR"), Locale.of("bg"), Locale.of("hi"), Locale.of("pa"))) {
             HubGameMenuModel index = HubGameMenuModel.index(locale);
             assertEquals(7, index.entries().size());
             for (HubGameMenuModel.Entry summary : index.entries()) {

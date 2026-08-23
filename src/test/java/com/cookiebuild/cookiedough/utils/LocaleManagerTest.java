@@ -2,7 +2,8 @@ package com.cookiebuild.cookiedough.utils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.util.LinkedHashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 import java.util.Set;
@@ -20,7 +21,12 @@ class LocaleManagerTest {
     void completeTranslationsMatchEnglishKeysAndPlaceholders() {
         ResourceBundle english = bundle(Locale.ENGLISH);
 
-        for (Locale locale : Set.of(Locale.FRENCH, Locale.of("es"), Locale.of("pt", "BR"))) {
+        for (Locale locale : Set.of(
+                Locale.FRENCH,
+                Locale.of("es"),
+                Locale.of("pt", "BR"),
+                Locale.of("bg"),
+                Locale.of("hi"))) {
             ResourceBundle translated = bundle(locale);
             assertEquals(english.keySet(), translated.keySet(), "Missing or extra keys for " + locale);
             for (String key : english.keySet()) {
@@ -37,6 +43,12 @@ class LocaleManagerTest {
         assertEquals(
                 "Prática de reação iniciada. Sua vaga na fila está garantida: aguarde o JÁ e clique com o botão direito.",
                 LocaleManager.getMessage("practice.started", Locale.of("pt", "PT")));
+        assertEquals(
+                "Cookie Build меню",
+                LocaleManager.getMessage("hub.title", Locale.of("bg", "BG")));
+        assertEquals(
+                "Cookie Build मेनू",
+                LocaleManager.getMessage("hub.title", Locale.of("hi", "IN")));
         assertEquals(
                 "Reaction practice started. Your queue slot is safe: wait for GO!, then right-click.",
                 LocaleManager.getMessage("practice.started", Locale.GERMAN));
@@ -56,12 +68,13 @@ class LocaleManagerTest {
                 NO_SYSTEM_LOCALE_FALLBACK);
     }
 
-    private static Set<String> placeholders(String value) {
-        Set<String> placeholders = new LinkedHashSet<>();
+    private static List<String> placeholders(String value) {
+        List<String> placeholders = new ArrayList<>();
         Matcher matcher = PLACEHOLDER.matcher(value);
         while (matcher.find()) {
             placeholders.add(matcher.group());
         }
+        placeholders.sort(String::compareTo);
         return placeholders;
     }
 }

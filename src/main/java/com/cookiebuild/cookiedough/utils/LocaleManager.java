@@ -16,6 +16,8 @@ public class LocaleManager {
             Locale.FRENCH,
             Locale.of("es"),
             BRAZILIAN_PORTUGUESE,
+            Locale.of("bg"),
+            Locale.of("hi"),
             Locale.GERMAN,
             Locale.of("pa"));
     private static final ResourceBundle.Control NO_SYSTEM_LOCALE_FALLBACK =
