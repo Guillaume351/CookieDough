@@ -28,6 +28,14 @@ final class LobbyDisplayText {
                 .build();
     }
 
+    static Component persistentActivityNpc(String activityName) {
+        return Component.text()
+                .append(Component.text(activityName, NamedTextColor.GOLD, TextDecoration.BOLD))
+                .appendNewline()
+                .append(Component.text("★ CLICK TO PLAY ★", NamedTextColor.GREEN, TextDecoration.BOLD))
+                .build();
+    }
+
     static Component onlinePlayers(int playerCount, int gamePlayerCount) {
         String playerNoun = playerCount == 1 ? "player" : "players";
         String gameNoun = gamePlayerCount == 1 ? "game" : "games";

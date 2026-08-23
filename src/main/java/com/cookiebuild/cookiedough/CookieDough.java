@@ -284,6 +284,7 @@ public final class CookieDough extends JavaPlugin {
                     : new Vector(2, 0, 0);
             lobbyManager.addGameNpc(gameName, location, statueOffset);
         }
+        lobbyManager.setupSkyblockBillboard();
     }
 
     public void registerCommands() {

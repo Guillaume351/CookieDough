@@ -13,6 +13,22 @@ telemetry:
 # core change. Coordinates are centred on blocks and can be adjusted live in
 # this file before a restart.
 lobby:
+  # The old winner statues and leaderboard holograms made the compact spawn
+  # difficult to scan. Keep the code available for a future dedicated hall,
+  # but do not render those weekly showcases around the game selectors.
+  weekly-showcases-enabled: false
+  skyblock-billboard:
+    # One vanilla 128x128 filled map is used instead of a multi-map wall or a
+    # Java display entity. Keep this independently switchable for Bedrock
+    # canaries without removing the Skyblock NPC.
+    enabled: true
+    world: "lobby"
+    x: 8.5
+    y: 10.5
+    z: -10.5
+    facing: "SOUTH"
+    # Written once when the map is first created, then reused across restarts.
+    map-id: -1
   game-selectors:
     microbattles:
       enabled: true
@@ -74,3 +90,15 @@ lobby:
       yaw: -135.0
       pitch: 0.0
       statue-offset: [-1.0, 0.0, 0.0]
+    skyblock:
+      enabled: true
+      game: "Skyblock"
+      world: "lobby"
+      # Use the open north-east bay: it is visible from spawn without placing
+      # another selector or leaderboard in the central circulation path.
+      x: 8.5
+      y: 8.0
+      z: -8.5
+      yaw: 45.0
+      pitch: 0.0
+      statue-offset: [1.0, 0.0, 0.0]

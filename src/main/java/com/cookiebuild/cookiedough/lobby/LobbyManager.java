@@ -50,6 +50,7 @@ public class LobbyManager implements Listener {
     private final List<Sign> gameSigns = new ArrayList<>();
     private final StatueManager statueManager;
     private LobbyPlayerCountDisplay playerCountDisplay;
+    private SkyblockBillboard skyblockBillboard;
     private BukkitTask signRefreshTask;
 
     // Singleton
@@ -59,8 +60,12 @@ public class LobbyManager implements Listener {
         this.plugin = plugin;
         instance = this;
 
-        // Initialize StatueManager
-        this.statueManager = new StatueManager(plugin);
+        // Do not even schedule the old leaderboard/statue workers while the
+        // compact-spawn flag is off. Match completion refreshes stay a no-op
+        // because StatueManager has no active instance.
+        this.statueManager = plugin.getConfig().getBoolean("lobby.weekly-showcases-enabled", false)
+                ? new StatueManager(plugin)
+                : null;
 
         // Get lobby world, remove all entities
         World lobbyWorld = Bukkit.getWorld("lobby");
@@ -105,7 +110,13 @@ public class LobbyManager implements Listener {
             playerCountDisplay.shutdown();
             playerCountDisplay = null;
         }
-        statueManager.shutdown();
+        if (statueManager != null) {
+            statueManager.shutdown();
+        }
+        if (skyblockBillboard != null) {
+            skyblockBillboard.shutdown();
+            skyblockBillboard = null;
+        }
         if (instance == this) {
             instance = null;
         }
@@ -370,9 +381,50 @@ public class LobbyManager implements Listener {
         // keep chunk loaded
         npc.getNPC().getLocation().getChunk().load(true);
 
-        // Create statue next to NPC (offset by 2 blocks in x direction)
-        Location statueLocation = location.clone().add(statueOffset);
-        statueManager.createStatue(gameName, statueLocation);
+        // Weekly winner statues and leaderboard holograms are deliberately kept
+        // out of the compact spawn by default. The feature remains available for
+        // a future dedicated hall and can be restored with one configuration flag.
+        if (statueManager != null) {
+            Location statueLocation = location.clone().add(statueOffset);
+            statueManager.createStatue(gameName, statueLocation);
+        }
+    }
+
+    public void setupSkyblockBillboard() {
+        if (!plugin.getConfig().getBoolean("lobby.skyblock-billboard.enabled", true)) {
+            return;
+        }
+        String path = "lobby.skyblock-billboard";
+        World world = Bukkit.getWorld(plugin.getConfig().getString(path + ".world", "lobby"));
+        if (world == null) {
+            plugin.getLogger().warning("Skipping the Skyblock billboard: configured world is not loaded");
+            return;
+        }
+        Location location = new Location(world,
+                plugin.getConfig().getDouble(path + ".x"),
+                plugin.getConfig().getDouble(path + ".y"),
+                plugin.getConfig().getDouble(path + ".z"));
+        try {
+            skyblockBillboard = SkyblockBillboard.create(plugin, location,
+                    plugin.getConfig().getString(path + ".facing", "SOUTH"),
+                    plugin.getConfig().getInt(path + ".map-id", -1));
+        } catch (RuntimeException error) {
+            // A production lobby may have different backing blocks than the
+            // versioned test world. Never fail CookieDough startup for an
+            // optional visual; the Bee NPC remains fully usable.
+            plugin.getLogger().warning("Skipping the Skyblock billboard because its frame could not spawn: "
+                    + error.getMessage());
+            return;
+        }
+        if (skyblockBillboard != null && skyblockBillboard.mapId()
+                != plugin.getConfig().getInt(path + ".map-id", -1)) {
+            plugin.getConfig().set(path + ".map-id", skyblockBillboard.mapId());
+            plugin.saveConfig();
+        }
+        if (skyblockBillboard != null) {
+            plugin.getLogger().info("Skyblock lobby billboard ready with persistent map id "
+                    + skyblockBillboard.mapId());
+        }
     }
 
     public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {

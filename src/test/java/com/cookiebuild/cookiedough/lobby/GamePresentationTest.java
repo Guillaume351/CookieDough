@@ -48,4 +48,13 @@ class GamePresentationTest {
         assertTrue(GamePresentation.games().stream()
                 .noneMatch(game -> game.releaseStage() == GamePresentation.ReleaseStage.COMING_SOON));
     }
+
+    @Test
+    void onlySkyblockUsesThePersistentActivityNpcRoute() {
+        assertEquals(java.util.Set.of("Skyblock"), GamePresentation.games().stream()
+                .filter(GamePresentation::persistent)
+                .map(GamePresentation::gameName)
+                .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(EntityType.BEE, GamePresentation.forGame("Skyblock").npcType());
+    }
 }

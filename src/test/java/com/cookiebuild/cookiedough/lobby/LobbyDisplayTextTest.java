@@ -29,6 +29,13 @@ class LobbyDisplayTextTest {
     }
 
     @Test
+    void makesPersistentActivitiesAnObviousLobbyDestination() {
+        assertEquals(
+                "Skyblock [BETA]\n★ CLICK TO PLAY ★",
+                PLAIN_TEXT.serialize(LobbyDisplayText.persistentActivityNpc("Skyblock [BETA]")));
+    }
+
+    @Test
     void formatsTheGlobalOnlineCounterWithCorrectPluralization() {
         assertEquals("0 players online\n0 in games", PLAIN_TEXT.serialize(LobbyDisplayText.onlinePlayers(0, 0)));
         assertEquals("1 player online\n1 in game", PLAIN_TEXT.serialize(LobbyDisplayText.onlinePlayers(1, 1)));

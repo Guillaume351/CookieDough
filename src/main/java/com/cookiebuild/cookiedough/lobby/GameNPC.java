@@ -77,6 +77,11 @@ public class GameNPC {
         mob.setInvulnerable(true);
         mob.setPersistent(true);
         mob.setCollidable(false);
+        // Persistent activities are the principal long-form destinations in the
+        // lobby. A vanilla glow is translated by Geyser and makes the selector
+        // stand out on both Java and Bedrock without edition-specific entity
+        // models or fragile map walls.
+        mob.setGlowing(presentation.persistent());
         mob.setFireTicks(0);
         mob.getPersistentDataContainer().set(markerKey(), PersistentDataType.STRING, gameName);
         // Keep the legacy per-game marker until all persisted lobby data has been
@@ -175,6 +180,12 @@ public class GameNPC {
     }
 
     private void updateNPCName() {
+        if (presentation.persistent()) {
+            npc.customName(LobbyDisplayText.persistentActivityNpc(
+                    presentation.displayName(java.util.Locale.ENGLISH)));
+            npc.setCustomNameVisible(true);
+            return;
+        }
         GameStatus game = GameManager.getGameByName(gameName);
         if (game != null) {
             npc.customName(LobbyDisplayText.gameNpc(
@@ -197,6 +208,17 @@ public class GameNPC {
             return;
         }
         FunnelTelemetry.record(player, FunnelTelemetry.Event.NPC_SELECTED, "game=" + gameName);
+        if (presentation.persistent()) {
+            LobbyManager lobbyManager = LobbyManager.getInstance();
+            if (lobbyManager == null) {
+                player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                        "lobby.game.unavailable", player.locale(),
+                        presentation.displayName(player.locale())));
+                return;
+            }
+            lobbyManager.requestActivity(player, gameName);
+            return;
+        }
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         GameStatus game = GameManager.getGameByName(gameName);
 
