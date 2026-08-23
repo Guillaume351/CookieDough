@@ -33,6 +33,7 @@ import com.cookiebuild.cookiedough.game.FunnelTelemetry;
 import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
+import com.cookiebuild.cookiedough.listener.OnboardingCompletionPolicy;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
@@ -336,6 +337,10 @@ public final class PlayerHubMenu implements Listener {
     }
 
     private void dispatch(Player player, String action, MenuPage source, String context) {
+        if (source == MenuPage.ONBOARDING && OnboardingCompletionPolicy.completes(action)
+                && onboardingPlayers.remove(player.getUniqueId())) {
+            PlayerWrapperListener.completeOnboarding(player, action);
+        }
         if (action.startsWith("game:details:")) {
             String gameName = action.substring("game:details:".length());
             if (GamePresentation.find(gameName).isPresent()) openPage(player, MenuPage.GAME_DETAIL, gameName);

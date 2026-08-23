@@ -137,7 +137,7 @@ public class PlayerWrapperListener implements Listener {
      */
     public static void completeOnboarding(Player player, String action) {
         PlayerWrapperListener current = instance;
-        if (current == null || player == null) {
+        if (current == null || player == null || !OnboardingCompletionPolicy.completes(action)) {
             return;
         }
         SessionHandle handle = current.activePlayerSessions.get(player.getUniqueId());
