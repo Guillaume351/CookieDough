@@ -50,7 +50,7 @@ class GameplayContinuityContractTest {
         assertTrue(manager.contains("adoptWaitingQueueIntents(game)"));
         assertTrue(manager.contains("registerPostMatchQueueIntent"));
         assertTrue(lobby.contains("\"lobby.queue.intent_replaced\""));
-        assertTrue(source("lobby/PlayerHubMenu.java").contains("lobby.party.direct_solo_only"));
+        assertTrue(source("lobby/PlayerHubMenu.java").contains("requestSelectedActivity(player, gameName)"));
         assertTrue(game.indexOf("GameManager.activateReadyQueueIntents(this)")
                 < game.indexOf("if (canStartCountdown())"));
         assertTrue(lobby.contains("ActivityRegistry.canLeave(cookiePlayer, \"returned_lobby\")"));

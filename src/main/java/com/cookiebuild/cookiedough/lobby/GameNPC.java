@@ -23,12 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.game.GameManager;
-import com.cookiebuild.cookiedough.game.GameState;
 import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.game.FunnelTelemetry;
 import com.cookiebuild.cookiedough.listener.NPCReloadListener;
-import com.cookiebuild.cookiedough.player.CookiePlayer;
-import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 public class GameNPC {
@@ -220,40 +217,13 @@ public class GameNPC {
             return;
         }
         FunnelTelemetry.record(player, FunnelTelemetry.Event.NPC_SELECTED, "game=" + gameName);
-        if (presentation.persistent()) {
-            LobbyManager lobbyManager = LobbyManager.getInstance();
-            if (lobbyManager == null) {
-                player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
-                        "lobby.game.unavailable", player.locale(),
-                        presentation.displayName(player.locale())));
-                return;
-            }
-            lobbyManager.requestActivity(player, gameName);
+        LobbyManager lobbyManager = LobbyManager.getInstance();
+        if (lobbyManager == null) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.game.unavailable", player.locale(), presentation.displayName(player.locale())));
             return;
         }
-        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-        GameStatus game = GameManager.getGameByName(gameName);
-
-        if (cookiePlayer == null) {
-            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage(
-                    "player.data_loading", player.locale()));
-            return;
-        }
-
-        String displayName = presentation.displayName(player.locale());
-        if (game != null && game.getState() == GameState.OPEN) {
-            if (game.addPlayerToAvailableTeam(cookiePlayer)) {
-                GameManager.cancelQueueIntent(player.getUniqueId());
-                player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("lobby.npc.joined",
-                        player.locale(), displayName, presentation.description(player.locale())));
-            } else {
-                player.sendMessage(ChatColor.RED + LocaleManager.getMessage("lobby.npc.no_available",
-                        player.locale(), displayName));
-            }
-        } else {
-            player.sendMessage(ChatColor.GOLD + LocaleManager.getMessage("lobby.npc.no_arena",
-                    player.locale(), displayName, presentation.description(player.locale())));
-        }
+        lobbyManager.requestSelectedActivity(player, gameName);
     }
 
     public Mob getNPC() {

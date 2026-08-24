@@ -30,9 +30,15 @@ class PartyQueueCohortSnapshotTest {
     }
 
     @Test
-    void soloQueueBecomesInvalidAsSoonAsThePlayerJoinsAParty() {
-        assertTrue(PartyManager.currentSoloPlayerHasNoParty(PartyRepository.Snapshot.empty(), MEMBER));
-        assertFalse(PartyManager.currentSoloPlayerHasNoParty(snapshot(List.of(LEADER, MEMBER)), MEMBER));
+    void durablePartyDoesNotBlockSoloQueueUntilACompanionComesOnline() {
+        assertFalse(PartyManager.hasOnlineCompanions(MEMBER, List.of(MEMBER)));
+        assertTrue(PartyManager.hasOnlineCompanions(MEMBER, List.of(LEADER, MEMBER)));
+        assertTrue(PartyManager.currentSoloPlayerHasNoOnlineCompanions(
+                PartyRepository.Snapshot.empty(), MEMBER, List.of(MEMBER)));
+        assertTrue(PartyManager.currentSoloPlayerHasNoOnlineCompanions(
+                snapshot(List.of(LEADER, MEMBER)), MEMBER, List.of(MEMBER)));
+        assertFalse(PartyManager.currentSoloPlayerHasNoOnlineCompanions(
+                snapshot(List.of(LEADER, MEMBER)), MEMBER, List.of(LEADER, MEMBER)));
     }
 
     private static PartyRepository.Snapshot snapshot(List<UUID> members) {

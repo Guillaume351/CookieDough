@@ -387,22 +387,8 @@ public final class PlayerHubMenu implements Listener {
         if (action.startsWith("game:join:")) {
             String gameName = action.substring("game:join:".length());
             if (GamePresentation.find(gameName).isEmpty()) return;
-            if (plugin.getPartyManager().getPartyId(player.getUniqueId()) != null) {
-                Game target = GameManager.getOpenGameByName(gameName);
-                if (target == null) {
-                    player.sendMessage(org.bukkit.ChatColor.YELLOW + message(
-                            player, "lobby.party.direct_solo_only"));
-                    return;
-                }
-                player.closeInventory();
-                String result = plugin.getPartyManager().queueParty(player, target);
-                if (result != null && !result.isBlank()) {
-                    player.sendMessage(org.bukkit.ChatColor.YELLOW + result);
-                }
-                return;
-            }
             player.closeInventory();
-            lobby.requestActivity(player, gameName);
+            lobby.requestSelectedActivity(player, gameName);
             return;
         }
         if (action.startsWith("game:spectate:")) {
@@ -423,9 +409,7 @@ public final class PlayerHubMenu implements Listener {
         switch (action) {
             case "quick" -> {
                 player.closeInventory();
-                String partyResult = plugin.getPartyManager().queueParty(player);
-                if (partyResult == null) lobby.requestQuickPlay(player);
-                else if (!partyResult.isBlank()) player.sendMessage(ChatColor.YELLOW + partyResult);
+                lobby.requestSelectedQuickPlay(player);
             }
             case "games" -> openPage(player, MenuPage.GAMES);
             case "goals" -> openPage(player, MenuPage.GOALS);
@@ -482,11 +466,11 @@ public final class PlayerHubMenu implements Listener {
                 "choice=" + action + " game=" + safeGameName(gameName));
         player.closeInventory();
         if (cookiePlayer.getState() != PlayerState.LOBBY || GameManager.getGameOfPlayer(cookiePlayer) != null) {
-            LobbyManager.teleportPlayerToLobby(cookiePlayer);
+            if (!LobbyManager.teleportPlayerToLobby(cookiePlayer)) return;
         }
         switch (action) {
             case "same" -> Bukkit.getScheduler().runTask(plugin,
-                    () -> lobby.requestGame(player, gameName));
+                    () -> lobby.requestSelectedActivity(player, gameName));
             case "quick" -> Bukkit.getScheduler().runTask(plugin,
                     () -> player.performCommand("quickplay"));
             case "lobby" -> { }

@@ -515,8 +515,8 @@ public class LobbyManager implements Listener {
                 return;
             }
         }
-        boolean partyMember = CookieDough.getInstance().getPartyManager().getPartyId(
-                player.getPlayer().getUniqueId()) != null;
+        boolean partyMember = CookieDough.getInstance().getPartyManager().hasOnlinePartyCompanions(
+                player.getPlayer().getUniqueId());
         if (shouldSuggestSolo(player.getState(),
                 ModePopulationService.isPersistentActivityAvailable("Skyblock"), partyMember,
                 ModePopulationService.hasReadyMatchForOneMorePlayer())) {
@@ -556,6 +556,49 @@ public class LobbyManager implements Listener {
         joinAvailableGame(cookiePlayer);
     }
 
+    /** Applies one party/persistent-mode decision for commands, menus and NPCs. */
+    public void requestSelectedActivity(Player player, String activityName) {
+        GamePresentation presentation = GamePresentation.find(activityName).orElse(null);
+        if (presentation != null && presentation.persistent()) {
+            requestActivity(player, activityName);
+            return;
+        }
+        com.cookiebuild.cookiedough.retention.PartyManager parties =
+                CookieDough.getInstance().getPartyManager();
+        if (!parties.isAvailable()) {
+            player.sendMessage(ChatColor.YELLOW
+                    + "Party service is temporarily unavailable. Please try again.");
+            return;
+        }
+        if (!parties.hasOnlinePartyCompanions(player.getUniqueId())) {
+            requestActivity(player, activityName);
+            return;
+        }
+        Game target = GameManager.getOpenGameByName(activityName);
+        if (target == null) {
+            sendNoOpenGame(player, activityName);
+            return;
+        }
+        String result = parties.queueParty(player, target);
+        if (result == null) {
+            requestActivity(player, activityName);
+        }
+        else if (!result.isBlank()) {
+            player.sendMessage(ChatColor.YELLOW + result);
+        }
+    }
+
+    /** Applies the same durable-versus-online party rule to generic Quick Play. */
+    public void requestSelectedQuickPlay(Player player) {
+        String partyResult = CookieDough.getInstance().getPartyManager().queueParty(player);
+        if (partyResult == null) {
+            requestQuickPlay(player);
+        }
+        else if (!partyResult.isBlank()) {
+            player.sendMessage(ChatColor.YELLOW + partyResult);
+        }
+    }
+
     public void requestGame(Player player, String gameName) {
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         FunnelTelemetry.record(player, FunnelTelemetry.Event.SELECTOR_OPENED,
@@ -568,10 +611,7 @@ public class LobbyManager implements Listener {
 
         Game game = GameManager.getOpenGameByName(gameName);
         if (game == null) {
-            String available = GameManager.getGames().stream().map(Game::getGameName).distinct().sorted().toList()
-                    .toString();
-            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
-                    "lobby.game.no_open", player.locale(), gameName, available));
+            sendNoOpenGame(player, gameName);
             return;
         }
         if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE
@@ -596,6 +636,13 @@ public class LobbyManager implements Listener {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage("lobby.game.unavailable", player.locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
         }
+    }
+
+    private void sendNoOpenGame(Player player, String gameName) {
+        String available = GameManager.getGames().stream().map(Game::getGameName).distinct().sorted().toList()
+                .toString();
+        player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                "lobby.game.no_open", player.locale(), gameName, available));
     }
 
     /** Opens a running arena as a viewer from either lobby, Skyblock or another spectator session. */
@@ -819,6 +866,7 @@ public class LobbyManager implements Listener {
         if (game == null) {
             return;
         }
+        event.setCancelled(true);
 
         if (game.getState() != GameState.OPEN) {
             event.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
@@ -827,22 +875,7 @@ public class LobbyManager implements Listener {
         }
 
         Player player = event.getPlayer();
-        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-        if (cookiePlayer == null) {
-            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
-                    "lobby.sign.profile_missing", player.locale()));
-            return;
-        }
-
-        if (cookiePlayer.getState() == PlayerState.LOBBY) {
-            if (!game.addPlayerToAvailableTeam(cookiePlayer)) {
-                player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
-                        "lobby.sign.join_failed", player.locale(),
-                        GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
-            } else {
-                GameManager.cancelQueueIntent(player.getUniqueId());
-            }
-        }
+        requestSelectedActivity(player, game.getGameName());
     }
 
     private Game findGameForSign(Sign clickedSign) {

@@ -9,16 +9,16 @@ import org.junit.jupiter.api.Test;
 
 class DirectAdmissionQueueIntentContractTest {
     @Test
-    void successfulNpcAndSignAdmissionsClearAStaleQueueIntentAfterAdmission() throws Exception {
+    void npcDelegatesToPartyAwareAdmissionAndDirectAdmissionsClearStaleQueueIntent() throws Exception {
         String npc = Files.readString(Path.of(
                 "src/main/java/com/cookiebuild/cookiedough/lobby/GameNPC.java"));
         String lobby = Files.readString(Path.of(
                 "src/main/java/com/cookiebuild/cookiedough/lobby/LobbyManager.java"));
 
-        assertCancelFollowsSuccessfulAdmission(npc);
-        String signAdmission = lobby.substring(lobby.indexOf("if (cookiePlayer.getState() == PlayerState.LOBBY)"),
+        assertTrue(npc.contains("requestSelectedActivity(player, gameName)"));
+        String signAdmission = lobby.substring(lobby.indexOf("Game game = findGameForSign(sign)"),
                 lobby.indexOf("private Game findGameForSign"));
-        assertCancelFollowsSuccessfulAdmission(signAdmission);
+        assertTrue(signAdmission.contains("requestSelectedActivity(player, game.getGameName())"));
         String requestGame = lobby.substring(lobby.indexOf("public void requestGame"),
                 lobby.indexOf("public void requestSpectate"));
         assertCancelFollowsSuccessfulAdmission(requestGame);
