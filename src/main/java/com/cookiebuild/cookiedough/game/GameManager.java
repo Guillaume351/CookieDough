@@ -59,7 +59,14 @@ public class GameManager {
     }
 
     public static void removeGame(Game game) {
-        if (game != null) game.ejectSpectatorsToLobby();
+        if (game != null && !game.ejectOwnedPlayersToLobby()) {
+            CookieDough plugin = CookieDough.getInstance();
+            if (plugin != null) {
+                plugin.getLogger().warning("Refusing to remove game " + game.getGameId()
+                        + " while players are still owned by its arena");
+            }
+            return;
+        }
         if (game != null) reassignQueueIntents(game);
         games.remove(game);
         notifyGameChanged(game, "removed");

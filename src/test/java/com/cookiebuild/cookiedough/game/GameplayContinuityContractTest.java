@@ -20,8 +20,14 @@ class GameplayContinuityContractTest {
         assertTrue(game.indexOf("if (!teleportToSpectator(player)) return false;")
                 < game.indexOf("spectators.put(playerId, player)"));
         assertTrue(game.contains("preflightSpectatorAdmission"));
-        assertTrue(game.indexOf("if (!spectators.isEmpty()) ejectSpectatorsToLobby();")
-                < game.indexOf("spectators.clear();"));
+        assertTrue(game.contains("if (!getOwnedPlayers().isEmpty() && !ejectOwnedPlayersToLobby()) return;"));
+        assertFalse(game.contains("spectators.clear();"));
+        assertTrue(game.contains("return getSpectators().isEmpty();"));
+        assertTrue(game.contains("return getOwnedPlayers().isEmpty();"));
+        String manager = source("game/GameManager.java");
+        assertTrue(manager.contains("if (game != null && !game.ejectOwnedPlayersToLobby())"));
+        assertTrue(manager.indexOf("if (game != null && !game.ejectOwnedPlayersToLobby())")
+                < manager.indexOf("games.remove(game);"));
         assertTrue(hub.contains("setItem(7, item(Material.COMPASS,"));
         assertTrue(hub.contains("message(player, \"spectator.controls.item\"), \"spectator_games\""));
         assertFalse(hub.contains("setItem(8, item(Material.COMPASS,\n"

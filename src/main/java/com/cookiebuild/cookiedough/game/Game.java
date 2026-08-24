@@ -450,13 +450,12 @@ public abstract class Game implements GameStatus {
     }
 
     public void resetGame() {
-        if (!spectators.isEmpty()) ejectSpectatorsToLobby();
+        if (!getOwnedPlayers().isEmpty() && !ejectOwnedPlayersToLobby()) return;
         state = GameState.OPEN;
         admissionsOpen = GameManager.areGlobalAdmissionsOpen();
         time = 0;
         startTimer = 0;
         players.clear();
-        spectators.clear();
         queueEnteredAt.clear();
         inQuickStart = false;
         replacementRegistrationRequested = false;
@@ -484,13 +483,45 @@ public abstract class Game implements GameStatus {
     }
 
     /** Moves viewers out before a mode unloads its arena world. */
-    public void ejectSpectatorsToLobby() {
+    public boolean ejectSpectatorsToLobby() {
         for (CookiePlayer spectator : getSpectators()) {
-            if (spectator.getPlayer().isOnline()) {
-                com.cookiebuild.cookiedough.lobby.LobbyManager.teleportPlayerToLobby(spectator);
-            } else {
-                removePlayer(spectator, "game_removed");
+            try {
+                if (spectator.getPlayer().isOnline()) {
+                    com.cookiebuild.cookiedough.lobby.LobbyManager.teleportPlayerToLobby(spectator);
+                } else {
+                    removePlayer(spectator, "game_removed");
+                }
+            } catch (RuntimeException error) {
+                logEjectionFailure(spectator, error);
             }
+        }
+        return getSpectators().isEmpty();
+    }
+
+    /**
+     * Moves every player owned by this arena before reset or world unload. A
+     * failed transport deliberately preserves ownership so cleanup can retry.
+     */
+    public boolean ejectOwnedPlayersToLobby() {
+        for (CookiePlayer player : getOwnedPlayers()) {
+            try {
+                if (player.getPlayer().isOnline()) {
+                    com.cookiebuild.cookiedough.lobby.LobbyManager.teleportPlayerToLobby(player);
+                } else {
+                    removePlayer(player, "game_removed");
+                }
+            } catch (RuntimeException error) {
+                logEjectionFailure(player, error);
+            }
+        }
+        return getOwnedPlayers().isEmpty();
+    }
+
+    private void logEjectionFailure(CookiePlayer player, RuntimeException error) {
+        CookieDough plugin = CookieDough.getInstance();
+        if (plugin != null) {
+            plugin.getLogger().warning("Could not move player " + player.getPlayer().getUniqueId()
+                    + " out of " + gameName + " arena " + gameId + ": " + error.getMessage());
         }
     }
 
