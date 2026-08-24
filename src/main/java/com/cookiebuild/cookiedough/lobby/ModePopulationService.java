@@ -39,7 +39,7 @@ public final class ModePopulationService {
         GameState state = arenas.stream().map(Game::getState)
                 .min(Comparator.comparingInt(ModePopulationService::statePriority))
                 .orElse(GameState.LOADING);
-        boolean available = arenas.stream().anyMatch(game -> game.getState() == GameState.OPEN);
+        boolean available = arenas.stream().anyMatch(ModePopulationService::canAdmitOne);
         return new Snapshot(GameManager.getOnlineGamePlayerCount(modeName), state, available, false);
     }
 
@@ -51,8 +51,37 @@ public final class ModePopulationService {
     }
 
     public static boolean hasReadyMatchForOneMorePlayer() {
-        return GameManager.getGames().stream().anyMatch(game -> game.getState() == GameState.OPEN
-                && game.getPlayerCount() + 1 >= game.getMinimumPlayers());
+        return hasReadyMatchForOneMorePlayer(GameManager.getGames());
+    }
+
+    static boolean hasReadyMatchForOneMorePlayer(List<? extends Game> games) {
+        return games != null && games.stream().anyMatch(game -> {
+            int queued = GameManager.getAdmittableQueueIntentCount(game);
+            return canAdmitOne(game, queued) && canBecomeReadyWithOneMorePlayer(
+                    game.getPlayerCount(), queued, game.getMinimumPlayers(), game.getCapacity());
+        });
+    }
+
+    private static boolean canAdmitOne(Game game) {
+        return canAdmitOne(game, GameManager.getAdmittableQueueIntentCount(game));
+    }
+
+    private static boolean canAdmitOne(Game game, int validQueueIntents) {
+        return game != null && game.getState() == GameState.OPEN && game.isAdmissionsOpen()
+                && game.getPlayerCount() + validQueueIntents < game.getCapacity()
+                && game.getPartyAdmissionProblem(1) == null;
+    }
+
+    static boolean canBecomeReadyWithOneMorePlayer(int admittedPlayers, int validQueueIntents,
+            int minimumPlayers, int capacity) {
+        return admittedPlayers >= 0 && validQueueIntents >= 0 && minimumPlayers >= 1
+                && capacity >= minimumPlayers && admittedPlayers + validQueueIntents < capacity
+                && admittedPlayers + validQueueIntents + 1 >= minimumPlayers;
+    }
+
+    public static boolean isPersistentActivityAvailable(String activityName) {
+        PersistentActivity activity = ActivityRegistry.find(activityName);
+        return activity != null && activity.isAvailable();
     }
 
     private static int statePriority(GameState state) {

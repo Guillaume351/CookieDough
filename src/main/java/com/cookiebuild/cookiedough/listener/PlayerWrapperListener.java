@@ -29,6 +29,7 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import com.cookiebuild.cookiedough.CookieDough;
@@ -101,9 +102,18 @@ public class PlayerWrapperListener implements Listener {
     public static void recoverPersistentActivity(Player player, String activityName) {
         PlayerWrapperListener current = instance;
         if (current == null || player == null || activityName == null || activityName.isBlank()) return;
-        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-        if (cookiePlayer == null) cookiePlayer = new CookiePlayer(player);
-        current.holdPersistentActivity(player, cookiePlayer, activityName, true);
+        Runnable recovery = () -> {
+            UUID playerId = player.getUniqueId();
+            SessionHandle session = current.activePlayerSessions.get(playerId);
+            CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+            if (!current.acceptingPlayers || !player.isOnline() || session == null
+                    || !current.readyPlayers.contains(playerId) || cookiePlayer == null) {
+                return;
+            }
+            current.holdPersistentActivity(player, cookiePlayer, activityName, true);
+        };
+        if (Bukkit.isPrimaryThread()) recovery.run();
+        else Bukkit.getScheduler().runTask(CookieDough.getInstance(), recovery);
     }
 
     public static Date getPlayerLoginTime(UUID playerId) {
@@ -210,15 +220,30 @@ public class PlayerWrapperListener implements Listener {
                 ? (WorldPolicy.isPersistent(player.getWorld().getName())
                         ? ActivityRegistry.forWorld(player.getWorld().getName()) : null)
                 : ActivityRegistry.resumeOwner(player);
-        boolean preservePersistentState = resumeName != null || resumeActivity != null;
+        PersistentResumeRoute resumeRoute = PersistentResumeRoute.resolve(
+                resumeName != null, resumeActivity != null,
+                resumeName == null && resumeActivity != null);
+        if (resumeRoute.clearStaleMarker()) {
+            CookieDough.getInstance().getLogger().warning("Clearing unknown persistent activity marker '"
+                    + resumeName + "' for " + player.getUniqueId());
+            ActivityRegistry.clearResume(player);
+        }
+        boolean preservePersistentState = resumeRoute.preserveState();
         if (!preservePersistentState) {
             LobbyManager.teleportPlayerToLobby(cookiePlayer);
         } else {
             cookiePlayer.setState(com.cookiebuild.cookiedough.player.PlayerState.PERSISTENT_MODE);
         }
-        String resumeTarget = resumeName != null ? resumeName
-                : resumeActivity == null ? null : resumeActivity.name();
+        String resumeTarget = resumeActivity == null ? null : resumeActivity.name();
         CookiePlayer activeCookiePlayer = cookiePlayer;
+        if (preservePersistentState) {
+            CookieDough.getInstance().getPlayerTransitionFlightGuard().protectLoading(player,
+                    () -> {
+                        if (player.isOnline()) {
+                            holdPersistentActivity(player, activeCookiePlayer, resumeTarget, true);
+                        }
+                    });
+        }
 
         player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("welcome.message", player.locale(), player.getName()));
         if (resumeTarget == null) {
@@ -257,6 +282,9 @@ public class PlayerWrapperListener implements Listener {
                 if (player.isOnline()) {
                     player.sendMessage(ChatColor.RED
                             + LocaleManager.getMessage("player.profile_load_failed", player.locale()));
+                    if (resumeTarget != null) {
+                        holdPersistentActivity(player, activeCookiePlayer, resumeTarget, true);
+                    }
                 }
                 return;
             }
@@ -280,7 +308,9 @@ public class PlayerWrapperListener implements Listener {
             boolean resumedPersistent = resumeTarget != null
                     && attemptPersistentResume(player, activeCookiePlayer, resumeTarget);
             boolean awaitingPersistentRecovery = persistentRecovery.isHolding(handle.playerId());
-            if (!resumedPersistent && !awaitingPersistentRecovery) showLobbyScoreboard(player);
+            boolean resumedMatch = !resumedPersistent && !awaitingPersistentRecovery
+                    && com.cookiebuild.cookiedough.game.GameManager.tryReconnect(activeCookiePlayer);
+            if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch) showLobbyScoreboard(player);
             boolean newPlayer = newPlayerSessions.remove(handle.sessionId());
             boolean onboardingPending = onboardingPendingSessions.remove(handle.sessionId());
             FunnelTelemetry.record(player, FunnelTelemetry.Event.PLAYER_DATA_READY,
@@ -289,10 +319,10 @@ public class PlayerWrapperListener implements Listener {
             String queuedActivity = queuedPersistentActivities.remove(handle.playerId());
             boolean quickPlayQueued = queuedQuickPlay.remove(handle.playerId());
             JoinExperiencePlan experience = JoinExperiencePlan.forPlayer(onboardingPending);
-            if (!resumedPersistent && !awaitingPersistentRecovery && experience.showOnboarding()
+            if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch && experience.showOnboarding()
                     && !quickPlayQueued && queuedActivity == null) {
                 CookieDough.getInstance().getPlayerHubMenu().openOnboarding(player);
-            } else if (!resumedPersistent && !awaitingPersistentRecovery
+            } else if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch
                     && !onboardingPending && queuedActivity == null) {
                 showLobbyHint(player);
             }
@@ -302,17 +332,13 @@ public class PlayerWrapperListener implements Listener {
             if (experience.showAppPromotion()) {
                 showMobileAppPromotion(player, handle);
             }
-            if (!resumedPersistent && !awaitingPersistentRecovery
-                    && queuedActivity == null && Bukkit.getOnlinePlayers().size() <= 1) {
-                CookieDough.getInstance().getRallyManager().requestSoloLogin(player);
-            }
-            if (!resumedPersistent && !awaitingPersistentRecovery && quickPlayQueued) {
+            if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch && quickPlayQueued) {
                 if (onboardingPending) {
                     completeOnboarding(player, "quick");
                 }
                 CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
             }
-            if (!resumedPersistent && !awaitingPersistentRecovery && queuedActivity != null) {
+            if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch && queuedActivity != null) {
                 if (onboardingPending) {
                     completeOnboarding(player, "activity:" + queuedActivity);
                 }
@@ -380,12 +406,13 @@ public class PlayerWrapperListener implements Listener {
             hint = hint.append(Component.text("  •  ", NamedTextColor.DARK_GRAY))
                     .append(Component.text(LocaleManager.getMessage("lobby.solo.prompt", player.locale()),
                                     NamedTextColor.GRAY))
-                    .append(Component.text(" Discord", NamedTextColor.AQUA)
-                            .clickEvent(ClickEvent.openUrl("https://discord.gg/ajmPnwh9g8")))
-                    .append(Component.text(" + ", NamedTextColor.DARK_GRAY))
-                    .append(Component.text(LocaleManager.getMessage("lobby.solo.app", player.locale()),
-                                    NamedTextColor.LIGHT_PURPLE)
-                            .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com/#mobile-app")));
+                    .append(Component.text(" " + LocaleManager.getMessage("lobby.solo.skyblock", player.locale()),
+                                    NamedTextColor.GREEN)
+                            .clickEvent(ClickEvent.runCommand("/quickplay Skyblock")))
+                    .append(Component.text(" / ", NamedTextColor.DARK_GRAY))
+                    .append(Component.text(LocaleManager.getMessage("lobby.solo.choose", player.locale()),
+                                    NamedTextColor.AQUA)
+                            .clickEvent(ClickEvent.runCommand("/menu")));
         }
         player.sendMessage(hint);
     }
@@ -427,6 +454,7 @@ public class PlayerWrapperListener implements Listener {
         queuedPersistentActivities.remove(player.getUniqueId());
         onboardingCompletionRequested.remove(player.getUniqueId());
         CookieDough.getInstance().getPlayerHubMenu().clearPlayer(player.getUniqueId());
+        CookieDough.getInstance().getPlayerTransitionFlightGuard().abandon(player);
         cleanupScoreboard(player.getUniqueId());
 
         SessionHandle handle = activePlayerSessions.remove(player.getUniqueId());
@@ -714,6 +742,16 @@ public class PlayerWrapperListener implements Listener {
                 && persistentRecovery.isHolding(player.getUniqueId())) event.setCancelled(true);
     }
 
+    @EventHandler
+    public void onTransitionFlightToggle(PlayerToggleFlightEvent event) {
+        if (!CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                .isProtected(event.getPlayer().getUniqueId())
+                || event.getPlayer().getGameMode() == org.bukkit.GameMode.CREATIVE
+                || event.getPlayer().getGameMode() == org.bukkit.GameMode.SPECTATOR) return;
+        event.setCancelled(true);
+        event.getPlayer().setFlying(false);
+    }
+
     private boolean attemptPersistentResume(Player player, CookiePlayer cookiePlayer, String activityName) {
         boolean newHold = persistentRecovery.hold(
                 player.getUniqueId(), activityName, System.currentTimeMillis());
@@ -721,6 +759,9 @@ public class PlayerWrapperListener implements Listener {
                 .filter(candidate -> candidate.playerId().equals(player.getUniqueId()))
                 .findFirst().orElse(null);
         if (ticket == null) return false;
+        // Revoke CookieDough's join-only permission before the destination
+        // activity installs its own independent loading/landing guard.
+        CookieDough.getInstance().getPlayerTransitionFlightGuard().abandon(player);
         try {
             var admission = ActivityRegistry.enter(activityName, cookiePlayer);
             if (admission.admitted()) {
@@ -751,6 +792,13 @@ public class PlayerWrapperListener implements Listener {
         hideLobbyScoreboard(player);
         player.closeInventory();
         player.setInvulnerable(true);
+        org.bukkit.World lobby = Bukkit.getWorld("lobby");
+        if (lobby != null && (player.getWorld() != lobby || !player.isOnGround())) {
+            org.bukkit.Location safeHold = lobby.getSpawnLocation();
+            if (safeHold.getChunk().load()) {
+                CookieDough.getInstance().getPlayerTransitionFlightGuard().teleport(player, safeHold);
+            }
+        }
         if (firstHold || admissionFailed) {
             player.sendMessage(Component.text(LocaleManager.getMessage(
                     "persistent.resume_unavailable", player.locale()), NamedTextColor.RED));

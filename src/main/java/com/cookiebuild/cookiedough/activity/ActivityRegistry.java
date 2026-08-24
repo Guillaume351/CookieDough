@@ -96,6 +96,12 @@ public final class ActivityRegistry {
         return left;
     }
 
+    public static boolean canLeave(CookiePlayer player, String reason) {
+        if (player == null || player.getPlayer() == null) return true;
+        PersistentActivity activity = owner(player.getPlayer().getUniqueId());
+        return activity == null || activity.canLeave(player, reason == null ? "unknown" : reason);
+    }
+
     static void clearForTests() {
         ACTIVITIES.clear();
     }

@@ -144,6 +144,11 @@ public final class PartyManager {
     }
 
     public String queueParty(Player requester) {
+        return queueParty(requester, null);
+    }
+
+    /** Queues the entire durable party for one exact arena without splitting it. */
+    public String queueParty(Player requester, Game requestedGame) {
         if (!isAvailable()) {
             return UNAVAILABLE;
         }
@@ -162,21 +167,29 @@ public final class PartyManager {
                 member.getPlayer().getUniqueId()))) {
             return "A party member's profile is still loading.";
         }
-        PartyGameSelection selection = selectPartyGame(GameManager.getGames(), members.size());
+        PartyGameSelection selection = requestedGame == null
+                ? selectPartyGame(GameManager.getGames(), members.size())
+                : requestedGame.getState() == com.cookiebuild.cookiedough.game.GameState.OPEN
+                        && requestedGame.isAdmissionsOpen()
+                        && requestedGame.getPartyAdmissionProblem(members.size()) == null
+                                ? new PartyGameSelection(requestedGame, "")
+                                : new PartyGameSelection(null,
+                                        requestedGame.getPartyAdmissionProblem(members.size()) == null
+                                                ? "That queue is no longer available for the whole party."
+                                                : requestedGame.getPartyAdmissionProblem(members.size()));
         Game game = selection.game();
         if (game == null) {
             return selection.rejectionReason();
         }
-        List<CookiePlayer> added = new ArrayList<>();
-        for (CookiePlayer member : members) {
-            if (!game.addPlayerToAvailableTeam(member)) {
-                added.forEach(addedMember -> game.removePlayer(addedMember, "party_admission_rollback"));
-                return "The party could not join together. Please try again.";
-            }
-            added.add(member);
+        if (!GameManager.registerPartyQueueIntent(members, game, party.id())) {
+            return com.cookiebuild.cookiedough.utils.LocaleManager.getMessage(
+                    "lobby.queue.leave_failed", requester.locale());
         }
-        broadcast(party.id(), "Party Quick Play: joined " + game.getGameName() + " ("
-                + game.getPlayerCount() + "/" + game.getCapacity() + ").");
+        for (CookiePlayer member : members) {
+            member.getPlayer().sendMessage(ChatColor.GOLD + "[Party] " + ChatColor.GREEN
+                    + com.cookiebuild.cookiedough.utils.LocaleManager.getMessage(
+                            "lobby.queue.intent_registered", member.getPlayer().locale(), game.getGameName()));
+        }
         return "";
     }
 
@@ -217,6 +230,35 @@ public final class PartyManager {
     public List<UUID> getMembers(UUID playerId) {
         PartyRepository.Party party = coordinator.snapshot().partyFor(playerId);
         return party == null ? List.of() : party.members();
+    }
+
+    /**
+     * Confirms that a passive queue cohort still represents the complete durable
+     * party after an in-game leave/join or a periodic mobile-app refresh.
+     */
+    public boolean isCurrentQueueCohort(UUID cohortId, List<UUID> memberIds) {
+        return currentPartyMatches(coordinator.snapshot(), cohortId, memberIds);
+    }
+
+    /** A previously solo queue must stop being solo as soon as the player joins a party. */
+    public boolean isCurrentSoloQueueCohort(UUID playerId) {
+        return currentSoloPlayerHasNoParty(coordinator.snapshot(), playerId);
+    }
+
+    static boolean currentSoloPlayerHasNoParty(PartyRepository.Snapshot snapshot, UUID playerId) {
+        return snapshot != null && playerId != null && snapshot.partyFor(playerId) == null;
+    }
+
+    static boolean currentPartyMatches(PartyRepository.Snapshot snapshot, UUID cohortId,
+            List<UUID> memberIds) {
+        if (snapshot == null || cohortId == null || memberIds == null || memberIds.isEmpty()
+                || memberIds.stream().anyMatch(java.util.Objects::isNull)
+                || memberIds.stream().distinct().count() != memberIds.size()) {
+            return false;
+        }
+        PartyRepository.Party party = snapshot.parties().get(cohortId);
+        return party != null && party.members().size() == memberIds.size()
+                && java.util.Set.copyOf(party.members()).equals(java.util.Set.copyOf(memberIds));
     }
 
     public String describe(Player player) {

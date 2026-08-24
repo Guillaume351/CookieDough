@@ -82,6 +82,12 @@ public final class PlayerHubMenu implements Listener {
         player.openInventory(mainInventory(player));
     }
 
+    /** Cross-mode game selection without forcing a passive activity to close. */
+    public void openGames(Player player) {
+        if (player == null || !player.isOnline()) return;
+        openPage(player, MenuPage.GAMES);
+    }
+
     /** Shown until its first successful display; it deliberately fits on one page. */
     public boolean openOnboarding(Player player) {
         onboardingPlayers.add(player.getUniqueId());
@@ -145,6 +151,19 @@ public final class PlayerHubMenu implements Listener {
         if (hasAction(item, "queue")) player.getInventory().setItem(8, null);
     }
 
+    public void enterSpectator(Player player) {
+        if (player == null || !player.isOnline()) return;
+        player.getInventory().setItem(7, item(Material.COMPASS,
+                message(player, "spectator.controls.item"), "spectator_games",
+                message(player, "spectator.controls.item_lore")));
+    }
+
+    public void leaveSpectator(Player player) {
+        if (player == null) return;
+        ItemStack item = player.getInventory().getItem(7);
+        if (hasAction(item, "spectator_games")) player.getInventory().setItem(7, null);
+    }
+
     public void clearPlayer(UUID playerId) {
         if (playerId == null) return;
         queuedGames.remove(playerId);
@@ -175,6 +194,12 @@ public final class PlayerHubMenu implements Listener {
         player.openInventory(replayInventory(player, gameName));
     }
 
+    /** Non-forcing solo fallback shared by Java inventories and Bedrock forms. */
+    public void openSoloSuggestion(Player player) {
+        if (player == null || !player.isOnline()) return;
+        openPage(player, MenuPage.SOLO);
+    }
+
     private Inventory mainInventory(Player player) {
         MenuHolder holder = new MenuHolder(MenuPage.MAIN, 27,
                 Component.text(message(player, "hub.title"), NamedTextColor.GOLD));
@@ -202,11 +227,9 @@ public final class PlayerHubMenu implements Listener {
         MenuHolder holder = new MenuHolder(MenuPage.ONBOARDING, 27,
                 Component.text(message(player, "hub.onboarding.title"), NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
-        String primaryAction = onboardingPrimaryAction();
-        boolean solo = primaryAction.startsWith("game:join:");
-        inventory.setItem(11, item(solo ? Material.GRASS_BLOCK : Material.NETHER_STAR,
-                message(player, solo ? "hub.onboarding.solo_name" : "hub.quick.name"), primaryAction,
-                message(player, solo ? "hub.onboarding.solo_lore" : "hub.quick.lore")));
+        OnboardingPrimaryButton primary = onboardingPrimaryButton(onboardingPrimaryAction());
+        inventory.setItem(11, item(primary.material(), message(player, primary.nameKey()), primary.action(),
+                message(player, primary.loreKey())));
         inventory.setItem(13, item(Material.GRASS_BLOCK, message(player, "hub.games.name"), "games",
                 message(player, "hub.onboarding.games_lore")));
         inventory.setItem(15, item(Material.ENDER_EYE, message(player, "hub.onboarding.community_name"), "community",
@@ -222,12 +245,25 @@ public final class PlayerHubMenu implements Listener {
         MenuHolder holder = new MenuHolder(MenuPage.GAMES, 36,
                 Component.text(model.title(), NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
-        int[] slots = { 9, 11, 13, 15, 17, 21, 23 };
+        int[] slots = { 4, 9, 11, 13, 15, 17, 21, 23 };
         for (int index = 0; index < model.entries().size(); index++) {
             HubGameMenuModel.Entry entry = model.entries().get(index);
             inventory.setItem(slots[index], item(entry.icon(), entry.label(), entry.action(), entry.detail()));
         }
         inventory.setItem(31, item(Material.ARROW, message(player, "hub.back"), "back",
+                message(player, "hub.back_lore")));
+        return inventory;
+    }
+
+    private Inventory soloInventory(Player player) {
+        MenuHolder holder = new MenuHolder(MenuPage.SOLO, 27,
+                Component.text(message(player, "lobby.solo.prompt"), NamedTextColor.GOLD));
+        Inventory inventory = holder.inventory();
+        inventory.setItem(11, item(Material.GRASS_BLOCK, message(player, "lobby.solo.skyblock"),
+                "game:join:Skyblock", message(player, "hub.onboarding.solo_lore")));
+        inventory.setItem(15, item(Material.COMPASS, message(player, "lobby.solo.choose"),
+                "games", message(player, "hub.games.lore")));
+        inventory.setItem(22, item(Material.ARROW, message(player, "hub.back"), "back",
                 message(player, "hub.back_lore")));
         return inventory;
     }
@@ -239,7 +275,7 @@ public final class PlayerHubMenu implements Listener {
         Inventory inventory = holder.inventory();
         GamePresentation game = GamePresentation.find(gameName).orElseThrow();
         inventory.setItem(4, item(game.icon(), model.title(), "noop", model.content().split("\\n")));
-        int[] slots = { 11, 15, 22 };
+        int[] slots = model.entries().size() == 4 ? new int[] { 10, 12, 14, 16 } : new int[] { 11, 15, 22 };
         for (int index = 0; index < model.entries().size(); index++) {
             HubGameMenuModel.Entry entry = model.entries().get(index);
             inventory.setItem(slots[index], item(entry.icon(), entry.label(), entry.action(), entry.detail()));
@@ -329,11 +365,13 @@ public final class PlayerHubMenu implements Listener {
         if (event.getHand() != EquipmentSlot.HAND
                 || (event.getAction() != Action.RIGHT_CLICK_AIR
                         && event.getAction() != Action.RIGHT_CLICK_BLOCK)
-                || !hasAction(event.getItem(), "queue")) {
+                || (!hasAction(event.getItem(), "queue")
+                        && !hasAction(event.getItem(), "spectator_games"))) {
             return;
         }
         event.setCancelled(true);
-        openQueue(event.getPlayer());
+        if (hasAction(event.getItem(), "queue")) openQueue(event.getPlayer());
+        else openGames(event.getPlayer());
     }
 
     private void dispatch(Player player, String action, MenuPage source, String context) {
@@ -349,8 +387,29 @@ public final class PlayerHubMenu implements Listener {
         if (action.startsWith("game:join:")) {
             String gameName = action.substring("game:join:".length());
             if (GamePresentation.find(gameName).isEmpty()) return;
+            if (plugin.getPartyManager().getPartyId(player.getUniqueId()) != null) {
+                Game target = GameManager.getOpenGameByName(gameName);
+                if (target == null) {
+                    player.sendMessage(org.bukkit.ChatColor.YELLOW + message(
+                            player, "lobby.party.direct_solo_only"));
+                    return;
+                }
+                player.closeInventory();
+                String result = plugin.getPartyManager().queueParty(player, target);
+                if (result != null && !result.isBlank()) {
+                    player.sendMessage(org.bukkit.ChatColor.YELLOW + result);
+                }
+                return;
+            }
             player.closeInventory();
             lobby.requestActivity(player, gameName);
+            return;
+        }
+        if (action.startsWith("game:spectate:")) {
+            String gameName = action.substring("game:spectate:".length());
+            if (GamePresentation.find(gameName).isEmpty()) return;
+            player.closeInventory();
+            lobby.requestSpectate(player, gameName);
             return;
         }
         if (action.startsWith("queue:")) {
@@ -364,7 +423,9 @@ public final class PlayerHubMenu implements Listener {
         switch (action) {
             case "quick" -> {
                 player.closeInventory();
-                lobby.requestQuickPlay(player);
+                String partyResult = plugin.getPartyManager().queueParty(player);
+                if (partyResult == null) lobby.requestQuickPlay(player);
+                else if (!partyResult.isBlank()) player.sendMessage(ChatColor.YELLOW + partyResult);
             }
             case "games" -> openPage(player, MenuPage.GAMES);
             case "goals" -> openPage(player, MenuPage.GOALS);
@@ -459,6 +520,7 @@ public final class PlayerHubMenu implements Listener {
             case MAIN -> mainInventory(player);
             case ONBOARDING -> onboardingInventory(player);
             case GAMES -> gamesInventory(player);
+            case SOLO -> soloInventory(player);
             case GAME_DETAIL -> gameDetailInventory(player, context);
             case GOALS -> goalsInventory(player);
             case QUEUE, REPLAY -> throw new IllegalArgumentException("Context is required for " + page);
@@ -483,16 +545,15 @@ public final class PlayerHubMenu implements Listener {
                 case ONBOARDING -> {
                     builder.title("§l§6" + message(player, "hub.onboarding.title"))
                             .content(message(player, "hub.onboarding.content"));
-                    String primaryAction = onboardingPrimaryAction();
-                    boolean solo = primaryAction.startsWith("game:join:");
-                    if (solo) {
+                    OnboardingPrimaryButton primary = onboardingPrimaryButton(onboardingPrimaryAction());
+                    String primaryLabel = BedrockButtonText.format(
+                            message(player, primary.nameKey()), message(player, primary.loreKey()));
+                    if (primary.texture() != null) {
                         button(builder, actions, BedrockButtonText.format(
-                                message(player, "hub.onboarding.solo_name"),
-                                message(player, "hub.onboarding.solo_lore")),
-                                primaryAction, "modes/skyblock");
+                                message(player, primary.nameKey()), message(player, primary.loreKey())),
+                                primary.action(), primary.texture());
                     } else {
-                        hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.quick.name"),
-                                message(player, "hub.quick.lore")), "quick");
+                        hubButton(builder, actions, primaryLabel, primary.action());
                     }
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.games.name"),
                             message(player, "hub.onboarding.games_lore")), "games");
@@ -538,6 +599,17 @@ public final class PlayerHubMenu implements Listener {
                         button(builder, actions, BedrockButtonText.format(entry.label(), entry.detail()),
                                 entry.action(), entry.bedrockTexture());
                     }
+                }
+                case SOLO -> {
+                    builder.title("§l§6" + message(player, "lobby.solo.prompt"))
+                            .content(message(player, "hub.onboarding.solo_lore"));
+                    button(builder, actions, BedrockButtonText.format(
+                            message(player, "lobby.solo.skyblock"),
+                            message(player, "hub.onboarding.solo_lore")),
+                            "game:join:Skyblock", "modes/skyblock");
+                    hubButton(builder, actions, BedrockButtonText.format(
+                            message(player, "lobby.solo.choose"), message(player, "hub.games.lore")), "games");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.back")), "back");
                 }
                 case GOALS -> {
                     builder.title("§l§6" + message(player, "hub.goals.title"))
@@ -653,9 +725,32 @@ public final class PlayerHubMenu implements Listener {
         return gameName == null ? "" : gameName.replaceAll("[^A-Za-z0-9_-]", "");
     }
 
-    private static String onboardingPrimaryAction() {
-        return ModePopulationService.hasReadyMatchForOneMorePlayer() ? "quick" : "game:join:Skyblock";
+    static String onboardingPrimaryAction() {
+        return chooseOnboardingPrimaryAction(ModePopulationService.hasReadyMatchForOneMorePlayer(),
+                ModePopulationService.isPersistentActivityAvailable("Skyblock"));
     }
+
+    static String chooseOnboardingPrimaryAction(boolean matchReady, boolean skyblockAvailable) {
+        if (matchReady) return "quick";
+        return skyblockAvailable ? "game:join:Skyblock" : "games";
+    }
+
+    static OnboardingPrimaryButton onboardingPrimaryButton(String action) {
+        return switch (action) {
+            case "quick" -> new OnboardingPrimaryButton("quick", Material.NETHER_STAR,
+                    "hub.quick.name", "hub.quick.lore", null);
+            case "game:join:Skyblock" -> new OnboardingPrimaryButton("game:join:Skyblock",
+                    Material.GRASS_BLOCK, "hub.onboarding.solo_name", "hub.onboarding.solo_lore",
+                    "modes/skyblock");
+            case "games" -> new OnboardingPrimaryButton("games", Material.GRASS_BLOCK,
+                    "hub.games.name", "hub.onboarding.games_lore", null);
+            default -> new OnboardingPrimaryButton("games", Material.GRASS_BLOCK,
+                    "hub.games.name", "hub.onboarding.games_lore", null);
+        };
+    }
+
+    record OnboardingPrimaryButton(String action, Material material, String nameKey,
+            String loreKey, String texture) { }
 
     private static String progress(String label, int current, int target) {
         return (current >= target ? "✓ " : "• ") + label + ": " + current + "/" + target;
@@ -665,6 +760,7 @@ public final class PlayerHubMenu implements Listener {
         ONBOARDING,
         MAIN,
         GAMES,
+        SOLO,
         GAME_DETAIL,
         GOALS,
         QUEUE,

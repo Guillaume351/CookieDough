@@ -131,6 +131,20 @@ class GameLifecycleTest {
     }
 
     @Test
+    void failedArenaEjectionKeepsTheGameRegisteredUntilAValidRetry() {
+        TestGame game = new TestGame("SkyWars");
+        GameManager.addGame(game);
+        game.setEjectionAllowed(false);
+
+        GameManager.removeGame(game);
+
+        assertTrue(GameManager.getGames().contains(game));
+        game.setEjectionAllowed(true);
+        GameManager.removeGame(game);
+        assertFalse(GameManager.getGames().contains(game));
+    }
+
+    @Test
     void anIneligibleTeamCompositionNeverAdvancesTheCountdown() throws Exception {
         TestGame game = new TestGame("BedWars");
         game.setCountdownEligible(false);
@@ -223,6 +237,7 @@ class GameLifecycleTest {
 
     private static final class TestGame extends Game {
         private boolean countdownEligible = true;
+        private boolean ejectionAllowed = true;
         private int startCalls;
 
         private TestGame(String name) {
@@ -235,6 +250,16 @@ class GameLifecycleTest {
 
         private int startCalls() {
             return startCalls;
+        }
+
+        private void setEjectionAllowed(boolean ejectionAllowed) {
+            this.ejectionAllowed = ejectionAllowed;
+        }
+
+        @Override public boolean ejectOwnedPlayersToLobby() {
+            if (!ejectionAllowed) return false;
+            for (CookiePlayer player : getOwnedPlayers()) removePlayer(player, "test_cleanup");
+            return true;
         }
 
         @Override protected boolean canStartCountdown() {

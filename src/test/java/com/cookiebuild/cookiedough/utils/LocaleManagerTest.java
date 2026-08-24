@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough.utils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,11 +71,16 @@ class LocaleManagerTest {
                 "Allenamento di reazione avviato. Il tuo posto in coda è al sicuro: attendi GO!, poi fai clic con il tasto destro.",
                 LocaleManager.getMessage("practice.started", Locale.ITALIAN));
         assertEquals(
+                "Start Skyblock",
+                LocaleManager.getMessage("hub.onboarding.solo_name", Locale.of("pa", "IN")));
+        assertEquals(
                 "Reaction practice started. Your queue slot is safe: wait for GO!, then right-click.",
                 LocaleManager.getMessage("practice.started", Locale.JAPANESE));
         assertEquals(
                 "Welcome to Cookie Build, Alex!",
                 LocaleManager.getMessage("welcome.message", null, "Alex"));
+        assertTrue(LocaleManager.getMessage("lobby.queue.intent_game_closed", Locale.ENGLISH, "BedWars")
+                .contains("queue registration is still active"));
     }
 
     private static ResourceBundle bundle(Locale locale) {

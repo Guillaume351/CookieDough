@@ -243,6 +243,7 @@ public class GameNPC {
         String displayName = presentation.displayName(player.locale());
         if (game != null && game.getState() == GameState.OPEN) {
             if (game.addPlayerToAvailableTeam(cookiePlayer)) {
+                GameManager.cancelQueueIntent(player.getUniqueId());
                 player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("lobby.npc.joined",
                         player.locale(), displayName, presentation.description(player.locale())));
             } else {

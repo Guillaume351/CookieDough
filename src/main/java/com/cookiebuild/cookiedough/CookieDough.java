@@ -50,6 +50,7 @@ import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.service.PlayerSessionRecoveryService;
 import com.cookiebuild.cookiedough.service.MobileLinkService;
+import com.cookiebuild.cookiedough.listener.PlayerTransitionFlightGuard;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
 
@@ -70,6 +71,7 @@ public final class CookieDough extends JavaPlugin {
     private MobileLinkService mobileLinkService;
     private AppLinkCommand appLinkCommand;
     private AdminBridge adminBridge;
+    private PlayerTransitionFlightGuard playerTransitionFlightGuard;
 
     public static CookieDough getInstance() {
         return instance;
@@ -119,6 +121,10 @@ public final class CookieDough extends JavaPlugin {
 
     public PracticeManager getPracticeManager() {
         return practiceManager;
+    }
+
+    public PlayerTransitionFlightGuard getPlayerTransitionFlightGuard() {
+        return playerTransitionFlightGuard;
     }
 
     public PlayerGoalTracker getGoalTracker() {
@@ -173,6 +179,7 @@ public final class CookieDough extends JavaPlugin {
                     + " player session(s) left open by the previous server process");
         }
         getLocaleManager();
+        playerTransitionFlightGuard = new PlayerTransitionFlightGuard(this);
         chatManager = new ChatManager();
         partyManager = new PartyManager(this);
         rallyManager = new RallyManager(this);

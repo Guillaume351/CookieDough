@@ -7,7 +7,10 @@ import java.util.Map;
 import java.util.HashMap;
 
 import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.Sound;
+import org.bukkit.entity.Player;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
@@ -25,6 +28,7 @@ public abstract class Game implements GameStatus {
     protected int QUICK_START_DELAY_SECONDS = 10;
 
     private final List<CookiePlayer> players;
+    private final Map<UUID, CookiePlayer> spectators = new HashMap<>();
     private final Map<UUID, Long> queueEnteredAt = new HashMap<>();
 
     private final UUID gameId;
@@ -98,18 +102,47 @@ public abstract class Game implements GameStatus {
      * before calling this method; normal admission remains restricted to OPEN.
      */
     protected synchronized boolean restorePlayerAfterReconnect(CookiePlayer player) {
-        if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()
-                || state != GameState.RUNNING) {
-            return false;
-        }
+        if (!canRestorePlayerAfterReconnect(player)) return false;
         UUID playerId = player.getPlayer().getUniqueId();
         players.removeIf(existing -> existing.getPlayer().getUniqueId().equals(playerId));
-        if (players.size() >= capacity) {
-            return false;
-        }
         players.add(player);
         player.setState(PlayerState.IN_GAME);
         PlayerWrapperListener.hideLobbyScoreboard(player.getPlayer());
+        return true;
+    }
+
+    /** Read-only roster preflight used before a custom reconnect moves the player. */
+    protected synchronized boolean canRestorePlayerAfterReconnect(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()
+                || state != GameState.RUNNING) return false;
+        UUID playerId = player.getPlayer().getUniqueId();
+        long otherPlayers = players.stream().filter(existing ->
+                !existing.getPlayer().getUniqueId().equals(playerId)).count();
+        return otherPlayers < capacity;
+    }
+
+    /** Admits a read-only viewer without consuming a participant slot. */
+    public synchronized boolean addSpectator(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()
+                || state != GameState.RUNNING || !supportsSpectating()
+                || player.getState() != PlayerState.LOBBY
+                || GameManager.getGameOfPlayer(player) != null) {
+            return false;
+        }
+        UUID playerId = player.getPlayer().getUniqueId();
+        if (spectators.containsKey(playerId)) return true;
+        if (!teleportToSpectator(player)) return false;
+        CookieDough.getInstance().getPracticeManager().stop(player.getPlayer(), false);
+        spectators.put(playerId, player);
+        player.setState(PlayerState.SPECTATING);
+        PlayerWrapperListener.hideLobbyScoreboard(player.getPlayer());
+        if (CookieDough.getInstance().getPlayerHubMenu() != null) {
+            CookieDough.getInstance().getPlayerHubMenu().enterSpectator(player.getPlayer());
+        }
+        player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
+                "game.spectate.joined", player.getPlayer().locale(), gameName));
+        FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.SPECTATOR_JOINED,
+                "game=" + gameName);
         return true;
     }
 
@@ -118,6 +151,17 @@ public abstract class Game implements GameStatus {
     }
 
     public synchronized void removePlayer(CookiePlayer player, String reason) {
+        if (player != null && player.getPlayer() != null
+                && spectators.remove(player.getPlayer().getUniqueId()) != null) {
+            onSpectatorRemoved(player);
+            if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
+                CookieDough.getInstance().getPlayerHubMenu().leaveSpectator(player.getPlayer());
+            }
+            if (player.getPlayer().isOnline() && player.getState() == PlayerState.SPECTATING) {
+                player.setState(PlayerState.LOBBY);
+            }
+            return;
+        }
         boolean playerWasRemoved = players.remove(player);
         if (playerWasRemoved) {
             Long queuedAt = queueEnteredAt.remove(player.getPlayer().getUniqueId());
@@ -162,8 +206,34 @@ public abstract class Game implements GameStatus {
         // Optional hook.
     }
 
+    /** Game modules can clear viewer-only state when a spectator leaves. */
+    protected void onSpectatorRemoved(CookiePlayer player) {
+        // Optional hook.
+    }
+
     public List<CookiePlayer> getPlayers() {
         return new ArrayList<>(players); // Return a copy to avoid external modification
+    }
+
+    public synchronized List<CookiePlayer> getSpectators() {
+        return new ArrayList<>(spectators.values());
+    }
+
+    public synchronized List<CookiePlayer> getOwnedPlayers() {
+        List<CookiePlayer> owned = new ArrayList<>(players);
+        owned.addAll(spectators.values());
+        return owned;
+    }
+
+    public synchronized boolean ownsPlayer(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null) return false;
+        UUID playerId = player.getPlayer().getUniqueId();
+        return players.stream().anyMatch(existing -> existing.getPlayer().getUniqueId().equals(playerId))
+                || spectators.containsKey(playerId);
+    }
+
+    public synchronized boolean isExternalSpectator(UUID playerId) {
+        return playerId != null && spectators.containsKey(playerId);
     }
 
     public void tick() {
@@ -173,6 +243,7 @@ public abstract class Game implements GameStatus {
             emitQueueState();
         }
         if (state == GameState.OPEN) {
+            GameManager.activateReadyQueueIntents(this);
             int availablePlayers = GameManager.getAvailablePlayerCount();
             if (canStartCountdown()) {
                 boolean quickStartCondition = availablePlayers == 0 || players.size() == capacity;
@@ -270,6 +341,7 @@ public abstract class Game implements GameStatus {
         state = GameState.RUNNING;
         admissionsOpen = false;
         isFilling = false;
+        GameManager.reassignQueueIntents(this);
         emitQueueState();
         GameManager.notifyGameChanged(this, "started");
         for (CookiePlayer player : players) {
@@ -325,11 +397,60 @@ public abstract class Game implements GameStatus {
 
     protected abstract void teleportToGame(CookiePlayer player);
 
+    /** Cross-world transport with chunk preflight and a bounded anti-floating window. */
+    protected final void teleportPlayerSafely(Player player, Location destination) {
+        if (!tryTeleportPlayerSafely(player, destination)) {
+            throw new IllegalStateException("Could not safely teleport player into " + gameName);
+        }
+    }
+
+    /** Fallible variant for reconnects, which must preserve their reservation on failure. */
+    protected final boolean tryTeleportPlayerSafely(Player player, Location destination) {
+        return player != null && destination != null && destination.getWorld() != null
+                && destination.getChunk().load()
+                && CookieDough.getInstance().getPlayerTransitionFlightGuard().teleport(player, destination);
+    }
+
+    /** Whether this mode exposes its live arena to lobby spectators. */
+    public boolean supportsSpectating() {
+        return false;
+    }
+
+    /**
+     * Resolves the mode-owned destination without mutating the player. Modules
+     * must reject unavailable maps/worlds here so a passive activity is never
+     * left before the target arena is ready.
+     */
+    protected Location spectatorDestination(CookiePlayer player) {
+        return null;
+    }
+
+    /** Loads the exact destination before the source activity is released. */
+    public synchronized boolean preflightSpectatorAdmission(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()
+                || state != GameState.RUNNING || !supportsSpectating()) return false;
+        Location destination = spectatorDestination(player);
+        return destination != null && destination.getWorld() != null && destination.getChunk().load();
+    }
+
+    /** Places a viewer at the already-preflighted safe mode-owned point. */
+    protected boolean teleportToSpectator(CookiePlayer player) {
+        Location destination = spectatorDestination(player);
+        if (destination == null || destination.getWorld() == null
+                || !destination.getChunk().load()
+                || !CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                        .teleport(player.getPlayer(), destination)) return false;
+        player.resetPlayer();
+        player.getPlayer().setGameMode(GameMode.SPECTATOR);
+        return true;
+    }
+
     public boolean hasStarted() {
         return state == GameState.RUNNING;
     }
 
     public void resetGame() {
+        if (!getOwnedPlayers().isEmpty() && !ejectOwnedPlayersToLobby()) return;
         state = GameState.OPEN;
         admissionsOpen = GameManager.areGlobalAdmissionsOpen();
         time = 0;
@@ -351,7 +472,7 @@ public abstract class Game implements GameStatus {
     public void shutdown() {
         closeAdmissions();
         setState(GameState.FINISHED);
-        for (CookiePlayer player : getPlayers()) {
+        for (CookiePlayer player : getOwnedPlayers()) {
             if (player.getPlayer().isOnline()) {
                 com.cookiebuild.cookiedough.lobby.LobbyManager.teleportPlayerToLobby(player);
             } else {
@@ -359,6 +480,49 @@ public abstract class Game implements GameStatus {
             }
         }
         GameManager.removeGame(this);
+    }
+
+    /** Moves viewers out before a mode unloads its arena world. */
+    public boolean ejectSpectatorsToLobby() {
+        for (CookiePlayer spectator : getSpectators()) {
+            try {
+                if (spectator.getPlayer().isOnline()) {
+                    com.cookiebuild.cookiedough.lobby.LobbyManager.teleportPlayerToLobby(spectator);
+                } else {
+                    removePlayer(spectator, "game_removed");
+                }
+            } catch (RuntimeException error) {
+                logEjectionFailure(spectator, error);
+            }
+        }
+        return getSpectators().isEmpty();
+    }
+
+    /**
+     * Moves every player owned by this arena before reset or world unload. A
+     * failed transport deliberately preserves ownership so cleanup can retry.
+     */
+    public boolean ejectOwnedPlayersToLobby() {
+        for (CookiePlayer player : getOwnedPlayers()) {
+            try {
+                if (player.getPlayer().isOnline()) {
+                    com.cookiebuild.cookiedough.lobby.LobbyManager.teleportPlayerToLobby(player);
+                } else {
+                    removePlayer(player, "game_removed");
+                }
+            } catch (RuntimeException error) {
+                logEjectionFailure(player, error);
+            }
+        }
+        return getOwnedPlayers().isEmpty();
+    }
+
+    private void logEjectionFailure(CookiePlayer player, RuntimeException error) {
+        CookieDough plugin = CookieDough.getInstance();
+        if (plugin != null) {
+            plugin.getLogger().warning("Could not move player " + player.getPlayer().getUniqueId()
+                    + " out of " + gameName + " arena " + gameId + ": " + error.getMessage());
+        }
     }
 
     /** Call once when the result is known to expose a consistent replay action. */
@@ -369,6 +533,8 @@ public abstract class Game implements GameStatus {
             }
             FunnelTelemetry.record(cookiePlayer.getPlayer(), FunnelTelemetry.Event.MATCH_COMPLETED,
                     "game=" + gameName);
+            boolean bedrockQueueOffer = CookieDough.getInstance().getRallyManager()
+                    .notifyAvailableAfterMatch(cookiePlayer.getPlayer(), gameName);
             cookiePlayer.getPlayer().sendMessage(net.kyori.adventure.text.Component.text(
                             LocaleManager.getMessage("feedback.action", cookiePlayer.getPlayer().locale()),
                             net.kyori.adventure.text.format.NamedTextColor.AQUA)
@@ -376,7 +542,8 @@ public abstract class Game implements GameStatus {
                     .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
                             net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
                                     "feedback.hover", cookiePlayer.getPlayer().locale())))));
-            if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
+            if (!bedrockQueueOffer && CookieDough.getInstance() != null
+                    && CookieDough.getInstance().getPlayerHubMenu() != null) {
                 CookieDough.getInstance().getPlayerHubMenu().openReplay(cookiePlayer.getPlayer(), gameName);
             }
         }

@@ -3,6 +3,8 @@ package com.cookiebuild.cookiedough.lobby;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
@@ -32,6 +34,7 @@ import org.bukkit.scheduler.BukkitTask;
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.activity.ActivityAdmissionResult;
 import com.cookiebuild.cookiedough.activity.ActivityRegistry;
+import com.cookiebuild.cookiedough.activity.PersistentActivity;
 import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
@@ -55,6 +58,8 @@ public class LobbyManager implements Listener {
 
     // Singleton
     private static LobbyManager instance;
+
+    private record PassiveSource(PersistentActivity activity, Game spectatorGame) { }
 
     public LobbyManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -433,46 +438,86 @@ public class LobbyManager implements Listener {
         }
     }
 
-    public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {
+    public static boolean teleportPlayerToLobby(CookiePlayer cookiePlayer) {
         if (cookiePlayer == null || cookiePlayer.getPlayer() == null) {
-            return;
+            return false;
         }
         Player player = cookiePlayer.getPlayer();
         World lobbyWorld = Bukkit.getWorld("lobby");
-        if (lobbyWorld != null) {
-            CookieDough.getInstance().getPracticeManager().stop(player, false);
-            if (!ActivityRegistry.leave(cookiePlayer, "returned_lobby")) {
-                return;
-            }
-            // Remove active players and eliminated spectators from their roster.
-            Game currentGame = GameManager.getGameOfPlayer(cookiePlayer);
-            if (currentGame != null) {
-                currentGame.removePlayer(cookiePlayer, "returned_lobby");
-            } else if (cookiePlayer.getState() == PlayerState.QUEUED
-                    || cookiePlayer.getState() == PlayerState.IN_GAME
-                    || cookiePlayer.getState() == PlayerState.SPECTATING) {
-                    CookieDough.getInstance().getLogger().severe("Player " + cookiePlayer.getPlayer().getName()
-                            + " is in a game but no game was found.");
-            }
-            cookiePlayer.resetPlayer();
-            cookiePlayer.setState(PlayerState.LOBBY);
-
-            Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
-            player.teleport(lobbySpawnLocation);
-            CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
-
-            giveQuickPlayItem(player);
-            player.saveData();
-            PlayerWrapperListener.showLobbyScoreboard(player);
-            FunnelTelemetry.record(player, FunnelTelemetry.Event.LOBBY_READY, "world=lobby");
-        } else {
+        if (lobbyWorld == null) {
             CookieDough.getInstance().getLogger().severe("Lobby world 'lobby' is not loaded!");
+            return false;
         }
+
+        Location sourceLocation = player.getLocation().clone();
+        Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
+        if (!lobbySpawnLocation.getChunk().load()
+                || !ActivityRegistry.canLeave(cookiePlayer, "returned_lobby")
+                || !CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                        .teleport(player, lobbySpawnLocation)) {
+            CookieDough.getInstance().getLogger().severe(
+                    "Could not safely teleport " + player.getName() + " to the lobby");
+            return false;
+        }
+
+        // No source is destroyed until the destination teleport is acknowledged.
+        // canLeave and leave execute synchronously on the main thread, so this
+        // second check closes the contract without exposing an interaction tick.
+        if (!ActivityRegistry.leave(cookiePlayer, "returned_lobby")) {
+            CookieDough.getInstance().getLogger().severe(
+                    "Could not leave the current activity after teleporting " + player.getName());
+            if (!sourceLocation.getChunk().load()
+                    || !CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                            .teleport(player, sourceLocation)) {
+                CookieDough.getInstance().getLogger().severe(
+                        "Could not restore " + player.getName() + " to the source after a rejected lobby leave");
+            }
+            return false;
+        }
+        CookieDough.getInstance().getPracticeManager().stop(player, false);
+        // Remove active players and eliminated spectators from their roster.
+        Game currentGame = GameManager.getGameOfPlayer(cookiePlayer);
+        if (currentGame != null) {
+            currentGame.removePlayer(cookiePlayer, "returned_lobby");
+        } else if (cookiePlayer.getState() == PlayerState.QUEUED
+                || cookiePlayer.getState() == PlayerState.IN_GAME
+                || cookiePlayer.getState() == PlayerState.SPECTATING) {
+                CookieDough.getInstance().getLogger().severe("Player " + cookiePlayer.getPlayer().getName()
+                        + " is in a game but no game was found.");
+        }
+        cookiePlayer.resetPlayer();
+        cookiePlayer.setState(PlayerState.LOBBY);
+        CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
+
+        giveQuickPlayItem(player);
+        player.saveData();
+        PlayerWrapperListener.showLobbyScoreboard(player);
+        FunnelTelemetry.record(player, FunnelTelemetry.Event.LOBBY_READY, "world=lobby");
+        return true;
     }
 
     public void joinAvailableGame(CookiePlayer player) {
         Game game = GameManager.getBestOpenGame();
-        if (game != null && game.addPlayerToAvailableTeam(player)) {
+        if (game != null && (player.getState() == PlayerState.PERSISTENT_MODE
+                || player.getState() == PlayerState.SPECTATING)) {
+            boolean replacing = GameManager.getQueueIntent(player.getPlayer().getUniqueId()) != null;
+            if (GameManager.registerQueueIntent(player, game)) {
+                player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
+                        replacing ? "lobby.queue.intent_replaced" : "lobby.queue.intent_registered",
+                        player.getPlayer().locale(), game.getGameName()));
+                return;
+            }
+        }
+        boolean partyMember = CookieDough.getInstance().getPartyManager().getPartyId(
+                player.getPlayer().getUniqueId()) != null;
+        if (shouldSuggestSolo(player.getState(),
+                ModePopulationService.isPersistentActivityAvailable("Skyblock"), partyMember,
+                ModePopulationService.hasReadyMatchForOneMorePlayer())) {
+            CookieDough.getInstance().getPlayerHubMenu().openSoloSuggestion(player.getPlayer());
+            return;
+        }
+        if (game != null && player.getState() == PlayerState.LOBBY && game.addPlayerToAvailableTeam(player)) {
+            GameManager.cancelQueueIntent(player.getPlayer().getUniqueId());
             player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                     "lobby.join.quick_success", player.getPlayer().locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.getPlayer().locale()),
@@ -481,6 +526,11 @@ public class LobbyManager implements Listener {
         }
         player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
                 "lobby.join.no_available", player.getPlayer().locale()));
+    }
+
+    static boolean shouldSuggestSolo(PlayerState state, boolean skyblockAvailable,
+            boolean partyMember, boolean readyMatch) {
+        return state == PlayerState.LOBBY && skyblockAvailable && !partyMember && !readyMatch;
     }
 
     public void requestQuickPlay(Player player) {
@@ -517,13 +567,52 @@ public class LobbyManager implements Listener {
                     "lobby.game.no_open", player.locale(), gameName, available));
             return;
         }
+        if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE
+                || cookiePlayer.getState() == PlayerState.SPECTATING) {
+            boolean replacing = GameManager.getQueueIntent(player.getUniqueId()) != null;
+            if (GameManager.registerQueueIntent(cookiePlayer, game)) {
+                player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
+                        replacing ? "lobby.queue.intent_replaced" : "lobby.queue.intent_registered",
+                        player.locale(), game.getGameName()));
+            } else {
+                player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                        "lobby.game.unavailable", player.locale(), gameName));
+            }
+            return;
+        }
         if (game.addPlayerToAvailableTeam(cookiePlayer)) {
+            GameManager.cancelQueueIntent(player.getUniqueId());
             player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("lobby.game.joined", player.locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.locale()),
                     game.getPlayerCount(), game.getCapacity()));
         } else {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage("lobby.game.unavailable", player.locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
+        }
+    }
+
+    /** Opens a running arena as a viewer from either lobby, Skyblock or another spectator session. */
+    public void requestSpectate(Player player, String gameName) {
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        if (cookiePlayer == null || !PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())) {
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage("player.data_loading", player.locale()));
+            return;
+        }
+        Game game = GameManager.getSpectatableGameByName(gameName);
+        if (game == null) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.spectate.unavailable", player.locale(), gameName));
+            return;
+        }
+        if (game.isExternalSpectator(player.getUniqueId())) return;
+        PassiveSource source = passiveSource(cookiePlayer);
+        if (!PassiveActivityTransition.execute(
+                () -> game.preflightSpectatorAdmission(cookiePlayer),
+                () -> transitionFromPassiveActivity(cookiePlayer),
+                () -> game.addSpectator(cookiePlayer),
+                () -> restorePassiveSource(cookiePlayer, source))) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.spectate.unavailable", player.locale(), gameName));
         }
     }
 
@@ -545,6 +634,14 @@ public class LobbyManager implements Listener {
             player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage("player.data_loading", player.locale()));
             return;
         }
+        PassiveSource source = passiveSource(cookiePlayer);
+        if (cookiePlayer.getState() == PlayerState.SPECTATING
+                && !transitionFromPassiveActivity(cookiePlayer)) {
+            restorePassiveSource(cookiePlayer, source);
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.queue.leave_failed", player.locale()));
+            return;
+        }
         if (cookiePlayer.getState() != PlayerState.LOBBY
                 && cookiePlayer.getState() != PlayerState.PERSISTENT_MODE) {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
@@ -554,8 +651,114 @@ public class LobbyManager implements Listener {
         ActivityAdmissionResult result = ActivityRegistry.enter(activityName, cookiePlayer);
         if (result.admitted()) {
             PlayerWrapperListener.completeOnboarding(player, "activity:" + activityName);
+        } else {
+            restorePassiveSource(cookiePlayer, source);
         }
         player.sendMessage((result.admitted() ? ChatColor.GREEN : ChatColor.RED) + result.message());
+    }
+
+    /**
+     * Leaves passive activities through their authoritative cleanup before a
+     * queue admission. A failed Skyblock inventory transfer never strands the
+     * player in two activities.
+     */
+    private boolean transitionFromPassiveActivity(CookiePlayer cookiePlayer) {
+        if (cookiePlayer == null) return false;
+        if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE
+                || cookiePlayer.getState() == PlayerState.SPECTATING) {
+            return teleportPlayerToLobby(cookiePlayer);
+        }
+        return cookiePlayer.getState() == PlayerState.LOBBY
+                && GameManager.getGameOfPlayer(cookiePlayer) == null;
+    }
+
+    /** Called by GameManager only after intents can satisfy the arena minimum. */
+    public boolean admitQueuedIntent(CookiePlayer cookiePlayer, Game game) {
+        return admitQueuedParty(List.of(cookiePlayer), game);
+    }
+
+    /**
+     * Two-phase party admission. No member leaves a passive activity before all
+     * preflights succeed; any late transition/game failure restores every source
+     * and removes every partial roster mutation.
+     */
+    public boolean admitQueuedParty(List<CookiePlayer> members, Game game) {
+        if (members == null || members.isEmpty() || members.stream().anyMatch(java.util.Objects::isNull)
+                || game == null || game.getState() != GameState.OPEN || !game.isAdmissionsOpen()
+                || game.getPartyAdmissionProblem(members.size()) != null
+                || members.stream().anyMatch(member -> !canAdmitQueuedIntent(member, game))) {
+            return false;
+        }
+        Map<UUID, PassiveSource> sources = new java.util.LinkedHashMap<>();
+        for (CookiePlayer member : members) {
+            sources.put(member.getPlayer().getUniqueId(), passiveSource(member));
+        }
+        List<CookiePlayer> transitioned = new ArrayList<>();
+        for (CookiePlayer member : members) {
+            if (!transitionFromPassiveActivity(member)) {
+                transitioned.forEach(previous -> restorePassiveSource(previous,
+                        sources.get(previous.getPlayer().getUniqueId())));
+                restorePassiveSource(member, sources.get(member.getPlayer().getUniqueId()));
+                return false;
+            }
+            transitioned.add(member);
+        }
+        List<CookiePlayer> admitted = new ArrayList<>();
+        for (CookiePlayer member : members) {
+            if (!game.addPlayerToAvailableTeam(member)) {
+                admitted.forEach(previous -> game.removePlayer(previous, "party_admission_rollback"));
+                transitioned.forEach(previous -> {
+                    if (previous.getState() != PlayerState.LOBBY
+                            || GameManager.getGameOfPlayer(previous) != null) {
+                        teleportPlayerToLobby(previous);
+                    }
+                    restorePassiveSource(previous, sources.get(previous.getPlayer().getUniqueId()));
+                });
+                return false;
+            }
+            admitted.add(member);
+        }
+        return true;
+    }
+
+    public boolean canAdmitQueuedIntent(CookiePlayer cookiePlayer, Game game) {
+        if (cookiePlayer == null || game == null || game.getState() != GameState.OPEN
+                || !game.isAdmissionsOpen()) return false;
+        if (cookiePlayer.getState() == PlayerState.LOBBY) {
+            return GameManager.getGameOfPlayer(cookiePlayer) == null;
+        }
+        if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE) {
+            return ActivityRegistry.canLeave(cookiePlayer, "returned_lobby");
+        }
+        Game current = GameManager.getGameOfPlayer(cookiePlayer);
+        return cookiePlayer.getState() == PlayerState.SPECTATING && current != null
+                && current.isExternalSpectator(cookiePlayer.getPlayer().getUniqueId());
+    }
+
+    private static PassiveSource passiveSource(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null) return new PassiveSource(null, null);
+        PersistentActivity activity = ActivityRegistry.owner(player.getPlayer().getUniqueId());
+        Game game = GameManager.getGameOfPlayer(player);
+        Game spectatorGame = game != null && game.isExternalSpectator(player.getPlayer().getUniqueId())
+                ? game : null;
+        return new PassiveSource(activity, spectatorGame);
+    }
+
+    private static boolean restorePassiveSource(CookiePlayer player, PassiveSource source) {
+        if (player == null || source == null || player.getPlayer() == null || !player.getPlayer().isOnline()) {
+            return false;
+        }
+        if (source.activity() != null
+                && ActivityRegistry.owner(player.getPlayer().getUniqueId()) == source.activity()) return true;
+        if (source.spectatorGame() != null
+                && source.spectatorGame().isExternalSpectator(player.getPlayer().getUniqueId())) return true;
+        if (player.getState() != PlayerState.LOBBY || GameManager.getGameOfPlayer(player) != null) {
+            teleportPlayerToLobby(player);
+        }
+        if (source.activity() != null) {
+            return ActivityRegistry.enter(source.activity().name(), player).admitted();
+        }
+        return source.spectatorGame() == null || source.spectatorGame().addSpectator(player);
     }
 
     private static void giveQuickPlayItem(Player player) {
@@ -629,6 +832,8 @@ public class LobbyManager implements Listener {
                 player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
                         "lobby.sign.join_failed", player.locale(),
                         GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
+            } else {
+                GameManager.cancelQueueIntent(player.getUniqueId());
             }
         }
     }
