@@ -25,5 +25,6 @@ class AutomaticRallyContractTest {
         assertTrue(rally.contains("GameManager.getAdmittableQueueIntentCount(game)"));
         assertTrue(rally.contains("GameManager.getFirstAdmittableQueueIntentPlayer(game)"));
         assertTrue(rally.contains("partyManager.queueParty(player, game)"));
+        assertTrue(rally.contains("game.getState() == GameState.OPEN && game.isAdmissionsOpen()"));
     }
 }

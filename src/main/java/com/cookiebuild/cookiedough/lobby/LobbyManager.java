@@ -816,6 +816,8 @@ public class LobbyManager implements Listener {
                 player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
                         "lobby.sign.join_failed", player.locale(),
                         GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
+            } else {
+                GameManager.cancelQueueIntent(player.getUniqueId());
             }
         }
     }

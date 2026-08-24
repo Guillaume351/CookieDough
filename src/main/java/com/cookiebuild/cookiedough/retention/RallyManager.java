@@ -574,7 +574,7 @@ public final class RallyManager {
 
     private static RallyQueueTracker.QueueState queueState(Game game) {
         return new RallyQueueTracker.QueueState(
-                game.getGameId(), game.getState() == GameState.OPEN,
+                game.getGameId(), game.getState() == GameState.OPEN && game.isAdmissionsOpen(),
                 effectiveQueuedCount(game), game.getMinimumPlayers());
     }
 
