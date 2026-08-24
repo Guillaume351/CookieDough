@@ -463,7 +463,13 @@ public class LobbyManager implements Listener {
             cookiePlayer.setState(PlayerState.LOBBY);
 
             Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
-            player.teleport(lobbySpawnLocation);
+            if (!lobbySpawnLocation.getChunk().load()
+                    || !CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                            .teleport(player, lobbySpawnLocation)) {
+                CookieDough.getInstance().getLogger().severe(
+                        "Could not safely teleport " + player.getName() + " to the lobby");
+                return;
+            }
             CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
 
             giveQuickPlayItem(player);

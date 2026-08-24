@@ -37,4 +37,13 @@ class PassiveActivityTransitionTest {
                 () -> true, restores::incrementAndGet));
         assertEquals(0, restores.get());
     }
+
+    @Test
+    void exceptionalTargetAdmissionRestoresExactlyOnce() {
+        AtomicInteger restores = new AtomicInteger();
+
+        assertFalse(PassiveActivityTransition.execute(() -> true, () -> true,
+                () -> { throw new IllegalStateException("teleport failed"); }, restores::incrementAndGet));
+        assertEquals(1, restores.get());
+    }
 }

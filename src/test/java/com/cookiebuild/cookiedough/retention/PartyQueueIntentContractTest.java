@@ -21,6 +21,9 @@ class PartyQueueIntentContractTest {
         assertTrue(party.contains("registerPartyQueueIntent(members, game, party.id())"));
         assertFalse(party.contains("added.forEach(addedMember"));
         assertTrue(manager.contains("isCompleteCohort(cohort)"));
+        assertTrue(manager.contains("parties.isCurrentQueueCohort"));
+        assertTrue(manager.contains("parties.isCurrentSoloQueueCohort"));
+        assertTrue(manager.contains("cancelStalePartyCohort(cohort)"));
         assertTrue(manager.contains("lobby.admitQueuedParty(members, game)"));
         assertTrue(lobby.contains("members.stream().anyMatch(member -> !canAdmitQueuedIntent(member, game))"));
         assertTrue(lobby.contains("restorePassiveSource(previous"));

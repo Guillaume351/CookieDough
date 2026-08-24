@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
+import org.bukkit.Material;
 
 import com.cookiebuild.cookiedough.player.PlayerState;
 
@@ -16,6 +17,18 @@ class SoloOrientationContractTest {
         assertEquals("quick", PlayerHubMenu.chooseOnboardingPrimaryAction(true, false));
         assertEquals("game:join:Skyblock", PlayerHubMenu.chooseOnboardingPrimaryAction(false, true));
         assertEquals("games", PlayerHubMenu.chooseOnboardingPrimaryAction(false, false));
+
+        PlayerHubMenu.OnboardingPrimaryButton games = PlayerHubMenu.onboardingPrimaryButton("games");
+        assertEquals("games", games.action());
+        assertEquals(Material.GRASS_BLOCK, games.material());
+        assertEquals("hub.games.name", games.nameKey());
+        assertEquals("hub.onboarding.games_lore", games.loreKey());
+        assertEquals("actions/games", HubActionImages.texture(games.action()).orElseThrow());
+
+        PlayerHubMenu.OnboardingPrimaryButton skyblock =
+                PlayerHubMenu.onboardingPrimaryButton("game:join:Skyblock");
+        assertEquals("game:join:Skyblock", skyblock.action());
+        assertEquals("modes/skyblock", skyblock.texture());
     }
 
     @Test

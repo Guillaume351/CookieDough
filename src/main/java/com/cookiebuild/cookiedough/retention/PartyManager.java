@@ -232,6 +232,35 @@ public final class PartyManager {
         return party == null ? List.of() : party.members();
     }
 
+    /**
+     * Confirms that a passive queue cohort still represents the complete durable
+     * party after an in-game leave/join or a periodic mobile-app refresh.
+     */
+    public boolean isCurrentQueueCohort(UUID cohortId, List<UUID> memberIds) {
+        return currentPartyMatches(coordinator.snapshot(), cohortId, memberIds);
+    }
+
+    /** A previously solo queue must stop being solo as soon as the player joins a party. */
+    public boolean isCurrentSoloQueueCohort(UUID playerId) {
+        return currentSoloPlayerHasNoParty(coordinator.snapshot(), playerId);
+    }
+
+    static boolean currentSoloPlayerHasNoParty(PartyRepository.Snapshot snapshot, UUID playerId) {
+        return snapshot != null && playerId != null && snapshot.partyFor(playerId) == null;
+    }
+
+    static boolean currentPartyMatches(PartyRepository.Snapshot snapshot, UUID cohortId,
+            List<UUID> memberIds) {
+        if (snapshot == null || cohortId == null || memberIds == null || memberIds.isEmpty()
+                || memberIds.stream().anyMatch(java.util.Objects::isNull)
+                || memberIds.stream().distinct().count() != memberIds.size()) {
+            return false;
+        }
+        PartyRepository.Party party = snapshot.parties().get(cohortId);
+        return party != null && party.members().size() == memberIds.size()
+                && java.util.Set.copyOf(party.members()).equals(java.util.Set.copyOf(memberIds));
+    }
+
     public String describe(Player player) {
         if (!isAvailable()) {
             return UNAVAILABLE;

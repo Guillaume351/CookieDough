@@ -19,6 +19,7 @@ import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.lobby.StatueManager;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
+import com.cookiebuild.cookiedough.retention.PartyManager;
 
 public class GameManager {
     private static final Duration QUEUE_INTENT_TTL = Duration.ofMinutes(10);
@@ -284,10 +285,44 @@ public class GameManager {
                 .sorted(Comparator.comparingLong(QueueIntent::createdAtMillis))
                 .collect(java.util.stream.Collectors.groupingBy(
                         QueueIntent::cohortId, LinkedHashMap::new, java.util.stream.Collectors.toList()));
-        return grouped.values().stream().filter(cohort -> {
-            return isCompleteCohort(cohort)
-                    && cohort.stream().allMatch(GameManager::isQueueIntentEligible);
-        }).toList();
+        List<List<QueueIntent>> valid = new ArrayList<>();
+        for (List<QueueIntent> cohort : grouped.values()) {
+            if (!isCompleteCohort(cohort)
+                    || !cohort.stream().allMatch(GameManager::isQueueIntentEligible)) {
+                continue;
+            }
+            if (!isCurrentPartyCohort(cohort)) {
+                cancelStalePartyCohort(cohort);
+                continue;
+            }
+            valid.add(List.copyOf(cohort));
+        }
+        return List.copyOf(valid);
+    }
+
+    /** Revalidates a queued party against the latest durable app/server snapshot. */
+    private static boolean isCurrentPartyCohort(List<QueueIntent> cohort) {
+        CookieDough plugin = CookieDough.getInstance();
+        PartyManager parties = plugin == null ? null : plugin.getPartyManager();
+        if (parties == null) return false;
+        if (cohort.size() == 1 && cohort.getFirst().cohortId().equals(cohort.getFirst().playerId())) {
+            return parties.isCurrentSoloQueueCohort(cohort.getFirst().playerId());
+        }
+        return parties.isCurrentQueueCohort(cohort.getFirst().cohortId(),
+                cohort.stream().map(QueueIntent::playerId).toList());
+    }
+
+    private static void cancelStalePartyCohort(List<QueueIntent> cohort) {
+        for (QueueIntent intent : cohort) {
+            if (!queueIntents.remove(intent.playerId(), intent)) continue;
+            queueIntentFailureNoticeAt.remove(intent.playerId());
+            org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
+            if (online != null && online.isOnline()) {
+                online.sendMessage(org.bukkit.ChatColor.YELLOW
+                        + com.cookiebuild.cookiedough.utils.LocaleManager.getMessage(
+                                "lobby.queue.intent_party_changed", online.locale()));
+            }
+        }
     }
 
     static boolean isCompleteCohort(List<QueueIntent> cohort) {

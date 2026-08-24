@@ -13,7 +13,12 @@ final class PassiveActivityTransition {
             restoreSource.run();
             return false;
         }
-        if (admitTarget.getAsBoolean()) return true;
+        try {
+            if (admitTarget.getAsBoolean()) return true;
+        } catch (RuntimeException admissionFailure) {
+            restoreSource.run();
+            return false;
+        }
         restoreSource.run();
         return false;
     }

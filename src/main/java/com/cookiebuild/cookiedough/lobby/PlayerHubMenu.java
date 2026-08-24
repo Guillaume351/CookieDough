@@ -227,11 +227,9 @@ public final class PlayerHubMenu implements Listener {
         MenuHolder holder = new MenuHolder(MenuPage.ONBOARDING, 27,
                 Component.text(message(player, "hub.onboarding.title"), NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
-        String primaryAction = onboardingPrimaryAction();
-        boolean solo = primaryAction.startsWith("game:join:");
-        inventory.setItem(11, item(solo ? Material.GRASS_BLOCK : Material.NETHER_STAR,
-                message(player, solo ? "hub.onboarding.solo_name" : "hub.quick.name"), primaryAction,
-                message(player, solo ? "hub.onboarding.solo_lore" : "hub.quick.lore")));
+        OnboardingPrimaryButton primary = onboardingPrimaryButton(onboardingPrimaryAction());
+        inventory.setItem(11, item(primary.material(), message(player, primary.nameKey()), primary.action(),
+                message(player, primary.loreKey())));
         inventory.setItem(13, item(Material.GRASS_BLOCK, message(player, "hub.games.name"), "games",
                 message(player, "hub.onboarding.games_lore")));
         inventory.setItem(15, item(Material.ENDER_EYE, message(player, "hub.onboarding.community_name"), "community",
@@ -547,16 +545,15 @@ public final class PlayerHubMenu implements Listener {
                 case ONBOARDING -> {
                     builder.title("§l§6" + message(player, "hub.onboarding.title"))
                             .content(message(player, "hub.onboarding.content"));
-                    String primaryAction = onboardingPrimaryAction();
-                    boolean solo = primaryAction.startsWith("game:join:");
-                    if (solo) {
+                    OnboardingPrimaryButton primary = onboardingPrimaryButton(onboardingPrimaryAction());
+                    String primaryLabel = BedrockButtonText.format(
+                            message(player, primary.nameKey()), message(player, primary.loreKey()));
+                    if (primary.texture() != null) {
                         button(builder, actions, BedrockButtonText.format(
-                                message(player, "hub.onboarding.solo_name"),
-                                message(player, "hub.onboarding.solo_lore")),
-                                primaryAction, "modes/skyblock");
+                                message(player, primary.nameKey()), message(player, primary.loreKey())),
+                                primary.action(), primary.texture());
                     } else {
-                        hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.quick.name"),
-                                message(player, "hub.quick.lore")), "quick");
+                        hubButton(builder, actions, primaryLabel, primary.action());
                     }
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.games.name"),
                             message(player, "hub.onboarding.games_lore")), "games");
@@ -737,6 +734,23 @@ public final class PlayerHubMenu implements Listener {
         if (matchReady) return "quick";
         return skyblockAvailable ? "game:join:Skyblock" : "games";
     }
+
+    static OnboardingPrimaryButton onboardingPrimaryButton(String action) {
+        return switch (action) {
+            case "quick" -> new OnboardingPrimaryButton("quick", Material.NETHER_STAR,
+                    "hub.quick.name", "hub.quick.lore", null);
+            case "game:join:Skyblock" -> new OnboardingPrimaryButton("game:join:Skyblock",
+                    Material.GRASS_BLOCK, "hub.onboarding.solo_name", "hub.onboarding.solo_lore",
+                    "modes/skyblock");
+            case "games" -> new OnboardingPrimaryButton("games", Material.GRASS_BLOCK,
+                    "hub.games.name", "hub.onboarding.games_lore", null);
+            default -> new OnboardingPrimaryButton("games", Material.GRASS_BLOCK,
+                    "hub.games.name", "hub.onboarding.games_lore", null);
+        };
+    }
+
+    record OnboardingPrimaryButton(String action, Material material, String nameKey,
+            String loreKey, String texture) { }
 
     private static String progress(String label, int current, int target) {
         return (current >= target ? "✓ " : "• ") + label + ": " + current + "/" + target;

@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough.utils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,6 +79,8 @@ class LocaleManagerTest {
         assertEquals(
                 "Welcome to Cookie Build, Alex!",
                 LocaleManager.getMessage("welcome.message", null, "Alex"));
+        assertTrue(LocaleManager.getMessage("lobby.queue.intent_game_closed", Locale.ENGLISH, "BedWars")
+                .contains("queue registration is still active"));
     }
 
     private static ResourceBundle bundle(Locale locale) {

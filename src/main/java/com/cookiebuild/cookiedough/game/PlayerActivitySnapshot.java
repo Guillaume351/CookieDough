@@ -63,7 +63,9 @@ public record PlayerActivitySnapshot(
     public boolean relocate(Player player, Location fallback) {
         Location destination = location != null && location.getWorld() != null ? location : fallback;
         if (destination == null || destination.getWorld() == null
-                || !destination.getChunk().load() || !player.teleport(destination)) {
+                || !destination.getChunk().load()
+                || !com.cookiebuild.cookiedough.CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                        .teleport(player, destination)) {
             return false;
         }
         return true;
@@ -106,6 +108,8 @@ public record PlayerActivitySnapshot(
         player.playerListName(playerListName);
         player.setAllowFlight(allowFlight);
         player.setFlying(allowFlight && flying);
+        com.cookiebuild.cookiedough.CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                .protectLanding(player, allowFlight, flying);
     }
 
     static int remainingPotionTicks(int capturedTicks, boolean infinite,

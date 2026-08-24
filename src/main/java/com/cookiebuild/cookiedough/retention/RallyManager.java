@@ -116,9 +116,12 @@ public final class RallyManager {
         }
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         Game game = cookiePlayer == null ? null : GameManager.getGameOfPlayer(cookiePlayer);
-        if (game == null) {
-            GameManager.QueueIntent intent = GameManager.getQueueIntent(player.getUniqueId());
-            game = intent == null ? null : GameManager.getGameById(intent.gameId());
+        GameManager.QueueIntent intent = GameManager.getQueueIntent(player.getUniqueId());
+        UUID preferredGameId = preferredRallyGameId(game == null ? null : game.getGameId(),
+                game != null && game.isExternalSpectator(player.getUniqueId()),
+                intent == null ? null : intent.gameId());
+        if (preferredGameId != null && (game == null || !preferredGameId.equals(game.getGameId()))) {
+            game = GameManager.getGameById(preferredGameId);
         }
         if (game == null) {
             completion.accept("Join a waiting game before calling more players.");
@@ -157,6 +160,14 @@ public final class RallyManager {
             return;
         }
         enqueue(game, RallyRepository.Source.PLAYER, player, player, completion);
+    }
+
+    static UUID preferredRallyGameId(UUID viewedGameId, boolean externalSpectator,
+            UUID queuedGameId) {
+        if (queuedGameId != null && (viewedGameId == null || externalSpectator)) {
+            return queuedGameId;
+        }
+        return viewedGameId;
     }
 
     /** Explicit AdminBridge action; retains the durable mobile-push cooldowns. */

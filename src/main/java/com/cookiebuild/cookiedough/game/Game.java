@@ -10,6 +10,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Sound;
+import org.bukkit.entity.Player;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
@@ -101,19 +102,23 @@ public abstract class Game implements GameStatus {
      * before calling this method; normal admission remains restricted to OPEN.
      */
     protected synchronized boolean restorePlayerAfterReconnect(CookiePlayer player) {
-        if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()
-                || state != GameState.RUNNING) {
-            return false;
-        }
+        if (!canRestorePlayerAfterReconnect(player)) return false;
         UUID playerId = player.getPlayer().getUniqueId();
         players.removeIf(existing -> existing.getPlayer().getUniqueId().equals(playerId));
-        if (players.size() >= capacity) {
-            return false;
-        }
         players.add(player);
         player.setState(PlayerState.IN_GAME);
         PlayerWrapperListener.hideLobbyScoreboard(player.getPlayer());
         return true;
+    }
+
+    /** Read-only roster preflight used before a custom reconnect moves the player. */
+    protected synchronized boolean canRestorePlayerAfterReconnect(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()
+                || state != GameState.RUNNING) return false;
+        UUID playerId = player.getPlayer().getUniqueId();
+        long otherPlayers = players.stream().filter(existing ->
+                !existing.getPlayer().getUniqueId().equals(playerId)).count();
+        return otherPlayers < capacity;
     }
 
     /** Admits a read-only viewer without consuming a participant slot. */
@@ -392,6 +397,20 @@ public abstract class Game implements GameStatus {
 
     protected abstract void teleportToGame(CookiePlayer player);
 
+    /** Cross-world transport with chunk preflight and a bounded anti-floating window. */
+    protected final void teleportPlayerSafely(Player player, Location destination) {
+        if (!tryTeleportPlayerSafely(player, destination)) {
+            throw new IllegalStateException("Could not safely teleport player into " + gameName);
+        }
+    }
+
+    /** Fallible variant for reconnects, which must preserve their reservation on failure. */
+    protected final boolean tryTeleportPlayerSafely(Player player, Location destination) {
+        return player != null && destination != null && destination.getWorld() != null
+                && destination.getChunk().load()
+                && CookieDough.getInstance().getPlayerTransitionFlightGuard().teleport(player, destination);
+    }
+
     /** Whether this mode exposes its live arena to lobby spectators. */
     public boolean supportsSpectating() {
         return false;
@@ -418,7 +437,9 @@ public abstract class Game implements GameStatus {
     protected boolean teleportToSpectator(CookiePlayer player) {
         Location destination = spectatorDestination(player);
         if (destination == null || destination.getWorld() == null
-                || !destination.getChunk().load() || !player.getPlayer().teleport(destination)) return false;
+                || !destination.getChunk().load()
+                || !CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                        .teleport(player.getPlayer(), destination)) return false;
         player.resetPlayer();
         player.getPlayer().setGameMode(GameMode.SPECTATOR);
         return true;
