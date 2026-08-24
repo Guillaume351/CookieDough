@@ -18,6 +18,12 @@ public interface PersistentActivity {
     /** Side-effect-free readiness probe used before an atomic queue transition. */
     default boolean canLeave(CookiePlayer player, String reason) { return true; }
 
+    /** Gives an activity a player-facing recovery path when a requested leave is not ready. */
+    default void onLeaveBlocked(CookiePlayer player, String reason) { }
+
+    /** Lets a passive activity prepare its player for a later queue admission. */
+    default void onQueueIntentRegistered(CookiePlayer player) { }
+
     boolean owns(UUID playerId);
 
     /** Identifies a saved persistent destination before player-data initialization completes. */

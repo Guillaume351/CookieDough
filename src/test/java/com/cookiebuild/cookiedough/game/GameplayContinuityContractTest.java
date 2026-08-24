@@ -70,6 +70,9 @@ class GameplayContinuityContractTest {
                 lobby.indexOf("public void joinAvailableGame"));
         assertTrue(lobbyTeleport.indexOf("lobbySpawnLocation.getChunk().load()")
                 < lobbyTeleport.indexOf("ActivityRegistry.leave(cookiePlayer, \"returned_lobby\")"));
+        assertTrue(lobbyTeleport.indexOf("ActivityRegistry.canLeave(cookiePlayer, \"returned_lobby\")")
+                < lobbyTeleport.indexOf(".teleport(player, lobbySpawnLocation)"));
+        assertTrue(lobbyTeleport.contains("ActivityRegistry.notifyLeaveBlocked(cookiePlayer, \"returned_lobby\")"));
         assertTrue(lobbyTeleport.indexOf(".teleport(player, lobbySpawnLocation)")
                 < lobbyTeleport.indexOf("ActivityRegistry.leave(cookiePlayer, \"returned_lobby\")"));
         assertTrue(lobbyTeleport.contains(".teleport(player, sourceLocation)"));
@@ -79,6 +82,12 @@ class GameplayContinuityContractTest {
         assertTrue(quickPlay.indexOf("game.addPlayerToAvailableTeam(player)")
                 < quickPlay.indexOf("GameManager.cancelQueueIntent(player.getPlayer().getUniqueId())"));
         assertTrue(manager.contains("getAdmittableQueueIntentCount"));
+        assertTrue(manager.contains("ActivityRegistry.notifyQueueIntentRegistered(player)"));
+        assertTrue(manager.contains("ActivityRegistry.notifyQueueIntentRegistered(member)"));
+        String hubCommand = source("commands/LobbyCommand.java");
+        assertTrue(hubCommand.contains("boolean activityReady = ActivityRegistry.canLeave"));
+        assertTrue(hubCommand.contains("if (LobbyManager.teleportPlayerToLobby(cookiePlayer))"));
+        assertTrue(hubCommand.contains("? \"lobby.teleport_failed\" : \"lobby.queue.leave_failed\""));
         assertTrue(manager.contains("lobby.canAdmitQueuedIntent(current, game)"));
         assertTrue(manager.contains("QueueAdmissionPlan plan = queueAdmissionPlan(game, lobby)"));
         assertTrue(manager.contains("cohort.size() > remaining || game.getPartyAdmissionProblem(cohort.size())"));

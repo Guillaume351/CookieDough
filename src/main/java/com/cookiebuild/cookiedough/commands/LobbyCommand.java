@@ -9,6 +9,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
+import com.cookiebuild.cookiedough.activity.ActivityRegistry;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
@@ -44,8 +45,14 @@ public class LobbyCommand implements CommandExecutor {
 
         // Default behavior - teleport to lobby
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-        LobbyManager.teleportPlayerToLobby(cookiePlayer);
-        player.sendMessage(LocaleManager.getMessage("lobby.teleported", player.locale(), player.getName()));
+        boolean activityReady = ActivityRegistry.canLeave(cookiePlayer, "returned_lobby");
+        if (LobbyManager.teleportPlayerToLobby(cookiePlayer)) {
+            player.sendMessage(LocaleManager.getMessage("lobby.teleported", player.locale(), player.getName()));
+        } else {
+            player.sendMessage(ChatColor.YELLOW
+                    + LocaleManager.getMessage(activityReady
+                            ? "lobby.teleport_failed" : "lobby.queue.leave_failed", player.locale()));
+        }
         return true;
     }
 

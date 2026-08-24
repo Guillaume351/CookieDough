@@ -16,6 +16,7 @@ import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.activity.ActivityRegistry;
 import com.cookiebuild.cookiedough.lobby.StatueManager;
 import com.cookiebuild.cookiedough.lobby.LobbyManager;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
@@ -162,6 +163,7 @@ public class GameManager {
         cancelQueueIntent(playerId);
         queueIntentFailureNoticeAt.remove(playerId);
         queueIntents.put(playerId, QueueIntent.solo(playerId, game, System.currentTimeMillis()));
+        ActivityRegistry.notifyQueueIntentRegistered(player);
         return true;
     }
 
@@ -203,6 +205,7 @@ public class GameManager {
             queueIntentFailureNoticeAt.remove(playerId);
             queueIntents.put(playerId, new QueueIntent(playerId, game.getGameId(), game.getGameName(),
                     createdAt, cohortId, distinct.size()));
+            ActivityRegistry.notifyQueueIntentRegistered(member);
         }
         return true;
     }

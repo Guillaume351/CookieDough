@@ -451,10 +451,17 @@ public class LobbyManager implements Listener {
 
         Location sourceLocation = player.getLocation().clone();
         Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
-        if (!lobbySpawnLocation.getChunk().load()
-                || !ActivityRegistry.canLeave(cookiePlayer, "returned_lobby")
-                || !CookieDough.getInstance().getPlayerTransitionFlightGuard()
-                        .teleport(player, lobbySpawnLocation)) {
+        if (!lobbySpawnLocation.getChunk().load()) {
+            CookieDough.getInstance().getLogger().severe(
+                    "Could not load the lobby destination for " + player.getName());
+            return false;
+        }
+        if (!ActivityRegistry.canLeave(cookiePlayer, "returned_lobby")) {
+            ActivityRegistry.notifyLeaveBlocked(cookiePlayer, "returned_lobby");
+            return false;
+        }
+        if (!CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                .teleport(player, lobbySpawnLocation)) {
             CookieDough.getInstance().getLogger().severe(
                     "Could not safely teleport " + player.getName() + " to the lobby");
             return false;
