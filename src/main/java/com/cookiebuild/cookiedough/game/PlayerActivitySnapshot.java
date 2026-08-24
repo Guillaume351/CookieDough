@@ -99,8 +99,8 @@ public record PlayerActivitySnapshot(
                 if (effect.getType().equals(PotionEffectType.ABSORPTION)) restoredAbsorptionEffect = true;
             }
         }
-        player.setAbsorptionAmount(capturedAbsorptionEffect && !restoredAbsorptionEffect
-                ? 0.0 : Math.max(0.0, absorption));
+        player.setAbsorptionAmount(remainingAbsorption(
+                absorption, capturedAbsorptionEffect, restoredAbsorptionEffect));
         player.setFireTicks(remainingTimedTicks(fireTicks, capturedAtEpochMillis, restoredAt));
         player.setFreezeTicks(remainingTimedTicks(freezeTicks, capturedAtEpochMillis, restoredAt));
         player.setExhaustion(Math.max(0.0f, exhaustion));
@@ -112,16 +112,22 @@ public record PlayerActivitySnapshot(
                 .protectLanding(player, allowFlight, flying);
     }
 
-    static int remainingPotionTicks(int capturedTicks, boolean infinite,
+    public static int remainingPotionTicks(int capturedTicks, boolean infinite,
             long capturedAtEpochMillis, long restoredAtEpochMillis) {
         if (infinite) return PotionEffect.INFINITE_DURATION;
         return remainingTimedTicks(capturedTicks, capturedAtEpochMillis, restoredAtEpochMillis);
     }
 
-    static int remainingTimedTicks(int capturedTicks, long capturedAtEpochMillis, long restoredAtEpochMillis) {
+    public static int remainingTimedTicks(int capturedTicks, long capturedAtEpochMillis, long restoredAtEpochMillis) {
         long elapsedMillis = Math.max(0L, restoredAtEpochMillis - capturedAtEpochMillis);
         long elapsedTicks = Math.min(Integer.MAX_VALUE, (elapsedMillis + 49L) / 50L);
         return (int) Math.max(0L, (long) capturedTicks - elapsedTicks);
+    }
+
+    public static double remainingAbsorption(double capturedAmount,
+            boolean capturedAbsorptionEffect, boolean restoredAbsorptionEffect) {
+        return capturedAbsorptionEffect && !restoredAbsorptionEffect
+                ? 0.0 : Math.max(0.0, capturedAmount);
     }
 
     private static ItemStack[] cloneItems(ItemStack[] items) {

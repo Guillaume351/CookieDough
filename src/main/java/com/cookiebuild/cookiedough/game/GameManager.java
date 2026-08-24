@@ -343,6 +343,7 @@ public class GameManager {
 
     private static boolean isQueueIntentEligible(CookiePlayer current) {
         if (current == null || current.getPlayer() == null || !current.getPlayer().isOnline()) return false;
+        if (!PlayerWrapperListener.isPlayerDataReady(current.getPlayer().getUniqueId())) return false;
         Game owned = getGameOfPlayer(current);
         boolean externalViewer = current.getState() == PlayerState.SPECTATING && owned != null
                 && owned.isExternalSpectator(current.getPlayer().getUniqueId());

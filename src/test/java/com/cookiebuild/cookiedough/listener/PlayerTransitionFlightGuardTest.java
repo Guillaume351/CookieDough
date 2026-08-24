@@ -98,6 +98,20 @@ class PlayerTransitionFlightGuardTest {
         assertFalse(player.allowFlight);
     }
 
+    @Test
+    void abandoningLoadingGuardRevokesItsTemporaryFlightPermission() {
+        ManualScheduler scheduler = new ManualScheduler();
+        PlayerTransitionFlightGuard guard = new PlayerTransitionFlightGuard(scheduler);
+        FakeSubject player = new FakeSubject();
+
+        guard.protectLoading(player, () -> { });
+        assertTrue(player.allowFlight);
+        guard.abandon(player);
+
+        assertFalse(guard.isProtected(player.id()));
+        assertFalse(player.allowFlight);
+    }
+
     private static final class ManualScheduler implements PlayerTransitionFlightGuard.Scheduler {
         private final ArrayDeque<Runnable> tasks = new ArrayDeque<>();
         @Override public void later(Runnable action, long delayTicks) { tasks.addLast(action); }

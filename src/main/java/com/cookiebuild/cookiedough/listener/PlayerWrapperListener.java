@@ -310,9 +310,6 @@ public class PlayerWrapperListener implements Listener {
             boolean awaitingPersistentRecovery = persistentRecovery.isHolding(handle.playerId());
             boolean resumedMatch = !resumedPersistent && !awaitingPersistentRecovery
                     && com.cookiebuild.cookiedough.game.GameManager.tryReconnect(activeCookiePlayer);
-            if (resumedPersistent) {
-                CookieDough.getInstance().getPlayerTransitionFlightGuard().abandon(player);
-            }
             if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch) showLobbyScoreboard(player);
             boolean newPlayer = newPlayerSessions.remove(handle.sessionId());
             boolean onboardingPending = onboardingPendingSessions.remove(handle.sessionId());
@@ -762,12 +759,14 @@ public class PlayerWrapperListener implements Listener {
                 .filter(candidate -> candidate.playerId().equals(player.getUniqueId()))
                 .findFirst().orElse(null);
         if (ticket == null) return false;
+        // Revoke CookieDough's join-only permission before the destination
+        // activity installs its own independent loading/landing guard.
+        CookieDough.getInstance().getPlayerTransitionFlightGuard().abandon(player);
         try {
             var admission = ActivityRegistry.enter(activityName, cookiePlayer);
             if (admission.admitted()) {
                 persistentRecovery.recovered(ticket);
                 player.setInvulnerable(false);
-                CookieDough.getInstance().getPlayerTransitionFlightGuard().abandon(player);
                 return true;
             }
         } catch (RuntimeException error) {

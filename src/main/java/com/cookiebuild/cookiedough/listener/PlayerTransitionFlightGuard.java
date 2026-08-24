@@ -92,9 +92,16 @@ public final class PlayerTransitionFlightGuard {
                 () -> restoreIfCurrent(subject, generation, restoreAllowFlight, restoreFlying)), 1L);
     }
 
-    /** Stops tracking after another activity restored its own flight state. */
+    /** Stops tracking and revokes the temporary permission unless the game mode owns flight. */
     public void abandon(Player player) {
-        if (player != null) generations.remove(player.getUniqueId());
+        if (player != null) abandon(subject(player));
+    }
+
+    void abandon(FlightSubject subject) {
+        if (subject == null || generations.remove(subject.id()) == null
+                || !subject.online() || subject.retainsFlight()) return;
+        subject.flying(false);
+        subject.allowFlight(false);
     }
 
     public boolean isProtected(UUID playerId) {

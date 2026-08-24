@@ -26,6 +26,8 @@ class PlayerActivitySnapshotContractTest {
         assertEquals(0, PlayerActivitySnapshot.remainingPotionTicks(20, false, 1_000L, 2_001L));
         assertEquals(-1, PlayerActivitySnapshot.remainingPotionTicks(100, true, 1_000L, 20_000L));
         assertEquals(0, PlayerActivitySnapshot.remainingTimedTicks(40, 1_000L, 3_001L));
+        assertEquals(0.0, PlayerActivitySnapshot.remainingAbsorption(8.0, true, false));
+        assertEquals(8.0, PlayerActivitySnapshot.remainingAbsorption(8.0, true, true));
         assertTrue(source.contains("capturedAbsorptionEffect && !restoredAbsorptionEffect"));
     }
 }

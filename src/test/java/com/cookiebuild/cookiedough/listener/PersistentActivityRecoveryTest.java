@@ -60,4 +60,16 @@ class PersistentActivityRecoveryTest {
             assertEquals(now, recovery.due(now).getFirst().retryAtMillis());
         }
     }
+
+    @Test
+    void joinFlightGuardHandsOffBeforeTheActivityInstallsItsOwnGuard() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/cookiebuild/cookiedough/listener/PlayerWrapperListener.java"));
+        int method = source.indexOf("private boolean attemptPersistentResume");
+        int nextMethod = source.indexOf("private void holdPersistentActivity", method);
+        String resume = source.substring(method, nextMethod);
+
+        assertTrue(resume.indexOf("getPlayerTransitionFlightGuard().abandon(player)")
+                < resume.indexOf("ActivityRegistry.enter(activityName, cookiePlayer)"));
+    }
 }
