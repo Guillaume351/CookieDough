@@ -102,6 +102,36 @@ public final class ActivityRegistry {
         return activity == null || activity.canLeave(player, reason == null ? "unknown" : reason);
     }
 
+    public static void notifyLeaveBlocked(CookiePlayer player, String reason) {
+        if (player == null || player.getPlayer() == null) return;
+        PersistentActivity activity = owner(player.getPlayer().getUniqueId());
+        if (activity == null) return;
+        try {
+            activity.onLeaveBlocked(player, reason == null ? "unknown" : reason);
+        } catch (RuntimeException error) {
+            logRecoveryFailure(activity, player, "blocked leave", error);
+        }
+    }
+
+    public static void notifyQueueIntentRegistered(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null) return;
+        PersistentActivity activity = owner(player.getPlayer().getUniqueId());
+        if (activity == null) return;
+        try {
+            activity.onQueueIntentRegistered(player);
+        } catch (RuntimeException error) {
+            logRecoveryFailure(activity, player, "queue preparation", error);
+        }
+    }
+
+    private static void logRecoveryFailure(PersistentActivity activity, CookiePlayer player,
+            String operation, RuntimeException error) {
+        CookieDough plugin = CookieDough.getInstance();
+        if (plugin != null) plugin.getLogger().warning("Persistent activity " + activity.name()
+                + " could not present " + operation + " for " + player.getPlayer().getUniqueId()
+                + ": " + error.getMessage());
+    }
+
     static void clearForTests() {
         ACTIVITIES.clear();
     }
