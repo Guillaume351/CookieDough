@@ -156,6 +156,9 @@ public final class PartyManager {
         if (party == null) {
             return null;
         }
+        if (!hasOnlinePartyCompanions(requester.getUniqueId())) {
+            return null;
+        }
         if (!party.leaderId().equals(requester.getUniqueId())) {
             return "Only the party leader can start Quick Play.";
         }
@@ -222,6 +225,17 @@ public final class PartyManager {
         return party == null ? null : party.id();
     }
 
+    /** Durable offline members must not turn an effectively solo player into a blocked party. */
+    public boolean hasOnlinePartyCompanions(UUID playerId) {
+        PartyRepository.Party party = coordinator.snapshot().partyFor(playerId);
+        return party != null && hasOnlineCompanions(playerId, onlineMemberIds(party));
+    }
+
+    static boolean hasOnlineCompanions(UUID playerId, List<UUID> onlineMemberIds) {
+        return playerId != null && onlineMemberIds != null && onlineMemberIds.stream()
+                .anyMatch(memberId -> memberId != null && !memberId.equals(playerId));
+    }
+
     public boolean arePartyMembers(UUID first, UUID second) {
         UUID party = coordinator.snapshot().partyByMember().get(first);
         return party != null && party.equals(coordinator.snapshot().partyByMember().get(second));
@@ -240,13 +254,21 @@ public final class PartyManager {
         return currentPartyMatches(coordinator.snapshot(), cohortId, memberIds);
     }
 
-    /** A previously solo queue must stop being solo as soon as the player joins a party. */
+    /** A solo queue remains valid until another member of the durable party is online. */
     public boolean isCurrentSoloQueueCohort(UUID playerId) {
-        return currentSoloPlayerHasNoParty(coordinator.snapshot(), playerId);
+        PartyRepository.Snapshot snapshot = coordinator.snapshot();
+        PartyRepository.Party party = snapshot.partyFor(playerId);
+        return currentSoloPlayerHasNoOnlineCompanions(snapshot, playerId,
+                party == null ? List.of(playerId) : onlineMemberIds(party));
     }
 
-    static boolean currentSoloPlayerHasNoParty(PartyRepository.Snapshot snapshot, UUID playerId) {
-        return snapshot != null && playerId != null && snapshot.partyFor(playerId) == null;
+    static boolean currentSoloPlayerHasNoOnlineCompanions(PartyRepository.Snapshot snapshot,
+            UUID playerId, List<UUID> onlineMemberIds) {
+        if (snapshot == null || playerId == null || onlineMemberIds == null) {
+            return false;
+        }
+        PartyRepository.Party party = snapshot.partyFor(playerId);
+        return party == null || !hasOnlineCompanions(playerId, onlineMemberIds);
     }
 
     static boolean currentPartyMatches(PartyRepository.Snapshot snapshot, UUID cohortId,
@@ -296,10 +318,18 @@ public final class PartyManager {
         }
     }
 
+    private List<UUID> onlineMemberIds(PartyRepository.Party party) {
+        return party.members().stream().filter(playerId -> {
+            Player player = Bukkit.getPlayer(playerId);
+            return player != null && player.isOnline();
+        }).toList();
+    }
+
     private List<CookiePlayer> onlineCookiePlayers(PartyRepository.Party party) {
         return party.members().stream()
                 .map(Bukkit::getPlayer)
                 .filter(java.util.Objects::nonNull)
+                .filter(Player::isOnline)
                 .map(PlayerManager::getPlayer)
                 .filter(java.util.Objects::nonNull)
                 .toList();

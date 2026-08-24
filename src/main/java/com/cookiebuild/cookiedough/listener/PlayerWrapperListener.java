@@ -336,7 +336,7 @@ public class PlayerWrapperListener implements Listener {
                 if (onboardingPending) {
                     completeOnboarding(player, "quick");
                 }
-                CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
+                CookieDough.getInstance().getLobbyManager().requestSelectedQuickPlay(player);
             }
             if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch && queuedActivity != null) {
                 if (onboardingPending) {

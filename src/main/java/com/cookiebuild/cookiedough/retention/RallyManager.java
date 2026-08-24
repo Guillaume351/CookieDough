@@ -216,12 +216,12 @@ public final class RallyManager {
         }
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
         PartyManager partyManager = plugin.getPartyManager();
-        if (partyManager.getPartyId(player.getUniqueId()) != null) {
+        if (partyManager.hasOnlinePartyCompanions(player.getUniqueId())) {
             String result = partyManager.queueParty(player, game);
-            if (result != null && !result.isBlank()) {
-                player.sendMessage(ChatColor.YELLOW + result);
+            if (result != null) {
+                if (!result.isBlank()) player.sendMessage(ChatColor.YELLOW + result);
+                return;
             }
-            return;
         }
         Game current = cookiePlayer == null ? null : GameManager.getGameOfPlayer(cookiePlayer);
         if (current != null && !current.isExternalSpectator(player.getUniqueId())) {

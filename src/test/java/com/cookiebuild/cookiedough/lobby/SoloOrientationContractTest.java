@@ -38,7 +38,7 @@ class SoloOrientationContractTest {
         String menu = Files.readString(Path.of(
                 "src/main/java/com/cookiebuild/cookiedough/lobby/PlayerHubMenu.java"));
         assertTrue(lobby.contains("ModePopulationService.isPersistentActivityAvailable(\"Skyblock\")"));
-        assertTrue(lobby.contains("getPartyId("));
+        assertTrue(lobby.contains("hasOnlinePartyCompanions("));
         assertTrue(lobby.contains("openSoloSuggestion(player.getPlayer())"));
         assertTrue(menu.contains("case SOLO -> soloInventory(player)"));
         assertTrue(menu.contains("case SOLO -> {"));
