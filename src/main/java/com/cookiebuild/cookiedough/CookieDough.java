@@ -8,10 +8,12 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Sign;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
 import com.cookiebuild.cookiedough.chat.ChatManager;
+import com.cookiebuild.cookiedough.config.CookieDoughConfigMigrator;
 import com.cookiebuild.cookiedough.admin.AdminBridge;
 import com.cookiebuild.cookiedough.admin.moderation.ModerationService;
 import com.cookiebuild.cookiedough.commands.LobbyCommand;
@@ -144,6 +146,21 @@ public final class CookieDough extends JavaPlugin {
         getLogger().info("Enabling CookieDough");
         instance = this;
         saveDefaultConfig();
+        YamlConfiguration persistedConfig = YamlConfiguration.loadConfiguration(
+                new java.io.File(getDataFolder(), "config.yml"));
+        var defaults = getConfig().getDefaults();
+        if (defaults == null) {
+            throw new IllegalStateException("Bundled CookieDough configuration defaults are unavailable");
+        }
+        CookieDoughConfigMigrator.Result configMigration = CookieDoughConfigMigrator.migrate(
+                getConfig(), persistedConfig, defaults);
+        if (configMigration.futureVersion()) {
+            getLogger().warning("config.yml version " + configMigration.previousVersion()
+                    + " is newer than supported version " + CookieDoughConfigMigrator.CURRENT_VERSION
+                    + "; it was preserved without downgrade");
+        }
+        configMigration.unsupportedKeys().forEach(path -> getLogger().warning(
+                "Unsupported config.yml key retained for operator review: " + path));
         getConfig().options().copyDefaults(true);
         saveConfig();
         GameManager.setGlobalAdmissionsOpen(true);

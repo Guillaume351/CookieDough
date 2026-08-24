@@ -71,12 +71,13 @@ public class LobbyManager implements Listener {
                 ? new StatueManager(plugin, championHeadsEnabled, leaderboardPanelsEnabled)
                 : null;
 
-        // Get lobby world, remove all entities
+        // Remove only entities that Cookie Build explicitly owns. Map-authored
+        // item frames, paintings, decorative mobs and other plugins' NPCs must
+        // survive a CookieDough restart.
         World lobbyWorld = Bukkit.getWorld("lobby");
         if (lobbyWorld != null) {
             for (Entity entity : lobbyWorld.getEntities()) {
-                // We should only remove non-player entities that are not part of the game.
-                if (!(entity instanceof Player)) {
+                if (LobbyEntityOwnership.isOwned(plugin, entity)) {
                     entity.remove();
                 }
             }
@@ -551,6 +552,9 @@ public class LobbyManager implements Listener {
             return;
         }
         ActivityAdmissionResult result = ActivityRegistry.enter(activityName, cookiePlayer);
+        if (result.admitted()) {
+            PlayerWrapperListener.completeOnboarding(player, "activity:" + activityName);
+        }
         player.sendMessage((result.admitted() ? ChatColor.GREEN : ChatColor.RED) + result.message());
     }
 

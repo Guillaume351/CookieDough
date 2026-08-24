@@ -49,10 +49,11 @@ public final class PostgresGoalProgressRepository {
                         insert into player_goal_progress
                           (player_id, day, daily_matches, daily_wins, first_win_date,
                            week, weekly_matches, weekly_wins, weekly_kills, achievements, updated_at)
-                        values
-                          (:playerId, :day, :dailyMatches, :dailyWins, :firstWinDate,
-                           :week, :weeklyMatches, :weeklyWins, :weeklyKills,
-                           cast(:achievements as jsonb), now())
+                        select :playerId, :day, :dailyMatches, :dailyWins, :firstWinDate,
+                               :week, :weeklyMatches, :weeklyWins, :weeklyKills,
+                               cast(:achievements as jsonb), now()
+                          from playerdata
+                         where id = :playerId
                         on conflict (player_id) do update set
                           day = greatest(player_goal_progress.day, excluded.day),
                           daily_matches = case

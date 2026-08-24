@@ -86,6 +86,7 @@ public class GameNPC {
         mob.setGlowing(presentation.persistent());
         mob.setFireTicks(0);
         mob.getPersistentDataContainer().set(markerKey(), PersistentDataType.STRING, gameName);
+        LobbyEntityOwnership.mark(plugin, mob, "game_npc");
         // Keep the legacy per-game marker until all persisted lobby data has been
         // through one reconciliation cycle.
         mob.getPersistentDataContainer().set(legacyMarkerKey(), PersistentDataType.BYTE, (byte) 1);
@@ -184,7 +185,7 @@ public class GameNPC {
     private void updateNPCName() {
         if (presentation.persistent()) {
             npc.customName(LobbyDisplayText.persistentActivityNpc(
-                    presentation.displayName(java.util.Locale.ENGLISH),
+                    presentation.gameName(),
                     LobbyModePlayerCounter.forPersistentActivity(gameName)));
             npc.setCustomNameVisible(true);
             return;
@@ -193,13 +194,13 @@ public class GameNPC {
         int totalPlayerCount = LobbyModePlayerCounter.forMinigame(gameName);
         if (game != null) {
             npc.customName(LobbyDisplayText.gameNpc(
-                    presentation.displayName(java.util.Locale.ENGLISH),
+                    presentation.gameName(),
                     totalPlayerCount,
                     game.getState()));
             npc.setCustomNameVisible(true);
         } else {
             npc.customName(LobbyDisplayText.unavailableGameNpc(
-                    presentation.displayName(java.util.Locale.ENGLISH), totalPlayerCount));
+                    presentation.gameName(), totalPlayerCount));
             npc.setCustomNameVisible(true);
         }
     }

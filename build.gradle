@@ -28,7 +28,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'io.papermc.paper:paper-api:26.1.2.build.74-stable'
+    compileOnly 'io.papermc.paper:paper-api:26.2.build.116-stable'
     compileOnly 'org.geysermc.cumulus:cumulus:1.1.2'
     // Immutable timestamped artifact from the upstream 2.2.5 snapshot repository.
     compileOnly('org.geysermc.floodgate:api:2.2.5-20260809.110940-20') {
@@ -51,8 +51,8 @@ dependencies {
 
     testImplementation platform('org.junit:junit-bom:6.0.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
-    testCompileOnly 'io.papermc.paper:paper-api:26.1.2.build.74-stable'
-    testRuntimeOnly 'io.papermc.paper:paper-api:26.1.2.build.74-stable'
+    testCompileOnly 'io.papermc.paper:paper-api:26.2.build.116-stable'
+    testRuntimeOnly 'io.papermc.paper:paper-api:26.2.build.116-stable'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     // For RabbitMQ

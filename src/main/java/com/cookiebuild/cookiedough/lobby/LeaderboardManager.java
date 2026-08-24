@@ -97,6 +97,8 @@ public class LeaderboardManager {
         stand.setCustomNameVisible(true);
         stand.customName(text);
         stand.setDisabledSlots(org.bukkit.inventory.EquipmentSlot.values());
+        stand.setPersistent(true);
+        LobbyEntityOwnership.mark(plugin, stand, "leaderboard");
         stand.setMetadata("leaderboard", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
         return stand;
     }

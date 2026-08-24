@@ -57,7 +57,7 @@ public final class PlayerGoalTracker {
         this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "goals.yml");
         load();
-        loadDatabaseAndImportYaml();
+        loadDatabaseAndMergeYaml();
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::saveIfDirty, 1200L, 1200L);
     }
 
@@ -132,6 +132,16 @@ public final class PlayerGoalTracker {
 
     public synchronized void shutdown() {
         saveIfDirty();
+    }
+
+    /**
+     * Persists the local fallback only after the authoritative player row has
+     * been committed. Startup cannot safely import goals.yml first because
+     * player_goal_progress owns a foreign key to playerdata.
+     */
+    public synchronized void syncPlayer(UUID playerId) {
+        if (playerId == null) return;
+        persistAsync(playerId, progress(playerId));
     }
 
     private void claimThreshold(Map<String, Reward> rewards, boolean completed, String key, int coins,
@@ -263,15 +273,10 @@ public final class PlayerGoalTracker {
         return LocalDate.now(ZoneOffset.UTC);
     }
 
-    private void loadDatabaseAndImportYaml() {
+    private void loadDatabaseAndMergeYaml() {
         try {
             Map<UUID, GoalProgressSnapshot> database = repository.loadAll();
             database.forEach((playerId, snapshot) -> progressByPlayer.put(playerId, fromSnapshot(snapshot)));
-            progressByPlayer.forEach((playerId, progress) -> {
-                if (!database.containsKey(playerId)) {
-                    persistAsync(playerId, progress);
-                }
-            });
         } catch (RuntimeException error) {
             plugin.getLogger().warning("Could not load goal progress from PostgreSQL; using the local fallback: "
                     + error.getMessage());

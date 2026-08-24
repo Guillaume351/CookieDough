@@ -156,6 +156,7 @@ final class SkyblockBillboard {
         frame.setPersistent(true);
         frame.setItemDropChance(0.0f);
         frame.getPersistentDataContainer().set(marker, PersistentDataType.STRING, MARKER_VALUE);
+        LobbyEntityOwnership.mark(plugin, frame, "skyblock_billboard");
         return frame;
     }
 

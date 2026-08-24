@@ -1,7 +1,7 @@
 name: CookieDough
 version: '${version}'
 main: com.cookiebuild.cookiedough.CookieDough
-api-version: '26.1.2'
+api-version: '26.2'
 load: POSTWORLD
 authors: [Guillaume Claverie]
 description: New Cookie Build Core plugin

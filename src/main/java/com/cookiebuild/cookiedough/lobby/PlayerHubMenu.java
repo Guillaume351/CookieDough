@@ -202,8 +202,11 @@ public final class PlayerHubMenu implements Listener {
         MenuHolder holder = new MenuHolder(MenuPage.ONBOARDING, 27,
                 Component.text(message(player, "hub.onboarding.title"), NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
-        inventory.setItem(11, item(Material.NETHER_STAR, message(player, "hub.quick.name"), "quick",
-                message(player, "hub.quick.lore")));
+        String primaryAction = onboardingPrimaryAction();
+        boolean solo = primaryAction.startsWith("game:join:");
+        inventory.setItem(11, item(solo ? Material.GRASS_BLOCK : Material.NETHER_STAR,
+                message(player, solo ? "hub.onboarding.solo_name" : "hub.quick.name"), primaryAction,
+                message(player, solo ? "hub.onboarding.solo_lore" : "hub.quick.lore")));
         inventory.setItem(13, item(Material.GRASS_BLOCK, message(player, "hub.games.name"), "games",
                 message(player, "hub.onboarding.games_lore")));
         inventory.setItem(15, item(Material.ENDER_EYE, message(player, "hub.onboarding.community_name"), "community",
@@ -334,8 +337,8 @@ public final class PlayerHubMenu implements Listener {
     }
 
     private void dispatch(Player player, String action, MenuPage source, String context) {
-        if (source == MenuPage.ONBOARDING && OnboardingCompletionPolicy.completes(action)) {
-            onboardingPlayers.remove(player.getUniqueId());
+        if (source == MenuPage.ONBOARDING && OnboardingCompletionPolicy.completes(action)
+                && onboardingPlayers.remove(player.getUniqueId())) {
             PlayerWrapperListener.completeOnboarding(player, action);
         }
         if (action.startsWith("game:details:")) {
@@ -480,8 +483,17 @@ public final class PlayerHubMenu implements Listener {
                 case ONBOARDING -> {
                     builder.title("§l§6" + message(player, "hub.onboarding.title"))
                             .content(message(player, "hub.onboarding.content"));
-                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.quick.name"),
-                            message(player, "hub.quick.lore")), "quick");
+                    String primaryAction = onboardingPrimaryAction();
+                    boolean solo = primaryAction.startsWith("game:join:");
+                    if (solo) {
+                        button(builder, actions, BedrockButtonText.format(
+                                message(player, "hub.onboarding.solo_name"),
+                                message(player, "hub.onboarding.solo_lore")),
+                                primaryAction, "modes/skyblock");
+                    } else {
+                        hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.quick.name"),
+                                message(player, "hub.quick.lore")), "quick");
+                    }
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.games.name"),
                             message(player, "hub.onboarding.games_lore")), "games");
                     hubButton(builder, actions, BedrockButtonText.format(
@@ -562,7 +574,7 @@ public final class PlayerHubMenu implements Listener {
                 }
             }
             builder.validResultHandler(response -> {
-                int index = response.getClickedButtonId();
+                int index = response.clickedButtonId();
                 if (index >= 0 && index < actions.size()) {
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         if (player.isOnline() && bedrockSessions.consume(player.getUniqueId(), nonce, scope)
@@ -639,6 +651,10 @@ public final class PlayerHubMenu implements Listener {
 
     private static String safeGameName(String gameName) {
         return gameName == null ? "" : gameName.replaceAll("[^A-Za-z0-9_-]", "");
+    }
+
+    private static String onboardingPrimaryAction() {
+        return ModePopulationService.hasReadyMatchForOneMorePlayer() ? "quick" : "game:join:Skyblock";
     }
 
     private static String progress(String label, int current, int target) {
