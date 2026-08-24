@@ -18,17 +18,21 @@ public record HubGameMenuModel(String title, String content, List<Entry> entries
     public record Entry(String action, Material icon, String bedrockTexture, String label, String detail) { }
 
     public static HubGameMenuModel index(Locale locale) {
+        List<Entry> entries = new ArrayList<>();
+        entries.add(new Entry("quick", Material.NETHER_STAR, "actions/quick_play",
+                message("hub.quick.name", locale), message("hub.quick.lore", locale)));
+        entries.addAll(GamePresentation.games().stream().map(game -> {
+            ModePopulationService.Snapshot snapshot = ModePopulationService.snapshot(game.gameName());
+            String detail = game.description(locale) + " · "
+                    + message("hub.games.players", locale, snapshot.players()) + " · "
+                    + message(snapshot.stateKey(), locale);
+            return new Entry("game:details:" + game.gameName(), game.icon(), game.bedrockTexture(),
+                    game.displayName(locale), detail);
+        }).toList());
         return new HubGameMenuModel(
                 message("hub.games.title", locale),
                 message("hub.games.content", locale),
-                GamePresentation.games().stream().map(game -> {
-                    ModePopulationService.Snapshot snapshot = ModePopulationService.snapshot(game.gameName());
-                    String detail = game.description(locale) + " · "
-                            + message("hub.games.players", locale, snapshot.players()) + " · "
-                            + message(snapshot.stateKey(), locale);
-                    return new Entry("game:details:" + game.gameName(), game.icon(), game.bedrockTexture(),
-                            game.displayName(locale), detail);
-                }).toList());
+                entries);
     }
 
     public static HubGameMenuModel detail(String gameName, Locale locale) {

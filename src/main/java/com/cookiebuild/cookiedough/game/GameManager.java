@@ -2,6 +2,7 @@ package com.cookiebuild.cookiedough.game;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -22,7 +23,18 @@ import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 public class GameManager {
     private static final Duration QUEUE_INTENT_TTL = Duration.ofMinutes(10);
     private static final Duration QUEUE_INTENT_FAILURE_NOTICE_COOLDOWN = Duration.ofSeconds(30);
-    public record QueueIntent(UUID playerId, UUID gameId, String gameName, long createdAtMillis) { }
+    public record QueueIntent(UUID playerId, UUID gameId, String gameName, long createdAtMillis,
+            UUID cohortId, int cohortSize) {
+        public QueueIntent {
+            cohortId = cohortId == null ? playerId : cohortId;
+            cohortSize = Math.max(1, cohortSize);
+        }
+
+        static QueueIntent solo(UUID playerId, Game game, long createdAtMillis) {
+            return new QueueIntent(playerId, game.getGameId(), game.getGameName(), createdAtMillis,
+                    playerId, 1);
+        }
+    }
     public record GameLifecycleEvent(String kind, UUID gameId, String gameName, GameState state) { }
 
     @FunctionalInterface
@@ -41,23 +53,13 @@ public class GameManager {
     public static void addGame(Game game) {
         if (!globalAdmissionsOpen) game.closeAdmissions();
         games.add(game);
+        adoptWaitingQueueIntents(game);
         notifyGameChanged(game, "registered");
     }
 
     public static void removeGame(Game game) {
         if (game != null) game.ejectSpectatorsToLobby();
-        if (game != null) {
-            queueIntents.entrySet().removeIf(entry -> {
-                if (!entry.getValue().gameId().equals(game.getGameId())) return false;
-                queueIntentFailureNoticeAt.remove(entry.getKey());
-                org.bukkit.entity.Player online = Bukkit.getPlayer(entry.getKey());
-                if (online != null && online.isOnline()) {
-                    online.sendMessage(org.bukkit.ChatColor.YELLOW + com.cookiebuild.cookiedough.utils.LocaleManager
-                            .getMessage("lobby.queue.intent_game_closed", online.locale(), game.getGameName()));
-                }
-                return true;
-            });
-        }
+        if (game != null) reassignQueueIntents(game);
         games.remove(game);
         notifyGameChanged(game, "removed");
         if (game != null && game.getState() == GameState.FINISHED) {
@@ -149,9 +151,51 @@ public class GameManager {
             return false;
         }
         UUID playerId = player.getPlayer().getUniqueId();
+        cancelQueueIntent(playerId);
         queueIntentFailureNoticeAt.remove(playerId);
-        queueIntents.put(playerId, new QueueIntent(
-                playerId, game.getGameId(), game.getGameName(), System.currentTimeMillis()));
+        queueIntents.put(playerId, QueueIntent.solo(playerId, game, System.currentTimeMillis()));
+        return true;
+    }
+
+    /**
+     * Registers one indivisible party cohort. Members remain outside the game
+     * roster until the whole cohort passes the ready-check and can be admitted.
+     */
+    public static synchronized boolean registerPartyQueueIntent(List<CookiePlayer> members, Game game,
+            UUID cohortId) {
+        if (members == null || members.isEmpty() || game == null || cohortId == null
+                || game.getState() != GameState.OPEN || !game.isAdmissionsOpen()
+                || game.getPartyAdmissionProblem(members.size()) != null) {
+            return false;
+        }
+        List<CookiePlayer> distinct = members.stream().filter(java.util.Objects::nonNull)
+                .filter(member -> member.getPlayer() != null)
+                .filter(member -> member.getPlayer().isOnline())
+                .filter(member -> PlayerWrapperListener.isPlayerDataReady(member.getPlayer().getUniqueId()))
+                .filter(GameManager::isQueueIntentEligible)
+                .collect(java.util.stream.Collectors.collectingAndThen(
+                        java.util.stream.Collectors.toMap(
+                                member -> member.getPlayer().getUniqueId(), member -> member,
+                                (left, right) -> left, LinkedHashMap::new),
+                        values -> new ArrayList<>(values.values())));
+        if (distinct.size() != members.size()) return false;
+
+        java.util.Set<UUID> memberIds = distinct.stream()
+                .map(member -> member.getPlayer().getUniqueId()).collect(java.util.stream.Collectors.toSet());
+        int alreadyQueued = validQueueIntentCohorts(game).stream()
+                .flatMap(List::stream)
+                .filter(intent -> !memberIds.contains(intent.playerId()))
+                .mapToInt(intent -> 1).sum();
+        if (game.getPlayerCount() + alreadyQueued + distinct.size() > game.getCapacity()) return false;
+
+        for (UUID memberId : memberIds) cancelQueueIntent(memberId);
+        long createdAt = System.currentTimeMillis();
+        for (CookiePlayer member : distinct) {
+            UUID playerId = member.getPlayer().getUniqueId();
+            queueIntentFailureNoticeAt.remove(playerId);
+            queueIntents.put(playerId, new QueueIntent(playerId, game.getGameId(), game.getGameName(),
+                    createdAt, cohortId, distinct.size()));
+        }
         return true;
     }
 
@@ -174,16 +218,22 @@ public class GameManager {
                 && player.getState() != PlayerState.SPECTATING) {
             return false;
         }
+        cancelQueueIntent(playerId);
         queueIntentFailureNoticeAt.remove(playerId);
-        queueIntents.put(playerId, new QueueIntent(
-                playerId, game.getGameId(), game.getGameName(), System.currentTimeMillis()));
+        queueIntents.put(playerId, QueueIntent.solo(playerId, game, System.currentTimeMillis()));
         return true;
     }
 
-    public static boolean cancelQueueIntent(UUID playerId) {
+    public static synchronized boolean cancelQueueIntent(UUID playerId) {
         if (playerId == null) return false;
-        queueIntentFailureNoticeAt.remove(playerId);
-        return queueIntents.remove(playerId) != null;
+        QueueIntent intent = queueIntents.get(playerId);
+        if (intent == null) return false;
+        queueIntents.entrySet().removeIf(entry -> {
+            boolean sameCohort = entry.getValue().cohortId().equals(intent.cohortId());
+            if (sameCohort) queueIntentFailureNoticeAt.remove(entry.getKey());
+            return sameCohort;
+        });
+        return true;
     }
 
     public static QueueIntent getQueueIntent(UUID playerId) {
@@ -198,61 +248,108 @@ public class GameManager {
         if (game == null || game.getState() != GameState.OPEN || !game.isAdmissionsOpen()) return;
         long now = System.currentTimeMillis();
         expireQueueIntents(now);
-        List<QueueIntent> valid = queueIntents.values().stream()
-                .filter(intent -> intent.gameId().equals(game.getGameId()))
-                .sorted(Comparator.comparingLong(QueueIntent::createdAtMillis))
-                .filter(intent -> {
-                    org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
-                    CookiePlayer current = online == null ? null : PlayerManager.getPlayer(online);
-                    Game owned = current == null ? null : getGameOfPlayer(current);
-                    boolean externalViewer = current != null && current.getState() == PlayerState.SPECTATING
-                            && owned != null && owned.isExternalSpectator(intent.playerId());
-                    return online != null && online.isOnline() && current != null
-                            && (current.getState() == PlayerState.LOBBY
-                                    || current.getState() == PlayerState.PERSISTENT_MODE
-                                    || externalViewer);
-                }).toList();
-        if (!QueueIntentReadinessPolicy.shouldActivate(game.getPlayerCount(), valid.size(),
+        List<List<QueueIntent>> validCohorts = validQueueIntentCohorts(game);
+        int validCount = validCohorts.stream().mapToInt(List::size).sum();
+        if (!QueueIntentReadinessPolicy.shouldActivate(game.getPlayerCount(), validCount,
                 game.getMinimumPlayers(), game.getCapacity())) return;
         LobbyManager lobby = LobbyManager.getInstance();
         if (lobby == null) return;
-        List<QueueIntent> ready = valid.stream().filter(intent -> {
-            org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
-            CookiePlayer current = online == null ? null : PlayerManager.getPlayer(online);
-            return current != null && lobby.canAdmitQueuedIntent(current, game);
-        }).toList();
-        int needed = Math.max(0, game.getMinimumPlayers() - game.getPlayerCount());
-        if (ready.size() < needed) {
-            valid.stream().filter(intent -> !ready.contains(intent)).forEach(intent -> {
+        int remaining = game.getCapacity() - game.getPlayerCount();
+        List<List<QueueIntent>> readyCohorts = new ArrayList<>();
+        for (List<QueueIntent> cohort : validCohorts) {
+            if (cohort.size() > remaining) continue;
+            boolean ready = cohort.stream().allMatch(intent -> {
                 org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
-                if (online != null && online.isOnline()) {
-                    long lastNotice = queueIntentFailureNoticeAt.getOrDefault(intent.playerId(), 0L);
-                    if (now - lastNotice >= QUEUE_INTENT_FAILURE_NOTICE_COOLDOWN.toMillis()) {
-                        queueIntentFailureNoticeAt.put(intent.playerId(), now);
-                        online.sendMessage(org.bukkit.ChatColor.RED + com.cookiebuild.cookiedough.utils.LocaleManager
-                                .getMessage("lobby.queue.leave_failed", online.locale()));
-                    }
-                }
+                CookiePlayer current = online == null ? null : PlayerManager.getPlayer(online);
+                return current != null && lobby.canAdmitQueuedIntent(current, game);
             });
-            return;
-        }
-        for (QueueIntent intent : ready) {
-            if (game.getPlayerCount() >= game.getCapacity()) break;
-            if (queueIntents.get(intent.playerId()) != intent) continue;
-            org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
-            CookiePlayer current = online == null ? null : PlayerManager.getPlayer(online);
-            if (current != null && lobby.admitQueuedIntent(current, game)) {
-                queueIntents.remove(intent.playerId(), intent);
-                queueIntentFailureNoticeAt.remove(intent.playerId());
-            } else if (online != null && online.isOnline()) {
-                long lastNotice = queueIntentFailureNoticeAt.getOrDefault(intent.playerId(), 0L);
-                if (now - lastNotice >= QUEUE_INTENT_FAILURE_NOTICE_COOLDOWN.toMillis()) {
-                    queueIntentFailureNoticeAt.put(intent.playerId(), now);
-                    online.sendMessage(org.bukkit.ChatColor.RED + com.cookiebuild.cookiedough.utils.LocaleManager
-                            .getMessage("lobby.queue.leave_failed", online.locale()));
-                }
+            if (ready) {
+                readyCohorts.add(cohort);
+                remaining -= cohort.size();
+            } else {
+                cohort.forEach(intent -> notifyQueueAdmissionFailure(intent, now));
             }
         }
+        int readyCount = readyCohorts.stream().mapToInt(List::size).sum();
+        int needed = Math.max(0, game.getMinimumPlayers() - game.getPlayerCount());
+        if (readyCount < needed) return;
+        for (List<QueueIntent> cohort : readyCohorts) {
+            if (game.getPlayerCount() + cohort.size() > game.getCapacity()) break;
+            if (cohort.stream().anyMatch(intent -> queueIntents.get(intent.playerId()) != intent)) continue;
+            List<CookiePlayer> members = cohort.stream().map(intent -> {
+                org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
+                return online == null ? null : PlayerManager.getPlayer(online);
+            }).toList();
+            if (members.stream().allMatch(java.util.Objects::nonNull)
+                    && lobby.admitQueuedParty(members, game)) {
+                cohort.forEach(intent -> {
+                    queueIntents.remove(intent.playerId(), intent);
+                    queueIntentFailureNoticeAt.remove(intent.playerId());
+                });
+            } else {
+                cohort.forEach(intent -> notifyQueueAdmissionFailure(intent, now));
+            }
+        }
+    }
+
+    /** Valid passive intentions, grouped so a party is counted only when complete. */
+    private static List<List<QueueIntent>> validQueueIntentCohorts(Game game) {
+        if (game == null) return List.of();
+        Map<UUID, List<QueueIntent>> grouped = queueIntents.values().stream()
+                .filter(intent -> intent.gameId().equals(game.getGameId()))
+                .sorted(Comparator.comparingLong(QueueIntent::createdAtMillis))
+                .collect(java.util.stream.Collectors.groupingBy(
+                        QueueIntent::cohortId, LinkedHashMap::new, java.util.stream.Collectors.toList()));
+        return grouped.values().stream().filter(cohort -> {
+            return isCompleteCohort(cohort)
+                    && cohort.stream().allMatch(GameManager::isQueueIntentEligible);
+        }).toList();
+    }
+
+    static boolean isCompleteCohort(List<QueueIntent> cohort) {
+        if (cohort == null || cohort.isEmpty()) return false;
+        int expected = cohort.getFirst().cohortSize();
+        UUID cohortId = cohort.getFirst().cohortId();
+        return cohort.size() == expected
+                && cohort.stream().allMatch(intent -> intent.cohortSize() == expected
+                        && intent.cohortId().equals(cohortId))
+                && cohort.stream().map(QueueIntent::playerId).distinct().count() == expected;
+    }
+
+    private static boolean isQueueIntentEligible(QueueIntent intent) {
+        org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
+        CookiePlayer current = online == null ? null : PlayerManager.getPlayer(online);
+        return current != null && isQueueIntentEligible(current);
+    }
+
+    private static boolean isQueueIntentEligible(CookiePlayer current) {
+        if (current == null || current.getPlayer() == null || !current.getPlayer().isOnline()) return false;
+        Game owned = getGameOfPlayer(current);
+        boolean externalViewer = current.getState() == PlayerState.SPECTATING && owned != null
+                && owned.isExternalSpectator(current.getPlayer().getUniqueId());
+        return current.getState() == PlayerState.LOBBY
+                || current.getState() == PlayerState.PERSISTENT_MODE || externalViewer;
+    }
+
+    public static int getValidQueueIntentCount(Game game) {
+        return validQueueIntentCohorts(game).stream().mapToInt(List::size).sum();
+    }
+
+    public static org.bukkit.entity.Player getFirstValidQueueIntentPlayer(Game game) {
+        return validQueueIntentCohorts(game).stream().flatMap(List::stream)
+                .map(intent -> Bukkit.getPlayer(intent.playerId()))
+                .filter(java.util.Objects::nonNull).filter(org.bukkit.entity.Player::isOnline)
+                .findFirst().orElse(null);
+    }
+
+    private static void notifyQueueAdmissionFailure(QueueIntent intent, long now) {
+        org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
+        if (online == null || !online.isOnline()) return;
+        long lastNotice = queueIntentFailureNoticeAt.getOrDefault(intent.playerId(), 0L);
+        if (now - lastNotice < QUEUE_INTENT_FAILURE_NOTICE_COOLDOWN.toMillis()) return;
+        queueIntentFailureNoticeAt.put(intent.playerId(), now);
+        online.sendMessage(org.bukkit.ChatColor.RED + com.cookiebuild.cookiedough.utils.LocaleManager
+                .getMessage("lobby.queue.leave_failed", online.locale()));
     }
 
     static void reassignQueueIntents(Game closed) {
@@ -278,11 +375,27 @@ public class GameManager {
                         .getMessage("lobby.queue.intent_reassigned", online.locale(), replacement.getGameName()));
             }
             return new QueueIntent(playerId, replacement.getGameId(), replacement.getGameName(),
-                    intent.createdAtMillis());
+                    intent.createdAtMillis(), intent.cohortId(), intent.cohortSize());
         });
-        if (replacement == null) {
-            queueIntents.entrySet().removeIf(entry -> entry.getValue().gameId().equals(closed.getGameId()));
-        }
+        // No replacement yet: keep the cohort intact until addGame adopts it or
+        // the normal TTL expires. Losing it here would silently cancel a party.
+    }
+
+    private static void adoptWaitingQueueIntents(Game replacement) {
+        if (replacement == null || replacement.getState() != GameState.OPEN
+                || !replacement.isAdmissionsOpen()) return;
+        queueIntents.replaceAll((playerId, intent) -> {
+            Game previous = getGameById(intent.gameId());
+            if (!shouldAdoptWaitingIntent(intent, replacement, previous)) return intent;
+            return new QueueIntent(playerId, replacement.getGameId(), replacement.getGameName(),
+                    intent.createdAtMillis(), intent.cohortId(), intent.cohortSize());
+        });
+    }
+
+    static boolean shouldAdoptWaitingIntent(QueueIntent intent, Game replacement, Game previous) {
+        return intent != null && replacement != null
+                && intent.gameName().equalsIgnoreCase(replacement.getGameName())
+                && (previous == null || previous.getState() != GameState.OPEN || !previous.isAdmissionsOpen());
     }
 
     private static void expireQueueIntents(long nowMillis) {
@@ -412,7 +525,7 @@ public class GameManager {
 
     private static int countDistinctOnlinePlayers(java.util.stream.Stream<Game> selectedGames) {
         return (int) selectedGames
-                .flatMap(game -> game.getOwnedPlayers().stream())
+                .flatMap(game -> game.getPlayers().stream())
                 .filter(player -> player.getPlayer() != null && player.getPlayer().isOnline())
                 .map(player -> player.getPlayer().getUniqueId())
                 .distinct()

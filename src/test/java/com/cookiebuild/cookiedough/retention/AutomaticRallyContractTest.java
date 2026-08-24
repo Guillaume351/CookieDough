@@ -22,5 +22,8 @@ class AutomaticRallyContractTest {
         assertTrue(rally.contains("enqueue(game, RallyRepository.Source.ADMIN"));
         assertTrue(rally.contains("notices.publish("));
         assertTrue(rally.contains("notices.includeRecipient("));
+        assertTrue(rally.contains("GameManager.getValidQueueIntentCount(game)"));
+        assertTrue(rally.contains("GameManager.getFirstValidQueueIntentPlayer(game)"));
+        assertTrue(rally.contains("partyManager.queueParty(player, game)"));
     }
 }

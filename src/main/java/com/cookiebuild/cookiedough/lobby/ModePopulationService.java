@@ -39,7 +39,7 @@ public final class ModePopulationService {
         GameState state = arenas.stream().map(Game::getState)
                 .min(Comparator.comparingInt(ModePopulationService::statePriority))
                 .orElse(GameState.LOADING);
-        boolean available = arenas.stream().anyMatch(game -> game.getState() == GameState.OPEN);
+        boolean available = arenas.stream().anyMatch(ModePopulationService::canAdmitOne);
         return new Snapshot(GameManager.getOnlineGamePlayerCount(modeName), state, available, false);
     }
 
@@ -51,8 +51,23 @@ public final class ModePopulationService {
     }
 
     public static boolean hasReadyMatchForOneMorePlayer() {
-        return GameManager.getGames().stream().anyMatch(game -> game.getState() == GameState.OPEN
+        return hasReadyMatchForOneMorePlayer(GameManager.getGames());
+    }
+
+    static boolean hasReadyMatchForOneMorePlayer(List<? extends Game> games) {
+        return games != null && games.stream().anyMatch(game -> canAdmitOne(game)
                 && game.getPlayerCount() + 1 >= game.getMinimumPlayers());
+    }
+
+    private static boolean canAdmitOne(Game game) {
+        return game != null && game.getState() == GameState.OPEN && game.isAdmissionsOpen()
+                && game.getPlayerCount() < game.getCapacity()
+                && game.getPartyAdmissionProblem(1) == null;
+    }
+
+    public static boolean isPersistentActivityAvailable(String activityName) {
+        PersistentActivity activity = ActivityRegistry.find(activityName);
+        return activity != null && activity.isAvailable();
     }
 
     private static int statePriority(GameState state) {

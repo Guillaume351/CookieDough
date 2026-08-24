@@ -70,7 +70,7 @@ class LocaleManagerTest {
                 "Allenamento di reazione avviato. Il tuo posto in coda è al sicuro: attendi GO!, poi fai clic con il tasto destro.",
                 LocaleManager.getMessage("practice.started", Locale.ITALIAN));
         assertEquals(
-                "Skyblock ਸ਼ੁਰੂ ਕਰੋ",
+                "Start Skyblock",
                 LocaleManager.getMessage("hub.onboarding.solo_name", Locale.of("pa", "IN")));
         assertEquals(
                 "Reaction practice started. Your queue slot is safe: wait for GO!, then right-click.",

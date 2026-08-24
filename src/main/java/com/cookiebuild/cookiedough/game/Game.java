@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.HashMap;
 
 import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.Sound;
 
 import com.cookiebuild.cookiedough.CookieDough;
@@ -395,9 +397,31 @@ public abstract class Game implements GameStatus {
         return false;
     }
 
-    /** Places a viewer at a safe mode-owned observation point. */
+    /**
+     * Resolves the mode-owned destination without mutating the player. Modules
+     * must reject unavailable maps/worlds here so a passive activity is never
+     * left before the target arena is ready.
+     */
+    protected Location spectatorDestination(CookiePlayer player) {
+        return null;
+    }
+
+    /** Loads the exact destination before the source activity is released. */
+    public synchronized boolean preflightSpectatorAdmission(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()
+                || state != GameState.RUNNING || !supportsSpectating()) return false;
+        Location destination = spectatorDestination(player);
+        return destination != null && destination.getWorld() != null && destination.getChunk().load();
+    }
+
+    /** Places a viewer at the already-preflighted safe mode-owned point. */
     protected boolean teleportToSpectator(CookiePlayer player) {
-        return false;
+        Location destination = spectatorDestination(player);
+        if (destination == null || destination.getWorld() == null
+                || !destination.getChunk().load() || !player.getPlayer().teleport(destination)) return false;
+        player.resetPlayer();
+        player.getPlayer().setGameMode(GameMode.SPECTATOR);
+        return true;
     }
 
     public boolean hasStarted() {
@@ -405,6 +429,7 @@ public abstract class Game implements GameStatus {
     }
 
     public void resetGame() {
+        if (!spectators.isEmpty()) ejectSpectatorsToLobby();
         state = GameState.OPEN;
         admissionsOpen = GameManager.areGlobalAdmissionsOpen();
         time = 0;
@@ -456,7 +481,8 @@ public abstract class Game implements GameStatus {
             }
             FunnelTelemetry.record(cookiePlayer.getPlayer(), FunnelTelemetry.Event.MATCH_COMPLETED,
                     "game=" + gameName);
-            CookieDough.getInstance().getRallyManager().notifyAvailableAfterMatch(cookiePlayer.getPlayer());
+            boolean bedrockQueueOffer = CookieDough.getInstance().getRallyManager()
+                    .notifyAvailableAfterMatch(cookiePlayer.getPlayer(), gameName);
             cookiePlayer.getPlayer().sendMessage(net.kyori.adventure.text.Component.text(
                             LocaleManager.getMessage("feedback.action", cookiePlayer.getPlayer().locale()),
                             net.kyori.adventure.text.format.NamedTextColor.AQUA)
@@ -464,7 +490,8 @@ public abstract class Game implements GameStatus {
                     .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
                             net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
                                     "feedback.hover", cookiePlayer.getPlayer().locale())))));
-            if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
+            if (!bedrockQueueOffer && CookieDough.getInstance() != null
+                    && CookieDough.getInstance().getPlayerHubMenu() != null) {
                 CookieDough.getInstance().getPlayerHubMenu().openReplay(cookiePlayer.getPlayer(), gameName);
             }
         }

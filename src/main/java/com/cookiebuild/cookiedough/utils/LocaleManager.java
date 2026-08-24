@@ -19,7 +19,6 @@ public class LocaleManager {
             Locale.of("bg"),
             Locale.of("hi"),
             Locale.GERMAN,
-            Locale.of("pa"),
             Locale.ITALIAN);
     private static final ResourceBundle.Control NO_SYSTEM_LOCALE_FALLBACK =
             ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES);

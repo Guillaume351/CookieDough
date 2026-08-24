@@ -3,6 +3,8 @@ package com.cookiebuild.cookiedough.lobby;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
@@ -32,6 +34,7 @@ import org.bukkit.scheduler.BukkitTask;
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.activity.ActivityAdmissionResult;
 import com.cookiebuild.cookiedough.activity.ActivityRegistry;
+import com.cookiebuild.cookiedough.activity.PersistentActivity;
 import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.game.GameState;
@@ -55,6 +58,8 @@ public class LobbyManager implements Listener {
 
     // Singleton
     private static LobbyManager instance;
+
+    private record PassiveSource(PersistentActivity activity, Game spectatorGame) { }
 
     public LobbyManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -489,6 +494,13 @@ public class LobbyManager implements Listener {
                     game.getPlayerCount(), game.getCapacity()));
             return;
         }
+        if (game == null && player.getState() == PlayerState.LOBBY
+                && ModePopulationService.isPersistentActivityAvailable("Skyblock")
+                && (CookieDough.getInstance().getPartyManager().getPartyId(
+                        player.getPlayer().getUniqueId()) == null)) {
+            CookieDough.getInstance().getPlayerHubMenu().openSoloSuggestion(player.getPlayer());
+            return;
+        }
         player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
                 "lobby.join.no_available", player.getPlayer().locale()));
     }
@@ -564,7 +576,13 @@ public class LobbyManager implements Listener {
                     "lobby.spectate.unavailable", player.locale(), gameName));
             return;
         }
-        if (!transitionFromPassiveActivity(cookiePlayer) || !game.addSpectator(cookiePlayer)) {
+        if (game.isExternalSpectator(player.getUniqueId())) return;
+        PassiveSource source = passiveSource(cookiePlayer);
+        if (!PassiveActivityTransition.execute(
+                () -> game.preflightSpectatorAdmission(cookiePlayer),
+                () -> transitionFromPassiveActivity(cookiePlayer),
+                () -> game.addSpectator(cookiePlayer),
+                () -> restorePassiveSource(cookiePlayer, source))) {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
                     "lobby.spectate.unavailable", player.locale(), gameName));
         }
@@ -624,11 +642,51 @@ public class LobbyManager implements Listener {
 
     /** Called by GameManager only after intents can satisfy the arena minimum. */
     public boolean admitQueuedIntent(CookiePlayer cookiePlayer, Game game) {
-        if (cookiePlayer == null || game == null || game.getState() != GameState.OPEN
-                || !game.isAdmissionsOpen() || !transitionFromPassiveActivity(cookiePlayer)) {
+        return admitQueuedParty(List.of(cookiePlayer), game);
+    }
+
+    /**
+     * Two-phase party admission. No member leaves a passive activity before all
+     * preflights succeed; any late transition/game failure restores every source
+     * and removes every partial roster mutation.
+     */
+    public boolean admitQueuedParty(List<CookiePlayer> members, Game game) {
+        if (members == null || members.isEmpty() || members.stream().anyMatch(java.util.Objects::isNull)
+                || game == null || game.getState() != GameState.OPEN || !game.isAdmissionsOpen()
+                || game.getPartyAdmissionProblem(members.size()) != null
+                || members.stream().anyMatch(member -> !canAdmitQueuedIntent(member, game))) {
             return false;
         }
-        return game.addPlayerToAvailableTeam(cookiePlayer);
+        Map<UUID, PassiveSource> sources = new java.util.LinkedHashMap<>();
+        for (CookiePlayer member : members) {
+            sources.put(member.getPlayer().getUniqueId(), passiveSource(member));
+        }
+        List<CookiePlayer> transitioned = new ArrayList<>();
+        for (CookiePlayer member : members) {
+            if (!transitionFromPassiveActivity(member)) {
+                transitioned.forEach(previous -> restorePassiveSource(previous,
+                        sources.get(previous.getPlayer().getUniqueId())));
+                restorePassiveSource(member, sources.get(member.getPlayer().getUniqueId()));
+                return false;
+            }
+            transitioned.add(member);
+        }
+        List<CookiePlayer> admitted = new ArrayList<>();
+        for (CookiePlayer member : members) {
+            if (!game.addPlayerToAvailableTeam(member)) {
+                admitted.forEach(previous -> game.removePlayer(previous, "party_admission_rollback"));
+                transitioned.forEach(previous -> {
+                    if (previous.getState() != PlayerState.LOBBY
+                            || GameManager.getGameOfPlayer(previous) != null) {
+                        teleportPlayerToLobby(previous);
+                    }
+                    restorePassiveSource(previous, sources.get(previous.getPlayer().getUniqueId()));
+                });
+                return false;
+            }
+            admitted.add(member);
+        }
+        return true;
     }
 
     public boolean canAdmitQueuedIntent(CookiePlayer cookiePlayer, Game game) {
@@ -643,6 +701,32 @@ public class LobbyManager implements Listener {
         Game current = GameManager.getGameOfPlayer(cookiePlayer);
         return cookiePlayer.getState() == PlayerState.SPECTATING && current != null
                 && current.isExternalSpectator(cookiePlayer.getPlayer().getUniqueId());
+    }
+
+    private static PassiveSource passiveSource(CookiePlayer player) {
+        if (player == null || player.getPlayer() == null) return new PassiveSource(null, null);
+        PersistentActivity activity = ActivityRegistry.owner(player.getPlayer().getUniqueId());
+        Game game = GameManager.getGameOfPlayer(player);
+        Game spectatorGame = game != null && game.isExternalSpectator(player.getPlayer().getUniqueId())
+                ? game : null;
+        return new PassiveSource(activity, spectatorGame);
+    }
+
+    private static boolean restorePassiveSource(CookiePlayer player, PassiveSource source) {
+        if (player == null || source == null || player.getPlayer() == null || !player.getPlayer().isOnline()) {
+            return false;
+        }
+        if (source.activity() != null
+                && ActivityRegistry.owner(player.getPlayer().getUniqueId()) == source.activity()) return true;
+        if (source.spectatorGame() != null
+                && source.spectatorGame().isExternalSpectator(player.getPlayer().getUniqueId())) return true;
+        if (player.getState() != PlayerState.LOBBY || GameManager.getGameOfPlayer(player) != null) {
+            teleportPlayerToLobby(player);
+        }
+        if (source.activity() != null) {
+            return ActivityRegistry.enter(source.activity().name(), player).admitted();
+        }
+        return source.spectatorGame() == null || source.spectatorGame().addSpectator(player);
     }
 
     private static void giveQuickPlayItem(Player player) {

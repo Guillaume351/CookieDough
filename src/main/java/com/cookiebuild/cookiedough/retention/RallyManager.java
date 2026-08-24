@@ -27,7 +27,12 @@ import com.cookiebuild.cookiedough.game.FunnelTelemetry;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
 import com.cookiebuild.cookiedough.player.PlayerState;
+import com.cookiebuild.cookiedough.ui.BedrockButtonText;
+import com.cookiebuild.cookiedough.ui.BedrockFormImages;
+import com.cookiebuild.cookiedough.ui.BedrockFormSupport;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
+
+import org.geysermc.cumulus.form.SimpleForm;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -137,7 +142,8 @@ public final class RallyManager {
             return;
         }
         if (!queueState(game).underfilled()) {
-            completion.accept(game.getState() == GameState.OPEN && game.getPlayerCount() >= game.getMinimumPlayers()
+            completion.accept(game.getState() == GameState.OPEN
+                    && effectiveQueuedCount(game) >= game.getMinimumPlayers()
                     ? "This game already has enough players and is preparing to start."
                     : "That queue is no longer waiting for players.");
             return;
@@ -198,6 +204,14 @@ public final class RallyManager {
             return;
         }
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        PartyManager partyManager = plugin.getPartyManager();
+        if (partyManager.getPartyId(player.getUniqueId()) != null) {
+            String result = partyManager.queueParty(player, game);
+            if (result != null && !result.isBlank()) {
+                player.sendMessage(ChatColor.YELLOW + result);
+            }
+            return;
+        }
         Game current = cookiePlayer == null ? null : GameManager.getGameOfPlayer(cookiePlayer);
         if (current != null && !current.isExternalSpectator(player.getUniqueId())) {
             boolean replacing = GameManager.getQueueIntent(player.getUniqueId()) != null;
@@ -223,6 +237,11 @@ public final class RallyManager {
                         || candidate.getState() == PlayerState.PERSISTENT_MODE
                         || isExternalSpectator(candidate))
                 .filter(candidate -> !game.ownsPlayer(candidate))
+                .filter(candidate -> {
+                    GameManager.QueueIntent intent = GameManager.getQueueIntent(
+                            candidate.getPlayer().getUniqueId());
+                    return intent == null || !intent.gameId().equals(game.getGameId());
+                })
                 .map(candidate -> candidate.getPlayer().getUniqueId())
                 .collect(java.util.stream.Collectors.toSet());
         InGameQueueNoticeRegistry.Notice notice = notices.publish(
@@ -231,22 +250,27 @@ public final class RallyManager {
         for (UUID recipientId : notice.recipients()) {
             Player recipient = Bukkit.getPlayer(recipientId);
             if (recipient == null || !recipient.isOnline()) continue;
-            sendInGameNotice(recipient, game, notice);
+            sendInGameNotice(recipient, game, notice, null);
         }
         return notice.recipients().size();
     }
 
     /** Offers one active underfilled queue once a participant reaches the replay transition. */
-    public void notifyAvailableAfterMatch(Player player) {
-        if (!running || player == null || !player.isOnline()) return;
+    public boolean notifyAvailableAfterMatch(Player player, String completedGameName) {
+        if (!running || player == null || !player.isOnline()) return false;
         Game game = GameManager.getGames().stream()
                 .filter(candidate -> queueState(candidate).underfilled())
                 .max(java.util.Comparator.comparingInt(Game::getPlayerCount)).orElse(null);
-        if (game == null) return;
+        if (game == null) return false;
         InGameQueueNoticeRegistry.Notice notice = notices.includeRecipient(
                 game.getGameId(), game.getGameName(), player.getUniqueId(), System.currentTimeMillis()).orElse(null);
-        if (notice == null) return;
-        sendInGameNotice(player, game, notice);
+        if (notice == null) return false;
+        Runnable replay = () -> {
+            if (player.isOnline() && plugin.getPlayerHubMenu() != null) {
+                plugin.getPlayerHubMenu().openReplay(player, completedGameName);
+            }
+        };
+        return sendInGameNotice(player, game, notice, replay);
     }
 
     private static boolean isExternalSpectator(CookiePlayer candidate) {
@@ -256,8 +280,44 @@ public final class RallyManager {
         return owned != null && owned.isExternalSpectator(candidate.getPlayer().getUniqueId());
     }
 
-    private static void sendInGameNotice(Player recipient, Game game,
-            InGameQueueNoticeRegistry.Notice notice) {
+    private boolean sendInGameNotice(Player recipient, Game game,
+            InGameQueueNoticeRegistry.Notice notice, Runnable bedrockDismissAction) {
+        if (BedrockFormSupport.isBedrock(recipient)) {
+            java.util.concurrent.atomic.AtomicBoolean continued = new java.util.concurrent.atomic.AtomicBoolean();
+            Runnable continueOnce = () -> {
+                if (bedrockDismissAction != null && continued.compareAndSet(false, true)) {
+                    bedrockDismissAction.run();
+                }
+            };
+            SimpleForm.Builder builder = SimpleForm.builder()
+                    .title(game.getGameName())
+                    .content(LocaleManager.getMessage(
+                            "rally.invite.message", recipient.locale(), game.getGameName()));
+            BedrockFormImages.button(builder, BedrockButtonText.format(LocaleManager.getMessage(
+                    "rally.invite.action", recipient.locale()), LocaleManager.getMessage(
+                            "rally.invite.hover", recipient.locale())), "actions/join");
+            BedrockFormImages.button(builder, BedrockButtonText.format(LocaleManager.getMessage(
+                    bedrockDismissAction == null ? "hub.game.detail.close" : "replay.menu.title",
+                    recipient.locale())), bedrockDismissAction == null ? "actions/close" : "actions/back");
+            builder.validResultHandler(response -> {
+                if (response.clickedButtonId() == 0) {
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (recipient.isOnline()) acceptInGameNotice(recipient, notice.id());
+                    });
+                } else if (bedrockDismissAction != null) {
+                    Bukkit.getScheduler().runTask(plugin, continueOnce);
+                }
+            });
+            if (bedrockDismissAction != null) {
+                builder.closedOrInvalidResultHandler(() ->
+                        Bukkit.getScheduler().runTask(plugin, continueOnce));
+            }
+            if (BedrockFormSupport.send(recipient, builder.build())) {
+                FunnelTelemetry.record(recipient, FunnelTelemetry.Event.QUEUE_INVITE_SHOWN,
+                        "game=" + game.getGameName());
+                return true;
+            }
+        }
         recipient.sendMessage(Component.text(LocaleManager.getMessage(
                         "rally.invite.message", recipient.locale(), game.getGameName()), NamedTextColor.YELLOW)
                 .append(Component.space())
@@ -268,6 +328,7 @@ public final class RallyManager {
                                 "rally.invite.hover", recipient.locale()))))));
         FunnelTelemetry.record(recipient, FunnelTelemetry.Event.QUEUE_INVITE_SHOWN,
                 "game=" + game.getGameName());
+        return false;
     }
 
     public void shutdown(Duration timeout) {
@@ -295,8 +356,8 @@ public final class RallyManager {
                 UUID.randomUUID(),
                 source,
                 game == null ? RallyRepository.NETWORK_GAMEMODE : gamemodeId(game.getGameName()),
-                game == null ? 0 : game.getPlayerCount(),
-                game == null ? 0 : Math.max(0, game.getMinimumPlayers() - game.getPlayerCount()),
+                game == null ? 0 : effectiveQueuedCount(game),
+                game == null ? 0 : Math.max(0, game.getMinimumPlayers() - effectiveQueuedCount(game)),
                 actorName,
                 target.getUniqueId(),
                 gameId);
@@ -503,18 +564,23 @@ public final class RallyManager {
     private static RallyQueueTracker.QueueState queueState(Game game) {
         return new RallyQueueTracker.QueueState(
                 game.getGameId(), game.getState() == GameState.OPEN,
-                game.getPlayerCount(), game.getMinimumPlayers());
+                effectiveQueuedCount(game), game.getMinimumPlayers());
+    }
+
+    private static int effectiveQueuedCount(Game game) {
+        return game == null ? 0 : game.getPlayerCount() + GameManager.getValidQueueIntentCount(game);
     }
 
     private static Player firstOnlinePlayer(Game game) {
         if (game == null) {
             return null;
         }
-        return game.getPlayers().stream()
+        Player participant = game.getPlayers().stream()
                 .map(CookiePlayer::getPlayer)
                 .filter(player -> player != null && player.isOnline())
                 .findFirst()
                 .orElse(null);
+        return participant != null ? participant : GameManager.getFirstValidQueueIntentPlayer(game);
     }
 
     private static boolean isSoloOnline(UUID playerId) {
