@@ -15,6 +15,9 @@ public interface PersistentActivity {
     /** Returns false only when an interactive leave must be refused to preserve player data. */
     boolean leave(CookiePlayer player, String reason);
 
+    /** Side-effect-free readiness probe used before an atomic queue transition. */
+    default boolean canLeave(CookiePlayer player, String reason) { return true; }
+
     boolean owns(UUID playerId);
 
     /** Identifies a saved persistent destination before player-data initialization completes. */

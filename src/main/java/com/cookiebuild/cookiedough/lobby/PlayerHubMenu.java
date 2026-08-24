@@ -82,6 +82,12 @@ public final class PlayerHubMenu implements Listener {
         player.openInventory(mainInventory(player));
     }
 
+    /** Cross-mode game selection without forcing a passive activity to close. */
+    public void openGames(Player player) {
+        if (player == null || !player.isOnline()) return;
+        openPage(player, MenuPage.GAMES);
+    }
+
     /** Shown until its first successful display; it deliberately fits on one page. */
     public boolean openOnboarding(Player player) {
         onboardingPlayers.add(player.getUniqueId());
@@ -143,6 +149,19 @@ public final class PlayerHubMenu implements Listener {
         queueHelpShown.remove(player.getUniqueId());
         ItemStack item = player.getInventory().getItem(8);
         if (hasAction(item, "queue")) player.getInventory().setItem(8, null);
+    }
+
+    public void enterSpectator(Player player) {
+        if (player == null || !player.isOnline()) return;
+        player.getInventory().setItem(7, item(Material.COMPASS,
+                message(player, "spectator.controls.item"), "spectator_games",
+                message(player, "spectator.controls.item_lore")));
+    }
+
+    public void leaveSpectator(Player player) {
+        if (player == null) return;
+        ItemStack item = player.getInventory().getItem(7);
+        if (hasAction(item, "spectator_games")) player.getInventory().setItem(7, null);
     }
 
     public void clearPlayer(UUID playerId) {
@@ -239,7 +258,7 @@ public final class PlayerHubMenu implements Listener {
         Inventory inventory = holder.inventory();
         GamePresentation game = GamePresentation.find(gameName).orElseThrow();
         inventory.setItem(4, item(game.icon(), model.title(), "noop", model.content().split("\\n")));
-        int[] slots = { 11, 15, 22 };
+        int[] slots = model.entries().size() == 4 ? new int[] { 10, 12, 14, 16 } : new int[] { 11, 15, 22 };
         for (int index = 0; index < model.entries().size(); index++) {
             HubGameMenuModel.Entry entry = model.entries().get(index);
             inventory.setItem(slots[index], item(entry.icon(), entry.label(), entry.action(), entry.detail()));
@@ -329,11 +348,13 @@ public final class PlayerHubMenu implements Listener {
         if (event.getHand() != EquipmentSlot.HAND
                 || (event.getAction() != Action.RIGHT_CLICK_AIR
                         && event.getAction() != Action.RIGHT_CLICK_BLOCK)
-                || !hasAction(event.getItem(), "queue")) {
+                || (!hasAction(event.getItem(), "queue")
+                        && !hasAction(event.getItem(), "spectator_games"))) {
             return;
         }
         event.setCancelled(true);
-        openQueue(event.getPlayer());
+        if (hasAction(event.getItem(), "queue")) openQueue(event.getPlayer());
+        else openGames(event.getPlayer());
     }
 
     private void dispatch(Player player, String action, MenuPage source, String context) {
@@ -349,8 +370,21 @@ public final class PlayerHubMenu implements Listener {
         if (action.startsWith("game:join:")) {
             String gameName = action.substring("game:join:".length());
             if (GamePresentation.find(gameName).isEmpty()) return;
+            if (plugin.getPartyManager().isAvailable()
+                    && plugin.getPartyManager().getPartyId(player.getUniqueId()) != null) {
+                player.sendMessage(org.bukkit.ChatColor.YELLOW + message(
+                        player, "lobby.party.direct_solo_only"));
+                return;
+            }
             player.closeInventory();
             lobby.requestActivity(player, gameName);
+            return;
+        }
+        if (action.startsWith("game:spectate:")) {
+            String gameName = action.substring("game:spectate:".length());
+            if (GamePresentation.find(gameName).isEmpty()) return;
+            player.closeInventory();
+            lobby.requestSpectate(player, gameName);
             return;
         }
         if (action.startsWith("queue:")) {

@@ -18,6 +18,7 @@ public interface RallyRepository {
     enum Source {
         LOGIN,
         PLAYER,
+        ADMIN,
         AUTOMATIC;
 
         public String wireValue() {
@@ -68,7 +69,7 @@ public interface RallyRepository {
                     throw new IllegalArgumentException("Attributed rallies require a public Minecraft name");
                 }
             } else if (actorDisplayName != null) {
-                throw new IllegalArgumentException("Automatic rallies cannot name an actor");
+                throw new IllegalArgumentException("Unattributed rallies cannot name an actor");
             }
         }
     }

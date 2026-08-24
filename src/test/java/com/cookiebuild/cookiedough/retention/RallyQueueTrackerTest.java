@@ -157,6 +157,9 @@ class RallyQueueTrackerTest {
         assertEquals(0, new RallyRepository.Request(
                 UUID.randomUUID(), RallyRepository.Source.AUTOMATIC, "pitchout", 2, 0, null,
                 targetPlayerId, gameId).neededCount());
+        assertEquals("admin", new RallyRepository.Request(
+                UUID.randomUUID(), RallyRepository.Source.ADMIN, "pitchout", 1, 1, null,
+                targetPlayerId, gameId).source().wireValue());
     }
 
     @Test

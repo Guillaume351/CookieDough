@@ -26,6 +26,23 @@ public final class QuickPlayCommand implements CommandExecutor {
             sender.sendMessage("This command can only be used by players.");
             return true;
         }
+        if (args.length == 2 && args[0].equalsIgnoreCase("notice")) {
+            try {
+                CookieDough.getInstance().getRallyManager().acceptInGameNotice(
+                        player, java.util.UUID.fromString(args[1]));
+            } catch (IllegalArgumentException invalidToken) {
+                player.sendMessage(org.bukkit.ChatColor.YELLOW + com.cookiebuild.cookiedough.utils.LocaleManager
+                        .getMessage("rally.invite.expired", player.locale()));
+            }
+            return true;
+        }
+        if (args.length == 1 && args[0].equalsIgnoreCase("cancel")) {
+            boolean cancelled = GameManager.cancelQueueIntent(player.getUniqueId());
+            player.sendMessage(org.bukkit.ChatColor.YELLOW + com.cookiebuild.cookiedough.utils.LocaleManager
+                    .getMessage(cancelled ? "lobby.queue.intent_cancelled" : "lobby.queue.intent_none",
+                            player.locale()));
+            return true;
+        }
         if (args.length > 0 && args[0].equalsIgnoreCase("replay")) {
             FunnelTelemetry.record(player, FunnelTelemetry.Event.REMATCH_CLICKED, "");
             CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
@@ -42,10 +59,11 @@ public final class QuickPlayCommand implements CommandExecutor {
             }
             if (CookieDough.getInstance().getPartyManager().getPartyId(player.getUniqueId()) != null) {
                 player.sendMessage(org.bukkit.ChatColor.YELLOW
-                        + "Direct game selection is currently solo-only. Party Quick Play will choose a compatible game.");
+                        + com.cookiebuild.cookiedough.utils.LocaleManager.getMessage(
+                                "lobby.party.direct_solo_only", player.locale()));
                 return true;
             }
-            lobbyManager.requestGame(player, args[0]);
+            lobbyManager.requestActivity(player, args[0]);
             return true;
         }
         String partyResult = CookieDough.getInstance().getPartyManager().queueParty(player);

@@ -101,9 +101,18 @@ public class PlayerWrapperListener implements Listener {
     public static void recoverPersistentActivity(Player player, String activityName) {
         PlayerWrapperListener current = instance;
         if (current == null || player == null || activityName == null || activityName.isBlank()) return;
-        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
-        if (cookiePlayer == null) cookiePlayer = new CookiePlayer(player);
-        current.holdPersistentActivity(player, cookiePlayer, activityName, true);
+        Runnable recovery = () -> {
+            UUID playerId = player.getUniqueId();
+            SessionHandle session = current.activePlayerSessions.get(playerId);
+            CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+            if (!current.acceptingPlayers || !player.isOnline() || session == null
+                    || !current.readyPlayers.contains(playerId) || cookiePlayer == null) {
+                return;
+            }
+            current.holdPersistentActivity(player, cookiePlayer, activityName, true);
+        };
+        if (Bukkit.isPrimaryThread()) recovery.run();
+        else Bukkit.getScheduler().runTask(CookieDough.getInstance(), recovery);
     }
 
     public static Date getPlayerLoginTime(UUID playerId) {
@@ -280,7 +289,9 @@ public class PlayerWrapperListener implements Listener {
             boolean resumedPersistent = resumeTarget != null
                     && attemptPersistentResume(player, activeCookiePlayer, resumeTarget);
             boolean awaitingPersistentRecovery = persistentRecovery.isHolding(handle.playerId());
-            if (!resumedPersistent && !awaitingPersistentRecovery) showLobbyScoreboard(player);
+            boolean resumedMatch = !resumedPersistent && !awaitingPersistentRecovery
+                    && com.cookiebuild.cookiedough.game.GameManager.tryReconnect(activeCookiePlayer);
+            if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch) showLobbyScoreboard(player);
             boolean newPlayer = newPlayerSessions.remove(handle.sessionId());
             boolean onboardingPending = onboardingPendingSessions.remove(handle.sessionId());
             FunnelTelemetry.record(player, FunnelTelemetry.Event.PLAYER_DATA_READY,
@@ -289,10 +300,10 @@ public class PlayerWrapperListener implements Listener {
             String queuedActivity = queuedPersistentActivities.remove(handle.playerId());
             boolean quickPlayQueued = queuedQuickPlay.remove(handle.playerId());
             JoinExperiencePlan experience = JoinExperiencePlan.forPlayer(onboardingPending);
-            if (!resumedPersistent && !awaitingPersistentRecovery && experience.showOnboarding()
+            if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch && experience.showOnboarding()
                     && !quickPlayQueued && queuedActivity == null) {
                 CookieDough.getInstance().getPlayerHubMenu().openOnboarding(player);
-            } else if (!resumedPersistent && !awaitingPersistentRecovery
+            } else if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch
                     && !onboardingPending && queuedActivity == null) {
                 showLobbyHint(player);
             }
@@ -302,17 +313,13 @@ public class PlayerWrapperListener implements Listener {
             if (experience.showAppPromotion()) {
                 showMobileAppPromotion(player, handle);
             }
-            if (!resumedPersistent && !awaitingPersistentRecovery
-                    && queuedActivity == null && Bukkit.getOnlinePlayers().size() <= 1) {
-                CookieDough.getInstance().getRallyManager().requestSoloLogin(player);
-            }
-            if (!resumedPersistent && !awaitingPersistentRecovery && quickPlayQueued) {
+            if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch && quickPlayQueued) {
                 if (onboardingPending) {
                     completeOnboarding(player, "quick");
                 }
                 CookieDough.getInstance().getLobbyManager().requestQuickPlay(player);
             }
-            if (!resumedPersistent && !awaitingPersistentRecovery && queuedActivity != null) {
+            if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch && queuedActivity != null) {
                 if (onboardingPending) {
                     completeOnboarding(player, "activity:" + queuedActivity);
                 }
@@ -380,12 +387,13 @@ public class PlayerWrapperListener implements Listener {
             hint = hint.append(Component.text("  •  ", NamedTextColor.DARK_GRAY))
                     .append(Component.text(LocaleManager.getMessage("lobby.solo.prompt", player.locale()),
                                     NamedTextColor.GRAY))
-                    .append(Component.text(" Discord", NamedTextColor.AQUA)
-                            .clickEvent(ClickEvent.openUrl("https://discord.gg/ajmPnwh9g8")))
-                    .append(Component.text(" + ", NamedTextColor.DARK_GRAY))
-                    .append(Component.text(LocaleManager.getMessage("lobby.solo.app", player.locale()),
-                                    NamedTextColor.LIGHT_PURPLE)
-                            .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com/#mobile-app")));
+                    .append(Component.text(" " + LocaleManager.getMessage("lobby.solo.skyblock", player.locale()),
+                                    NamedTextColor.GREEN)
+                            .clickEvent(ClickEvent.runCommand("/quickplay Skyblock")))
+                    .append(Component.text(" / ", NamedTextColor.DARK_GRAY))
+                    .append(Component.text(LocaleManager.getMessage("lobby.solo.choose", player.locale()),
+                                    NamedTextColor.AQUA)
+                            .clickEvent(ClickEvent.runCommand("/menu")));
         }
         player.sendMessage(hint);
     }

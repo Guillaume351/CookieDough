@@ -472,7 +472,17 @@ public class LobbyManager implements Listener {
 
     public void joinAvailableGame(CookiePlayer player) {
         Game game = GameManager.getBestOpenGame();
-        if (game != null && game.addPlayerToAvailableTeam(player)) {
+        if (game != null && (player.getState() == PlayerState.PERSISTENT_MODE
+                || player.getState() == PlayerState.SPECTATING)) {
+            boolean replacing = GameManager.getQueueIntent(player.getPlayer().getUniqueId()) != null;
+            if (GameManager.registerQueueIntent(player, game)) {
+                player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
+                        replacing ? "lobby.queue.intent_replaced" : "lobby.queue.intent_registered",
+                        player.getPlayer().locale(), game.getGameName()));
+                return;
+            }
+        }
+        if (game != null && player.getState() == PlayerState.LOBBY && game.addPlayerToAvailableTeam(player)) {
             player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                     "lobby.join.quick_success", player.getPlayer().locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.getPlayer().locale()),
@@ -517,6 +527,20 @@ public class LobbyManager implements Listener {
                     "lobby.game.no_open", player.locale(), gameName, available));
             return;
         }
+        if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE
+                || cookiePlayer.getState() == PlayerState.SPECTATING) {
+            boolean replacing = GameManager.getQueueIntent(player.getUniqueId()) != null;
+            if (GameManager.registerQueueIntent(cookiePlayer, game)) {
+                player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
+                        replacing ? "lobby.queue.intent_replaced" : "lobby.queue.intent_registered",
+                        player.locale(), game.getGameName()));
+            } else {
+                player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                        "lobby.game.unavailable", player.locale(), gameName));
+            }
+            return;
+        }
+        GameManager.cancelQueueIntent(player.getUniqueId());
         if (game.addPlayerToAvailableTeam(cookiePlayer)) {
             player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("lobby.game.joined", player.locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.locale()),
@@ -524,6 +548,25 @@ public class LobbyManager implements Listener {
         } else {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage("lobby.game.unavailable", player.locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
+        }
+    }
+
+    /** Opens a running arena as a viewer from either lobby, Skyblock or another spectator session. */
+    public void requestSpectate(Player player, String gameName) {
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        if (cookiePlayer == null || !PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())) {
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage("player.data_loading", player.locale()));
+            return;
+        }
+        Game game = GameManager.getSpectatableGameByName(gameName);
+        if (game == null) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.spectate.unavailable", player.locale(), gameName));
+            return;
+        }
+        if (!transitionFromPassiveActivity(cookiePlayer) || !game.addSpectator(cookiePlayer)) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.spectate.unavailable", player.locale(), gameName));
         }
     }
 
@@ -545,6 +588,12 @@ public class LobbyManager implements Listener {
             player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage("player.data_loading", player.locale()));
             return;
         }
+        if (cookiePlayer.getState() == PlayerState.SPECTATING
+                && !transitionFromPassiveActivity(cookiePlayer)) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.queue.leave_failed", player.locale()));
+            return;
+        }
         if (cookiePlayer.getState() != PlayerState.LOBBY
                 && cookiePlayer.getState() != PlayerState.PERSISTENT_MODE) {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
@@ -556,6 +605,44 @@ public class LobbyManager implements Listener {
             PlayerWrapperListener.completeOnboarding(player, "activity:" + activityName);
         }
         player.sendMessage((result.admitted() ? ChatColor.GREEN : ChatColor.RED) + result.message());
+    }
+
+    /**
+     * Leaves passive activities through their authoritative cleanup before a
+     * queue admission. A failed Skyblock inventory transfer never strands the
+     * player in two activities.
+     */
+    private boolean transitionFromPassiveActivity(CookiePlayer cookiePlayer) {
+        if (cookiePlayer == null) return false;
+        if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE
+                || cookiePlayer.getState() == PlayerState.SPECTATING) {
+            teleportPlayerToLobby(cookiePlayer);
+        }
+        return cookiePlayer.getState() == PlayerState.LOBBY
+                && GameManager.getGameOfPlayer(cookiePlayer) == null;
+    }
+
+    /** Called by GameManager only after intents can satisfy the arena minimum. */
+    public boolean admitQueuedIntent(CookiePlayer cookiePlayer, Game game) {
+        if (cookiePlayer == null || game == null || game.getState() != GameState.OPEN
+                || !game.isAdmissionsOpen() || !transitionFromPassiveActivity(cookiePlayer)) {
+            return false;
+        }
+        return game.addPlayerToAvailableTeam(cookiePlayer);
+    }
+
+    public boolean canAdmitQueuedIntent(CookiePlayer cookiePlayer, Game game) {
+        if (cookiePlayer == null || game == null || game.getState() != GameState.OPEN
+                || !game.isAdmissionsOpen()) return false;
+        if (cookiePlayer.getState() == PlayerState.LOBBY) {
+            return GameManager.getGameOfPlayer(cookiePlayer) == null;
+        }
+        if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE) {
+            return ActivityRegistry.canLeave(cookiePlayer, "returned_lobby");
+        }
+        Game current = GameManager.getGameOfPlayer(cookiePlayer);
+        return cookiePlayer.getState() == PlayerState.SPECTATING && current != null
+                && current.isExternalSpectator(cookiePlayer.getPlayer().getUniqueId());
     }
 
     private static void giveQuickPlayItem(Player player) {

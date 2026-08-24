@@ -1,5 +1,8 @@
 package com.cookiebuild.cookiedough.listener;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,6 +12,21 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class PersistentActivityRecoveryTest {
+    @Test
+    void asynchronousRecoveryMarshalsEveryBukkitMutationAndRechecksTheLiveSession() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/cookiebuild/cookiedough/listener/PlayerWrapperListener.java"));
+        int method = source.indexOf("public static void recoverPersistentActivity");
+        int nextMethod = source.indexOf("public static Date getPlayerLoginTime", method);
+        String recovery = source.substring(method, nextMethod);
+        assertTrue(recovery.contains("Bukkit.isPrimaryThread()"));
+        assertTrue(recovery.contains("Bukkit.getScheduler().runTask"));
+        assertTrue(recovery.contains("activePlayerSessions.get(playerId)"));
+        assertTrue(recovery.contains("readyPlayers.contains(playerId)"));
+        assertTrue(recovery.contains("player.isOnline()"));
+        assertTrue(recovery.indexOf("holdPersistentActivity") > recovery.indexOf("Runnable recovery"));
+    }
+
     @Test
     void quarantinesWithoutDiscardingTheDurableDestinationAndRecoversLater() {
         PersistentActivityRecovery recovery = new PersistentActivityRecovery();
