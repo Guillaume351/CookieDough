@@ -248,31 +248,15 @@ public class GameManager {
         if (game == null || game.getState() != GameState.OPEN || !game.isAdmissionsOpen()) return;
         long now = System.currentTimeMillis();
         expireQueueIntents(now);
-        List<List<QueueIntent>> validCohorts = validQueueIntentCohorts(game);
-        int validCount = validCohorts.stream().mapToInt(List::size).sum();
-        if (!QueueIntentReadinessPolicy.shouldActivate(game.getPlayerCount(), validCount,
-                game.getMinimumPlayers(), game.getCapacity())) return;
         LobbyManager lobby = LobbyManager.getInstance();
         if (lobby == null) return;
-        int remaining = game.getCapacity() - game.getPlayerCount();
-        List<List<QueueIntent>> readyCohorts = new ArrayList<>();
-        for (List<QueueIntent> cohort : validCohorts) {
-            if (cohort.size() > remaining) continue;
-            boolean ready = cohort.stream().allMatch(intent -> {
-                org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
-                CookiePlayer current = online == null ? null : PlayerManager.getPlayer(online);
-                return current != null && lobby.canAdmitQueuedIntent(current, game);
-            });
-            if (ready) {
-                readyCohorts.add(cohort);
-                remaining -= cohort.size();
-            } else {
-                cohort.forEach(intent -> notifyQueueAdmissionFailure(intent, now));
-            }
-        }
+        QueueAdmissionPlan plan = queueAdmissionPlan(game, lobby);
+        plan.blockedCohorts().forEach(cohort ->
+                cohort.forEach(intent -> notifyQueueAdmissionFailure(intent, now)));
+        List<List<QueueIntent>> readyCohorts = plan.readyCohorts();
         int readyCount = readyCohorts.stream().mapToInt(List::size).sum();
-        int needed = Math.max(0, game.getMinimumPlayers() - game.getPlayerCount());
-        if (readyCount < needed) return;
+        if (!QueueIntentReadinessPolicy.shouldActivate(game.getPlayerCount(), readyCount,
+                game.getMinimumPlayers(), game.getCapacity())) return;
         for (List<QueueIntent> cohort : readyCohorts) {
             if (game.getPlayerCount() + cohort.size() > game.getCapacity()) break;
             if (cohort.stream().anyMatch(intent -> queueIntents.get(intent.playerId()) != intent)) continue;
@@ -350,12 +334,36 @@ public class GameManager {
     private static List<List<QueueIntent>> admittableQueueIntentCohorts(Game game) {
         LobbyManager lobby = LobbyManager.getInstance();
         if (lobby == null) return List.of();
-        return validQueueIntentCohorts(game).stream().filter(cohort -> cohort.stream().allMatch(intent -> {
-            org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
-            CookiePlayer current = online == null ? null : PlayerManager.getPlayer(online);
-            return current != null && lobby.canAdmitQueuedIntent(current, game);
-        })).toList();
+        return queueAdmissionPlan(game, lobby).readyCohorts();
     }
+
+    /** Shared FIFO/capacity plan used by readiness UX, Rally and actual activation. */
+    private static QueueAdmissionPlan queueAdmissionPlan(Game game, LobbyManager lobby) {
+        if (game == null || lobby == null || game.getState() != GameState.OPEN || !game.isAdmissionsOpen()) {
+            return new QueueAdmissionPlan(List.of(), List.of());
+        }
+        int remaining = Math.max(0, game.getCapacity() - game.getPlayerCount());
+        List<List<QueueIntent>> ready = new ArrayList<>();
+        List<List<QueueIntent>> blocked = new ArrayList<>();
+        for (List<QueueIntent> cohort : validQueueIntentCohorts(game)) {
+            if (cohort.size() > remaining || game.getPartyAdmissionProblem(cohort.size()) != null) continue;
+            boolean canAdmit = cohort.stream().allMatch(intent -> {
+                org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
+                CookiePlayer current = online == null ? null : PlayerManager.getPlayer(online);
+                return current != null && lobby.canAdmitQueuedIntent(current, game);
+            });
+            if (canAdmit) {
+                ready.add(cohort);
+                remaining -= cohort.size();
+            } else {
+                blocked.add(cohort);
+            }
+        }
+        return new QueueAdmissionPlan(List.copyOf(ready), List.copyOf(blocked));
+    }
+
+    private record QueueAdmissionPlan(List<List<QueueIntent>> readyCohorts,
+            List<List<QueueIntent>> blockedCohorts) { }
 
     private static void notifyQueueAdmissionFailure(QueueIntent intent, long now) {
         org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());

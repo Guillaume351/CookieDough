@@ -36,7 +36,7 @@ class GameplayContinuityContractTest {
 
         assertTrue(manager.contains("Map<UUID, QueueIntent> queueIntents"));
         assertTrue(manager.contains("lobby.canAdmitQueuedIntent(current, game)"));
-        assertTrue(manager.contains("readyCount < needed"));
+        assertTrue(manager.contains("QueueIntentReadinessPolicy.shouldActivate(game.getPlayerCount(), readyCount"));
         assertTrue(manager.contains("registerPartyQueueIntent"));
         assertTrue(manager.contains("lobby.admitQueuedParty(members, game)"));
         assertFalse(manager.contains("if (replacement == null) {\n"
@@ -65,6 +65,9 @@ class GameplayContinuityContractTest {
                 < quickPlay.indexOf("GameManager.cancelQueueIntent(player.getPlayer().getUniqueId())"));
         assertTrue(manager.contains("getAdmittableQueueIntentCount"));
         assertTrue(manager.contains("lobby.canAdmitQueuedIntent(current, game)"));
+        assertTrue(manager.contains("QueueAdmissionPlan plan = queueAdmissionPlan(game, lobby)"));
+        assertTrue(manager.contains("cohort.size() > remaining || game.getPartyAdmissionProblem(cohort.size())"));
+        assertTrue(manager.contains("remaining -= cohort.size()"));
     }
 
     @Test
