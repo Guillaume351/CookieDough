@@ -8,6 +8,8 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 
+import com.cookiebuild.cookiedough.player.PlayerState;
+
 class SoloOrientationContractTest {
     @Test
     void onboardingFallsBackToGamesWhenSkyblockIsUnavailable() {
@@ -28,5 +30,11 @@ class SoloOrientationContractTest {
         assertTrue(menu.contains("case SOLO -> soloInventory(player)"));
         assertTrue(menu.contains("case SOLO -> {"));
         assertTrue(menu.contains("\"game:join:Skyblock\", \"modes/skyblock\""));
+        assertTrue(LobbyManager.shouldSuggestSolo(PlayerState.LOBBY, true, false, false));
+        assertTrue(!LobbyManager.shouldSuggestSolo(PlayerState.LOBBY, true, false, true));
+        assertTrue(!LobbyManager.shouldSuggestSolo(PlayerState.LOBBY, true, true, false));
+        assertTrue(!LobbyManager.shouldSuggestSolo(PlayerState.PERSISTENT_MODE, true, false, false));
+        assertTrue(lobby.indexOf("shouldSuggestSolo(player.getState()")
+                < lobby.indexOf("game.addPlayerToAvailableTeam(player)"));
     }
 }

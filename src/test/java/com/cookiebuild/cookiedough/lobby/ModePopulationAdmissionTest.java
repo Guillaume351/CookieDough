@@ -21,6 +21,13 @@ class ModePopulationAdmissionTest {
         assertFalse(ModePopulationService.hasReadyMatchForOneMorePlayer(List.of(new StubGame(2, 2))));
     }
 
+    @Test
+    void passiveQueueIntentAndOneLobbyPlayerCanReachTheMinimumWithoutOverfilling() {
+        assertTrue(ModePopulationService.canBecomeReadyWithOneMorePlayer(0, 1, 2, 8));
+        assertFalse(ModePopulationService.canBecomeReadyWithOneMorePlayer(0, 0, 2, 8));
+        assertFalse(ModePopulationService.canBecomeReadyWithOneMorePlayer(1, 1, 2, 2));
+    }
+
     private static final class StubGame extends Game {
         private final int playerCount;
 

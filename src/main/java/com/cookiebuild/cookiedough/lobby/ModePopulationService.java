@@ -55,14 +55,28 @@ public final class ModePopulationService {
     }
 
     static boolean hasReadyMatchForOneMorePlayer(List<? extends Game> games) {
-        return games != null && games.stream().anyMatch(game -> canAdmitOne(game)
-                && game.getPlayerCount() + 1 >= game.getMinimumPlayers());
+        return games != null && games.stream().anyMatch(game -> {
+            int queued = GameManager.getValidQueueIntentCount(game);
+            return canAdmitOne(game, queued) && canBecomeReadyWithOneMorePlayer(
+                    game.getPlayerCount(), queued, game.getMinimumPlayers(), game.getCapacity());
+        });
     }
 
     private static boolean canAdmitOne(Game game) {
+        return canAdmitOne(game, GameManager.getValidQueueIntentCount(game));
+    }
+
+    private static boolean canAdmitOne(Game game, int validQueueIntents) {
         return game != null && game.getState() == GameState.OPEN && game.isAdmissionsOpen()
-                && game.getPlayerCount() < game.getCapacity()
+                && game.getPlayerCount() + validQueueIntents < game.getCapacity()
                 && game.getPartyAdmissionProblem(1) == null;
+    }
+
+    static boolean canBecomeReadyWithOneMorePlayer(int admittedPlayers, int validQueueIntents,
+            int minimumPlayers, int capacity) {
+        return admittedPlayers >= 0 && validQueueIntents >= 0 && minimumPlayers >= 1
+                && capacity >= minimumPlayers && admittedPlayers + validQueueIntents < capacity
+                && admittedPlayers + validQueueIntents + 1 >= minimumPlayers;
     }
 
     public static boolean isPersistentActivityAvailable(String activityName) {

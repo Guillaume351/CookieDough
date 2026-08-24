@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough.game;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,10 +16,16 @@ class PlayerActivitySnapshotContractTest {
 
         assertTrue(source.contains("List<PotionEffect> potionEffects"));
         assertTrue(source.contains("player.getActivePotionEffects()"));
-        assertTrue(source.contains("potionEffects.forEach"));
+        assertTrue(source.contains("for (PotionEffect effect : potionEffects)"));
         assertTrue(source.contains("Component displayName"));
         assertTrue(source.contains("player.displayName(displayName)"));
         assertTrue(source.contains("player.setAbsorptionAmount"));
         assertTrue(source.contains("player.setAllowFlight(allowFlight)"));
+        assertTrue(source.contains("capturedAtEpochMillis"));
+        assertEquals(80, PlayerActivitySnapshot.remainingPotionTicks(100, false, 1_000L, 2_000L));
+        assertEquals(0, PlayerActivitySnapshot.remainingPotionTicks(20, false, 1_000L, 2_001L));
+        assertEquals(-1, PlayerActivitySnapshot.remainingPotionTicks(100, true, 1_000L, 20_000L));
+        assertEquals(0, PlayerActivitySnapshot.remainingTimedTicks(40, 1_000L, 3_001L));
+        assertTrue(source.contains("capturedAbsorptionEffect && !restoredAbsorptionEffect"));
     }
 }

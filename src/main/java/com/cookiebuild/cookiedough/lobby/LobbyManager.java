@@ -487,6 +487,14 @@ public class LobbyManager implements Listener {
                 return;
             }
         }
+        boolean partyMember = CookieDough.getInstance().getPartyManager().getPartyId(
+                player.getPlayer().getUniqueId()) != null;
+        if (shouldSuggestSolo(player.getState(),
+                ModePopulationService.isPersistentActivityAvailable("Skyblock"), partyMember,
+                ModePopulationService.hasReadyMatchForOneMorePlayer())) {
+            CookieDough.getInstance().getPlayerHubMenu().openSoloSuggestion(player.getPlayer());
+            return;
+        }
         if (game != null && player.getState() == PlayerState.LOBBY && game.addPlayerToAvailableTeam(player)) {
             player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                     "lobby.join.quick_success", player.getPlayer().locale(),
@@ -494,15 +502,13 @@ public class LobbyManager implements Listener {
                     game.getPlayerCount(), game.getCapacity()));
             return;
         }
-        if (game == null && player.getState() == PlayerState.LOBBY
-                && ModePopulationService.isPersistentActivityAvailable("Skyblock")
-                && (CookieDough.getInstance().getPartyManager().getPartyId(
-                        player.getPlayer().getUniqueId()) == null)) {
-            CookieDough.getInstance().getPlayerHubMenu().openSoloSuggestion(player.getPlayer());
-            return;
-        }
         player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
                 "lobby.join.no_available", player.getPlayer().locale()));
+    }
+
+    static boolean shouldSuggestSolo(PlayerState state, boolean skyblockAvailable,
+            boolean partyMember, boolean readyMatch) {
+        return state == PlayerState.LOBBY && skyblockAvailable && !partyMember && !readyMatch;
     }
 
     public void requestQuickPlay(Player player) {
