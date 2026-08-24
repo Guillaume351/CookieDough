@@ -19,6 +19,9 @@ class DirectAdmissionQueueIntentContractTest {
         String signAdmission = lobby.substring(lobby.indexOf("if (cookiePlayer.getState() == PlayerState.LOBBY)"),
                 lobby.indexOf("private Game findGameForSign"));
         assertCancelFollowsSuccessfulAdmission(signAdmission);
+        String requestGame = lobby.substring(lobby.indexOf("public void requestGame"),
+                lobby.indexOf("public void requestSpectate"));
+        assertCancelFollowsSuccessfulAdmission(requestGame);
     }
 
     private static void assertCancelFollowsSuccessfulAdmission(String source) {

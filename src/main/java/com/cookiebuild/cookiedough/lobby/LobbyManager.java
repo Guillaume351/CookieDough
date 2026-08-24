@@ -438,47 +438,62 @@ public class LobbyManager implements Listener {
         }
     }
 
-    public static void teleportPlayerToLobby(CookiePlayer cookiePlayer) {
+    public static boolean teleportPlayerToLobby(CookiePlayer cookiePlayer) {
         if (cookiePlayer == null || cookiePlayer.getPlayer() == null) {
-            return;
+            return false;
         }
         Player player = cookiePlayer.getPlayer();
         World lobbyWorld = Bukkit.getWorld("lobby");
-        if (lobbyWorld != null) {
-            CookieDough.getInstance().getPracticeManager().stop(player, false);
-            if (!ActivityRegistry.leave(cookiePlayer, "returned_lobby")) {
-                return;
-            }
-            // Remove active players and eliminated spectators from their roster.
-            Game currentGame = GameManager.getGameOfPlayer(cookiePlayer);
-            if (currentGame != null) {
-                currentGame.removePlayer(cookiePlayer, "returned_lobby");
-            } else if (cookiePlayer.getState() == PlayerState.QUEUED
-                    || cookiePlayer.getState() == PlayerState.IN_GAME
-                    || cookiePlayer.getState() == PlayerState.SPECTATING) {
-                    CookieDough.getInstance().getLogger().severe("Player " + cookiePlayer.getPlayer().getName()
-                            + " is in a game but no game was found.");
-            }
-            cookiePlayer.resetPlayer();
-            cookiePlayer.setState(PlayerState.LOBBY);
-
-            Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
-            if (!lobbySpawnLocation.getChunk().load()
-                    || !CookieDough.getInstance().getPlayerTransitionFlightGuard()
-                            .teleport(player, lobbySpawnLocation)) {
-                CookieDough.getInstance().getLogger().severe(
-                        "Could not safely teleport " + player.getName() + " to the lobby");
-                return;
-            }
-            CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
-
-            giveQuickPlayItem(player);
-            player.saveData();
-            PlayerWrapperListener.showLobbyScoreboard(player);
-            FunnelTelemetry.record(player, FunnelTelemetry.Event.LOBBY_READY, "world=lobby");
-        } else {
+        if (lobbyWorld == null) {
             CookieDough.getInstance().getLogger().severe("Lobby world 'lobby' is not loaded!");
+            return false;
         }
+
+        Location sourceLocation = player.getLocation().clone();
+        Location lobbySpawnLocation = lobbyWorld.getSpawnLocation();
+        if (!lobbySpawnLocation.getChunk().load()
+                || !ActivityRegistry.canLeave(cookiePlayer, "returned_lobby")
+                || !CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                        .teleport(player, lobbySpawnLocation)) {
+            CookieDough.getInstance().getLogger().severe(
+                    "Could not safely teleport " + player.getName() + " to the lobby");
+            return false;
+        }
+
+        // No source is destroyed until the destination teleport is acknowledged.
+        // canLeave and leave execute synchronously on the main thread, so this
+        // second check closes the contract without exposing an interaction tick.
+        if (!ActivityRegistry.leave(cookiePlayer, "returned_lobby")) {
+            CookieDough.getInstance().getLogger().severe(
+                    "Could not leave the current activity after teleporting " + player.getName());
+            if (!sourceLocation.getChunk().load()
+                    || !CookieDough.getInstance().getPlayerTransitionFlightGuard()
+                            .teleport(player, sourceLocation)) {
+                CookieDough.getInstance().getLogger().severe(
+                        "Could not restore " + player.getName() + " to the source after a rejected lobby leave");
+            }
+            return false;
+        }
+        CookieDough.getInstance().getPracticeManager().stop(player, false);
+        // Remove active players and eliminated spectators from their roster.
+        Game currentGame = GameManager.getGameOfPlayer(cookiePlayer);
+        if (currentGame != null) {
+            currentGame.removePlayer(cookiePlayer, "returned_lobby");
+        } else if (cookiePlayer.getState() == PlayerState.QUEUED
+                || cookiePlayer.getState() == PlayerState.IN_GAME
+                || cookiePlayer.getState() == PlayerState.SPECTATING) {
+                CookieDough.getInstance().getLogger().severe("Player " + cookiePlayer.getPlayer().getName()
+                        + " is in a game but no game was found.");
+        }
+        cookiePlayer.resetPlayer();
+        cookiePlayer.setState(PlayerState.LOBBY);
+        CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
+
+        giveQuickPlayItem(player);
+        player.saveData();
+        PlayerWrapperListener.showLobbyScoreboard(player);
+        FunnelTelemetry.record(player, FunnelTelemetry.Event.LOBBY_READY, "world=lobby");
+        return true;
     }
 
     public void joinAvailableGame(CookiePlayer player) {
@@ -565,8 +580,8 @@ public class LobbyManager implements Listener {
             }
             return;
         }
-        GameManager.cancelQueueIntent(player.getUniqueId());
         if (game.addPlayerToAvailableTeam(cookiePlayer)) {
+            GameManager.cancelQueueIntent(player.getUniqueId());
             player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("lobby.game.joined", player.locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.locale()),
                     game.getPlayerCount(), game.getCapacity()));
@@ -622,6 +637,7 @@ public class LobbyManager implements Listener {
         PassiveSource source = passiveSource(cookiePlayer);
         if (cookiePlayer.getState() == PlayerState.SPECTATING
                 && !transitionFromPassiveActivity(cookiePlayer)) {
+            restorePassiveSource(cookiePlayer, source);
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
                     "lobby.queue.leave_failed", player.locale()));
             return;
@@ -650,7 +666,7 @@ public class LobbyManager implements Listener {
         if (cookiePlayer == null) return false;
         if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE
                 || cookiePlayer.getState() == PlayerState.SPECTATING) {
-            teleportPlayerToLobby(cookiePlayer);
+            return teleportPlayerToLobby(cookiePlayer);
         }
         return cookiePlayer.getState() == PlayerState.LOBBY
                 && GameManager.getGameOfPlayer(cookiePlayer) == null;

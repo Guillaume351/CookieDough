@@ -58,7 +58,16 @@ class GameplayContinuityContractTest {
                 lobby.indexOf("private boolean transitionFromPassiveActivity"));
         assertTrue(activity.indexOf("PassiveSource source = passiveSource(cookiePlayer)")
                 < activity.indexOf("transitionFromPassiveActivity(cookiePlayer)"));
+        assertTrue(activity.contains("restorePassiveSource(cookiePlayer, source);"));
         assertTrue(activity.contains("else {\n            restorePassiveSource(cookiePlayer, source);"));
+        String lobbyTeleport = lobby.substring(lobby.indexOf("public static boolean teleportPlayerToLobby"),
+                lobby.indexOf("public void joinAvailableGame"));
+        assertTrue(lobbyTeleport.indexOf("lobbySpawnLocation.getChunk().load()")
+                < lobbyTeleport.indexOf("ActivityRegistry.leave(cookiePlayer, \"returned_lobby\")"));
+        assertTrue(lobbyTeleport.indexOf(".teleport(player, lobbySpawnLocation)")
+                < lobbyTeleport.indexOf("ActivityRegistry.leave(cookiePlayer, \"returned_lobby\")"));
+        assertTrue(lobbyTeleport.contains(".teleport(player, sourceLocation)"));
+        assertTrue(lobby.contains("return teleportPlayerToLobby(cookiePlayer);"));
         String quickPlay = lobby.substring(lobby.indexOf("public void joinAvailableGame"),
                 lobby.indexOf("public void requestQuickPlay"));
         assertTrue(quickPlay.indexOf("game.addPlayerToAvailableTeam(player)")
