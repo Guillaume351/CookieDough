@@ -335,11 +335,26 @@ public class GameManager {
         return validQueueIntentCohorts(game).stream().mapToInt(List::size).sum();
     }
 
-    public static org.bukkit.entity.Player getFirstValidQueueIntentPlayer(Game game) {
-        return validQueueIntentCohorts(game).stream().flatMap(List::stream)
+    /** Counts only complete cohorts that pass the same non-destructive leave preflight as activation. */
+    public static int getAdmittableQueueIntentCount(Game game) {
+        return admittableQueueIntentCohorts(game).stream().mapToInt(List::size).sum();
+    }
+
+    public static org.bukkit.entity.Player getFirstAdmittableQueueIntentPlayer(Game game) {
+        return admittableQueueIntentCohorts(game).stream().flatMap(List::stream)
                 .map(intent -> Bukkit.getPlayer(intent.playerId()))
                 .filter(java.util.Objects::nonNull).filter(org.bukkit.entity.Player::isOnline)
                 .findFirst().orElse(null);
+    }
+
+    private static List<List<QueueIntent>> admittableQueueIntentCohorts(Game game) {
+        LobbyManager lobby = LobbyManager.getInstance();
+        if (lobby == null) return List.of();
+        return validQueueIntentCohorts(game).stream().filter(cohort -> cohort.stream().allMatch(intent -> {
+            org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());
+            CookiePlayer current = online == null ? null : PlayerManager.getPlayer(online);
+            return current != null && lobby.canAdmitQueuedIntent(current, game);
+        })).toList();
     }
 
     private static void notifyQueueAdmissionFailure(QueueIntent intent, long now) {

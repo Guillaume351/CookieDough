@@ -496,6 +496,7 @@ public class LobbyManager implements Listener {
             return;
         }
         if (game != null && player.getState() == PlayerState.LOBBY && game.addPlayerToAvailableTeam(player)) {
+            GameManager.cancelQueueIntent(player.getPlayer().getUniqueId());
             player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                     "lobby.join.quick_success", player.getPlayer().locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.getPlayer().locale()),
@@ -612,6 +613,7 @@ public class LobbyManager implements Listener {
             player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage("player.data_loading", player.locale()));
             return;
         }
+        PassiveSource source = passiveSource(cookiePlayer);
         if (cookiePlayer.getState() == PlayerState.SPECTATING
                 && !transitionFromPassiveActivity(cookiePlayer)) {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
@@ -627,6 +629,8 @@ public class LobbyManager implements Listener {
         ActivityAdmissionResult result = ActivityRegistry.enter(activityName, cookiePlayer);
         if (result.admitted()) {
             PlayerWrapperListener.completeOnboarding(player, "activity:" + activityName);
+        } else {
+            restorePassiveSource(cookiePlayer, source);
         }
         player.sendMessage((result.admitted() ? ChatColor.GREEN : ChatColor.RED) + result.message());
     }

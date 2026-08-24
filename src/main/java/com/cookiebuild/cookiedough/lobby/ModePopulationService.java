@@ -56,14 +56,14 @@ public final class ModePopulationService {
 
     static boolean hasReadyMatchForOneMorePlayer(List<? extends Game> games) {
         return games != null && games.stream().anyMatch(game -> {
-            int queued = GameManager.getValidQueueIntentCount(game);
+            int queued = GameManager.getAdmittableQueueIntentCount(game);
             return canAdmitOne(game, queued) && canBecomeReadyWithOneMorePlayer(
                     game.getPlayerCount(), queued, game.getMinimumPlayers(), game.getCapacity());
         });
     }
 
     private static boolean canAdmitOne(Game game) {
-        return canAdmitOne(game, GameManager.getValidQueueIntentCount(game));
+        return canAdmitOne(game, GameManager.getAdmittableQueueIntentCount(game));
     }
 
     private static boolean canAdmitOne(Game game, int validQueueIntents) {

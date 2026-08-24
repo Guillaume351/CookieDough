@@ -568,7 +568,7 @@ public final class RallyManager {
     }
 
     private static int effectiveQueuedCount(Game game) {
-        return game == null ? 0 : game.getPlayerCount() + GameManager.getValidQueueIntentCount(game);
+        return game == null ? 0 : game.getPlayerCount() + GameManager.getAdmittableQueueIntentCount(game);
     }
 
     private static Player firstOnlinePlayer(Game game) {
@@ -580,7 +580,7 @@ public final class RallyManager {
                 .filter(player -> player != null && player.isOnline())
                 .findFirst()
                 .orElse(null);
-        return participant != null ? participant : GameManager.getFirstValidQueueIntentPlayer(game);
+        return participant != null ? participant : GameManager.getFirstAdmittableQueueIntentPlayer(game);
     }
 
     private static boolean isSoloOnline(UUID playerId) {

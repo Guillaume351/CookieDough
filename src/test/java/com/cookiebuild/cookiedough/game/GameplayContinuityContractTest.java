@@ -54,6 +54,17 @@ class GameplayContinuityContractTest {
         assertTrue(spectate.indexOf("game.preflightSpectatorAdmission(cookiePlayer)")
                 < spectate.indexOf("transitionFromPassiveActivity(cookiePlayer)"));
         assertTrue(spectate.contains("restorePassiveSource(cookiePlayer, source)"));
+        String activity = lobby.substring(lobby.indexOf("public void requestActivity"),
+                lobby.indexOf("private boolean transitionFromPassiveActivity"));
+        assertTrue(activity.indexOf("PassiveSource source = passiveSource(cookiePlayer)")
+                < activity.indexOf("transitionFromPassiveActivity(cookiePlayer)"));
+        assertTrue(activity.contains("else {\n            restorePassiveSource(cookiePlayer, source);"));
+        String quickPlay = lobby.substring(lobby.indexOf("public void joinAvailableGame"),
+                lobby.indexOf("public void requestQuickPlay"));
+        assertTrue(quickPlay.indexOf("game.addPlayerToAvailableTeam(player)")
+                < quickPlay.indexOf("GameManager.cancelQueueIntent(player.getPlayer().getUniqueId())"));
+        assertTrue(manager.contains("getAdmittableQueueIntentCount"));
+        assertTrue(manager.contains("lobby.canAdmitQueuedIntent(current, game)"));
     }
 
     @Test
