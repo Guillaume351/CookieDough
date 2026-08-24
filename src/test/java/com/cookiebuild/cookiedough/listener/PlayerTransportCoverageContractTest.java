@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough.listener;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 class PlayerTransportCoverageContractTest {
     @Test
-    void joinLobbySpectatorAndEveryMinigameAdmissionUseTheBoundedGuard() throws Exception {
+    void joinLobbyAndSpectatorUseTheBoundedGuard() throws Exception {
         String listener = source("src/main/java/com/cookiebuild/cookiedough/listener/PlayerWrapperListener.java");
         String lobby = source("src/main/java/com/cookiebuild/cookiedough/lobby/LobbyManager.java");
         String game = source("src/main/java/com/cookiebuild/cookiedough/game/Game.java");
@@ -19,6 +20,12 @@ class PlayerTransportCoverageContractTest {
         assertTrue(listener.contains("onTransitionFlightToggle"));
         assertTrue(lobby.contains("getPlayerTransitionFlightGuard()"));
         assertTrue(game.contains("teleportPlayerSafely"));
+    }
+
+    @Test
+    void everyInstalledMinigameAdmissionUsesTheBoundedGuard() throws Exception {
+        assumeTrue(Files.isDirectory(Path.of("../BedWars")),
+                "Cross-module contract runs from the parent Cookies checkout");
 
         for (String moduleSource : List.of(
                 "../BedWars/src/main/java/com/cookiebuild/bedwars/game/BedWarsGame.java",
