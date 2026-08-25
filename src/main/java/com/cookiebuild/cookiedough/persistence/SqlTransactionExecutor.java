@@ -26,13 +26,28 @@ public final class SqlTransactionExecutor {
             EntityTransaction transaction = entityManager.getTransaction();
             try {
                 transaction.begin();
-                T result = entityManager.unwrap(Session.class).doReturningWork(connection -> work.execute(connection));
+                T result = entityManager.unwrap(Session.class).doReturningWork(connection -> {
+                    applyRuntimeTimeouts(connection);
+                    return work.execute(connection);
+                });
                 transaction.commit();
                 return result;
             } catch (RuntimeException error) {
                 if (transaction.isActive()) transaction.rollback();
                 throw error;
             }
+        }
+    }
+
+    /**
+     * Prevents an asynchronous player action from waiting forever behind a
+     * database lock. SET LOCAL scopes both limits to this transaction only.
+     */
+    private static void applyRuntimeTimeouts(Connection connection) throws SQLException {
+        try (var lockTimeout = connection.prepareStatement("SET LOCAL lock_timeout = '3s'");
+                var statementTimeout = connection.prepareStatement("SET LOCAL statement_timeout = '7s'")) {
+            lockTimeout.execute();
+            statementTimeout.execute();
         }
     }
 }

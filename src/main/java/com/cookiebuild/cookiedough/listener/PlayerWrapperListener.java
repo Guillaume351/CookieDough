@@ -221,7 +221,7 @@ public class PlayerWrapperListener implements Listener {
                         ? ActivityRegistry.forWorld(player.getWorld().getName()) : null)
                 : ActivityRegistry.resumeOwner(player);
         PersistentResumeRoute resumeRoute = PersistentResumeRoute.resolve(
-                resumeName != null, resumeActivity != null,
+                resumeName, resumeActivity != null,
                 resumeName == null && resumeActivity != null);
         if (resumeRoute.clearStaleMarker()) {
             CookieDough.getInstance().getLogger().warning("Clearing unknown persistent activity marker '"
@@ -234,7 +234,9 @@ public class PlayerWrapperListener implements Listener {
         } else {
             cookiePlayer.setState(com.cookiebuild.cookiedough.player.PlayerState.PERSISTENT_MODE);
         }
-        String resumeTarget = resumeActivity == null ? null : resumeActivity.name();
+        String resumeTarget = resumeActivity == null
+                ? (resumeRoute.preserveState() ? resumeName : null)
+                : resumeActivity.name();
         CookiePlayer activeCookiePlayer = cookiePlayer;
         if (preservePersistentState) {
             CookieDough.getInstance().getPlayerTransitionFlightGuard().protectLoading(player,
