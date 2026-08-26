@@ -54,6 +54,7 @@ public class LobbyManager implements Listener {
     private final StatueManager statueManager;
     private LobbyPlayerCountDisplay playerCountDisplay;
     private SkyblockBillboard skyblockBillboard;
+    private SkyblockLobbyGuide skyblockGuide;
     private BukkitTask signRefreshTask;
 
     // Singleton
@@ -112,6 +113,10 @@ public class LobbyManager implements Listener {
     }
 
     public void shutdown() {
+        if (skyblockGuide != null) {
+            skyblockGuide.shutdown();
+            skyblockGuide = null;
+        }
         if (signRefreshTask != null) {
             signRefreshTask.cancel();
             signRefreshTask = null;
@@ -436,6 +441,16 @@ public class LobbyManager implements Listener {
             plugin.getLogger().info("Skyblock lobby billboard ready with persistent map id "
                     + skyblockBillboard.mapId());
         }
+    }
+
+    public void startSkyblockGuide() {
+        if (skyblockGuide != null) return;
+        if (!(plugin instanceof CookieDough cookieDough)) {
+            plugin.getLogger().warning("Skipping the Skyblock lobby guide: CookieDough runtime is unavailable");
+            return;
+        }
+        skyblockGuide = new SkyblockLobbyGuide(cookieDough, this);
+        skyblockGuide.start();
     }
 
     public static boolean teleportPlayerToLobby(CookiePlayer cookiePlayer) {

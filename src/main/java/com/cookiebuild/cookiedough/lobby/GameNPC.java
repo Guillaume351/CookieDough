@@ -5,6 +5,7 @@ import org.bukkit.Chunk;
 import org.bukkit.DyeColor;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
@@ -37,6 +38,7 @@ public class GameNPC {
     private final GamePresentation presentation;
     private Mob npc;
     private BukkitTask nameRefreshTask;
+    private long lastQueueSignalAtMillis = -1L;
     private final Map<UUID, Long> lastInteraction = new ConcurrentHashMap<>();
 
     public GameNPC(String gameName, Location location, CookieDough plugin) {
@@ -190,15 +192,41 @@ public class GameNPC {
         GameStatus game = GameManager.getGameByName(gameName);
         int totalPlayerCount = LobbyModePlayerCounter.forMinigame(gameName);
         if (game != null) {
+            boolean queueOpen = game.isAdmissionsOpen();
+            int queuePlayerCount = game.getQueuePlayerCount();
             npc.customName(LobbyDisplayText.gameNpc(
                     presentation.gameName(),
                     totalPlayerCount,
-                    game.getState()));
+                    queuePlayerCount,
+                    game.getCapacity(),
+                    queueOpen,
+                    game.getState(),
+                    queueOpen ? game.getCountdownSeconds() : 0));
             npc.setCustomNameVisible(true);
+            playLocalQueueSignal(queueOpen, queuePlayerCount);
         } else {
             npc.customName(LobbyDisplayText.unavailableGameNpc(
                     presentation.gameName(), totalPlayerCount));
             npc.setCustomNameVisible(true);
+        }
+    }
+
+    private void playLocalQueueSignal(boolean queueOpen, int queuePlayerCount) {
+        long nowMillis = System.currentTimeMillis();
+        if (!QueueSignalPolicy.shouldPlay(queueOpen, queuePlayerCount, nowMillis, lastQueueSignalAtMillis)
+                || location.getWorld() == null) {
+            return;
+        }
+        boolean played = false;
+        for (Player player : location.getWorld().getPlayers()) {
+            if (!QueueSignalPolicy.isNearby(player.getLocation().distanceSquared(location))) {
+                continue;
+            }
+            player.playSound(location, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.35f, 1.4f);
+            played = true;
+        }
+        if (played) {
+            lastQueueSignalAtMillis = nowMillis;
         }
     }
 
@@ -236,5 +264,28 @@ public class GameNPC {
 
     public Location getLocation() {
         return location;
+    }
+}
+
+/** Pure cadence gate: the Bukkit-facing NPC only performs the targeted playback. */
+final class QueueSignalPolicy {
+    static final long INTERVAL_MILLIS = 9_000L;
+    static final double RADIUS_SQUARED = 36.0;
+
+    private QueueSignalPolicy() {
+    }
+
+    static boolean shouldPlay(boolean queueOpen, int queuePlayerCount, long nowMillis, long lastPlayedAtMillis) {
+        if (!queueOpen || queuePlayerCount <= 0) {
+            return false;
+        }
+        if (lastPlayedAtMillis < 0L) {
+            return true;
+        }
+        return nowMillis >= lastPlayedAtMillis && nowMillis - lastPlayedAtMillis >= INTERVAL_MILLIS;
+    }
+
+    static boolean isNearby(double distanceSquared) {
+        return distanceSquared >= 0.0 && distanceSquared <= RADIUS_SQUARED;
     }
 }

@@ -566,6 +566,7 @@ public abstract class Game implements GameStatus {
         return startTimer;
     }
 
+    @Override
     public int getCountdownSeconds() {
         if (startTimer <= 0) return 0;
         int delay = inQuickStart ? QUICK_START_DELAY_SECONDS : START_DELAY_SECONDS;
@@ -586,6 +587,7 @@ public abstract class Game implements GameStatus {
         GameManager.notifyGameChanged(this, "state_changed");
     }
 
+    @Override
     public boolean isAdmissionsOpen() {
         return admissionsOpen && state == GameState.OPEN;
     }
@@ -661,6 +663,11 @@ public abstract class Game implements GameStatus {
 
     public int getPlayerCount() {
         return players.size();
+    }
+
+    @Override
+    public int getQueuePlayerCount() {
+        return isAdmissionsOpen() ? players.size() : 0;
     }
 
     /**

@@ -11,6 +11,8 @@ public interface GameStatus {
 
     int getPlayerCount();
 
+    int getQueuePlayerCount();
+
     boolean addPlayerToAvailableTeam(CookiePlayer player);
 
     GameState getState();
@@ -18,4 +20,8 @@ public interface GameStatus {
     String getGameName();
 
     int getCapacity();
+
+    int getCountdownSeconds();
+
+    boolean isAdmissionsOpen();
 }

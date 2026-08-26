@@ -1,5 +1,7 @@
 package com.cookiebuild.cookiedough.listener;
 
+import org.bukkit.GameMode;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -73,15 +75,15 @@ public class BaseEventBlocker implements Listener {
 
     // Methods to be overridden by sub-plugins
     protected boolean shouldAllowBlockBreak(BlockBreakEvent event) {
-        return false;
+        return canEditLobby(event.getPlayer());
     }
 
     protected boolean shouldAllowBlockPlace(BlockPlaceEvent event) {
-        return false;
+        return canEditLobby(event.getPlayer());
     }
 
     protected boolean shouldAllowPlayerInteract(PlayerInteractEvent event) {
-        return false;
+        return canEditLobby(event.getPlayer());
     }
 
     protected boolean shouldAllowEntityDamage(EntityDamageEvent event) {
@@ -94,5 +96,13 @@ public class BaseEventBlocker implements Listener {
 
     protected boolean shouldAllowPlayerDropItem(PlayerDropItemEvent event) {
         return false;
+    }
+
+    private static boolean canEditLobby(Player player) {
+        return canEditLobby(player.getWorld().getName(), player.isOp(), player.getGameMode());
+    }
+
+    static boolean canEditLobby(String worldName, boolean operator, GameMode gameMode) {
+        return "lobby".equalsIgnoreCase(worldName) && operator && gameMode == GameMode.CREATIVE;
     }
 }

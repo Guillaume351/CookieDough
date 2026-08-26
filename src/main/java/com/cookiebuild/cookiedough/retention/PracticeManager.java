@@ -78,6 +78,10 @@ public final class PracticeManager implements Listener {
         return true;
     }
 
+    public boolean isActive(Player player) {
+        return player != null && sessions.containsKey(player.getUniqueId());
+    }
+
     @EventHandler
     public void onPracticeClick(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND || event.getItem() == null || !event.getItem().hasItemMeta()

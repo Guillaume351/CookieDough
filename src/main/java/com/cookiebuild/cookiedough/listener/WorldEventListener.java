@@ -69,7 +69,10 @@ public class WorldEventListener implements Listener {
             world.setGameRule(GameRules.SPAWN_MONSTERS, Boolean.FALSE);
         }
         if (!persistent) setTimeIfSupported(world::setTime, 0);
-        world.setAutoSave(persistent);
+        // Match worlds are disposable and explicitly managed by their owning
+        // plugins. The lobby and persistent activities must retain operator or
+        // player changes across restarts.
+        world.setAutoSave(WorldPolicy.shouldAutoSave(world.getName()));
     }
 
     static boolean setTimeIfSupported(LongConsumer timeSetter, long time) {
