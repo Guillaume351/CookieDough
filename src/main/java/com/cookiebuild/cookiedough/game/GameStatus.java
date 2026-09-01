@@ -16,4 +16,6 @@ public interface GameStatus {
     GameState getState();
 
     String getGameName();
+
+    int getCapacity();
 }

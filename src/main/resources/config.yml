@@ -1,0 +1,107 @@
+config-version: 1
+
+community-event:
+  enabled: false
+  # ISO-8601 UTC instant, for example: 2026-07-18T18:00:00Z
+  time: ""
+  title: "Cookie Build Community Session"
+  url: "https://www.cookie-build.com"
+
+# Generated automatically on first start; keep stable to compare cohorts without logging UUIDs.
+telemetry:
+  salt: ""
+
+# Lobby selectors are data-driven so new games do not require another hardcoded
+# core change. Coordinates are centred on blocks and can be adjusted live in
+# this file before a restart.
+lobby:
+  # Keep one compact vanilla player head beside each selector. Dense top-10
+  # hologram panels remain disabled so Java and Bedrock players can scan the
+  # spawn without visual clutter.
+  champion-heads-enabled: true
+  leaderboard-panels-enabled: false
+  skyblock-billboard:
+    # One vanilla 128x128 filled map is used instead of a multi-map wall or a
+    # Java display entity. Keep this independently switchable for Bedrock
+    # canaries without removing the Skyblock NPC.
+    enabled: true
+    world: "lobby"
+    x: 8.5
+    y: 10.5
+    z: -10.5
+    facing: "SOUTH"
+    # Written once when the map is first created, then reused across restarts.
+    map-id: -1
+  game-selectors:
+    microbattles:
+      enabled: true
+      game: "MicroBattles"
+      world: "lobby"
+      x: 0.5
+      y: 8.0
+      z: 12.5
+      yaw: 180.0
+      pitch: 0.0
+      statue-offset: [2.0, 0.0, 0.0]
+    pitchout:
+      enabled: true
+      game: "Pitchout"
+      world: "lobby"
+      x: 0.5
+      y: 8.0
+      z: -11.5
+      yaw: 0.0
+      pitch: 0.0
+      statue-offset: [2.0, 0.0, 0.0]
+    skywars:
+      enabled: true
+      game: "SkyWars"
+      world: "lobby"
+      x: 12.5
+      y: 8.0
+      z: 0.5
+      yaw: 90.0
+      pitch: 0.0
+      statue-offset: [0.0, 0.0, 2.0]
+    buildbattles:
+      enabled: true
+      game: "BuildBattles"
+      world: "lobby"
+      x: -11.5
+      y: 8.0
+      z: 0.5
+      yaw: -90.0
+      pitch: 0.0
+      statue-offset: [0.0, 0.0, -2.0]
+    turfwars:
+      enabled: true
+      game: "TurfWars"
+      world: "lobby"
+      x: 8.5
+      y: 8.0
+      z: 8.5
+      yaw: 135.0
+      pitch: 0.0
+      statue-offset: [1.0, 0.0, 0.0]
+    bedwars:
+      enabled: true
+      game: "BedWars"
+      world: "lobby"
+      x: -8.5
+      y: 8.0
+      z: 8.5
+      yaw: -135.0
+      pitch: 0.0
+      statue-offset: [-1.0, 0.0, 0.0]
+    skyblock:
+      enabled: true
+      game: "Skyblock"
+      world: "lobby"
+      # Use the open north-east bay: it is visible from spawn without placing
+      # another selector or leaderboard in the central circulation path.
+      x: 8.5
+      y: 8.0
+      z: -8.5
+      yaw: 45.0
+      pitch: 0.0
+      statue-offset: [1.0, 0.0, 0.0]
