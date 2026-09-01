@@ -15,6 +15,7 @@ import org.bukkit.util.Vector;
 import com.cookiebuild.cookiedough.chat.ChatManager;
 import com.cookiebuild.cookiedough.config.CookieDoughConfigMigrator;
 import com.cookiebuild.cookiedough.admin.AdminBridge;
+import com.cookiebuild.cookiedough.admin.RuntimeVersionSnapshotPublisher;
 import com.cookiebuild.cookiedough.admin.moderation.ModerationService;
 import com.cookiebuild.cookiedough.commands.LobbyCommand;
 import com.cookiebuild.cookiedough.commands.MessageTestCommand;
@@ -203,6 +204,7 @@ public final class CookieDough extends JavaPlugin {
         if (adminBridge != null) {
             adminBridge.start();
         }
+        RuntimeVersionSnapshotPublisher.start(this);
 
         NPCReloadListener npcReloadListener = new NPCReloadListener();
         getServer().getPluginManager().registerEvents(npcReloadListener, this);

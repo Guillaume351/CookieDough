@@ -16,6 +16,11 @@ or arbitrary RabbitMQ execution command.
 - `ADMIN_BRIDGE_COMMAND_TTL_MS` (default 300000, bounded to 10s..1h)
 - `ADMIN_BRIDGE_SNAPSHOT_SECONDS` (default 5, bounded to 2..60s)
 - `ADMIN_BRIDGE_RECONNECT_SECONDS` (default 5, bounded to 1..60s)
+- `COOKIEBUILD_RUNTIME_VERSIONS_FILE` (optional absolute
+  `installed-versions.json` path). When configured, CookieDough atomically
+  refreshes a secret-free Paper/plugin version snapshot every five minutes for
+  the private update monitor. Mount only its dedicated parent directory into
+  the monitor, never the Paper `plugins` directory.
 
 The durable topic exchange is bound to `commands.<serverId>` and
 `commands.all`. The queue uses a broker-side message TTL. CookieDough also
