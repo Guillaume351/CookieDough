@@ -32,7 +32,7 @@ class CosmeticMenuActionTest {
         service.select(player, CosmeticSlot.EMOTE, CosmeticCatalog.COOKIE_CHEER);
 
         var entries = CosmeticMenuView.entries(service.inventory(player));
-        assertEquals(7, entries.size());
+        assertEquals(8, entries.size());
         assertTrue(entries.stream().map(CosmeticMenuView.Entry::action)
                 .allMatch(action -> CosmeticMenuAction.parse(action).isPresent()));
         assertTrue(entries.stream().anyMatch(entry -> entry.action().equals("deselect:EMOTE")));

@@ -111,7 +111,7 @@ class CosmeticServiceTest {
         CosmeticService.Inventory inventory = service.inventory(PLAYER);
 
         Set<String> supporterItems = inventory.items().stream()
-                .filter(CosmeticService.InventoryItem::entitled)
+                .filter(item -> item.entitled() && !item.cosmetic().free())
                 .map(item -> item.cosmetic().id())
                 .collect(Collectors.toSet());
         assertEquals(Set.of(

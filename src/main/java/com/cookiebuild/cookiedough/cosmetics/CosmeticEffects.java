@@ -416,7 +416,8 @@ public final class CosmeticEffects implements Listener {
     private void tickTrail(Player player) {
         String trail = selected(player.getUniqueId(), CosmeticSlot.HUB_TRAIL);
         CookiePlayer wrapped = PlayerManager.getPlayer(player);
-        if (!CosmeticCatalog.COOKIE_CRUMB_TRAIL.equals(trail)
+        if ((!CosmeticCatalog.COOKIE_CRUMB_TRAIL.equals(trail)
+                && !CosmeticCatalog.COOKIE_SPARKLE_TRAIL.equals(trail))
                 || wrapped == null || wrapped.getState() != PlayerState.LOBBY || !isLobby(player)) {
             lastTrailLocations.remove(player.getUniqueId());
             return;
@@ -425,7 +426,8 @@ public final class CosmeticEffects implements Listener {
         Location previous = lastTrailLocations.put(player.getUniqueId(), current.clone());
         if (previous == null || !previous.getWorld().equals(current.getWorld())
                 || previous.distanceSquared(current) < 0.04) return;
-        player.getWorld().spawnParticle(Particle.FALLING_HONEY,
+        player.getWorld().spawnParticle(CosmeticCatalog.COOKIE_SPARKLE_TRAIL.equals(trail)
+                        ? Particle.END_ROD : Particle.FALLING_HONEY,
                 current.clone().add(0, 0.15, 0), 1, 0.08, 0.03, 0.08, 0.0);
     }
 

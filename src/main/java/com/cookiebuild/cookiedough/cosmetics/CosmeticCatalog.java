@@ -12,6 +12,7 @@ import org.bukkit.Material;
  * never be inferred from localized names or inventory titles.
  */
 public final class CosmeticCatalog {
+    public static final String COOKIE_SPARKLE_TRAIL = "cookie_sparkle_trail";
     public static final String SUPPORTER_BADGE = "supporter_badge";
     public static final String COOKIE_CRUMB_TRAIL = "cookie_crumb_trail";
     public static final String COOKIE_CHEER = "cookie_cheer";
@@ -27,7 +28,9 @@ public final class CosmeticCatalog {
             definition(GOLDEN_COOKIE_BURST, CosmeticSlot.VICTORY_EFFECT, Material.GOLDEN_APPLE),
             definition(SUPPORTER_PROFILE_FRAME, CosmeticSlot.PROFILE_FRAME, Material.ITEM_FRAME),
             definition(LOBBY_FLIGHT, CosmeticSlot.LOBBY_FLIGHT, Material.FEATHER),
-            definition(SUPPORTER_JOIN_FLAIR, CosmeticSlot.JOIN_FLAIR, Material.GLOW_BERRIES, false));
+            definition(SUPPORTER_JOIN_FLAIR, CosmeticSlot.JOIN_FLAIR, Material.GLOW_BERRIES, false),
+            new CosmeticDefinition(COOKIE_SPARKLE_TRAIL, CosmeticSlot.HUB_TRAIL, Material.GLOWSTONE_DUST,
+                    "cosmetics.item.cookie_sparkle_trail.name", "cosmetics.item.cookie_sparkle_trail.description", true, true));
     private static final Map<String, CosmeticDefinition> BY_ID;
 
     static {
@@ -47,6 +50,10 @@ public final class CosmeticCatalog {
         return ITEMS;
     }
 
+    public static boolean isFree(String id) {
+        return find(id).map(CosmeticDefinition::free).orElse(false);
+    }
+
     public static Optional<CosmeticDefinition> find(String id) {
         return Optional.ofNullable(id == null ? null : BY_ID.get(id));
     }
@@ -60,6 +67,6 @@ public final class CosmeticCatalog {
         return new CosmeticDefinition(id, slot, icon,
                 "cosmetics.item." + id + ".name",
                 "cosmetics.item." + id + ".description",
-                selectionRequired);
+                selectionRequired, false);
     }
 }

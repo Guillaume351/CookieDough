@@ -69,22 +69,24 @@ public final class CosmeticService {
         EnumMap<CosmeticSlot, Instant> selectionExpirations = new EnumMap<>(CosmeticSlot.class);
         snapshot.selections().forEach((slot, cosmeticId) -> CosmeticCatalog.find(cosmeticId)
                 .filter(item -> item.slot() == slot)
-                .filter(item -> snapshot.activeEntitlements().contains(item.id()))
+                .filter(item -> item.free() || snapshot.activeEntitlements().contains(item.id()))
                 .ifPresent(item -> {
                     validSelections.put(slot, item.id());
-                    Date expiresAt = snapshot.entitlementExpirations().get(item.id());
+                    Date expiresAt = item.free() ? null : snapshot.entitlementExpirations().get(item.id());
                     if (expiresAt != null) selectionExpirations.put(slot, expiresAt.toInstant());
                 }));
         List<InventoryItem> items = new ArrayList<>();
         for (CosmeticDefinition item : CosmeticCatalog.items()) {
-            boolean entitled = snapshot.activeEntitlements().contains(item.id());
+            boolean entitled = item.free() || snapshot.activeEntitlements().contains(item.id());
             boolean selected = entitled && (item.selectionRequired()
                     ? item.id().equals(validSelections.get(item.slot()))
                     : true);
             items.add(new InventoryItem(item, entitled, selected));
         }
         Map<String, Instant> expirations = new java.util.HashMap<>();
-        snapshot.entitlementExpirations().forEach((id, date) -> expirations.put(id, date.toInstant()));
+        snapshot.entitlementExpirations().forEach((id, date) -> {
+            if (!CosmeticCatalog.isFree(id)) expirations.put(id, date.toInstant());
+        });
         return new Inventory(items, validSelections, expirations, selectionExpirations);
     }
 

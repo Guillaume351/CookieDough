@@ -69,7 +69,8 @@ commands:
     usage: /<command> link
     permission: cookiedough.support.link
   cosmetics:
-    description: Preview and equip your cosmetics
+    aliases: [shop, boutique]
+    description: Open the shop and equip your cosmetics
     usage: /<command>
   fly:
     description: Toggle entitled lobby-only flight

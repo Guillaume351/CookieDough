@@ -68,21 +68,23 @@ public final class JpaCosmeticRepository implements CosmeticRepository {
         EntityTransaction tx = em.getTransaction();
         try {
             tx.begin();
-            List<CosmeticEntitlement> active = em.createQuery(
-                            "select e from CosmeticEntitlement e "
-                                    + "where e.playerId = :playerId "
-                                    + "and e.cosmeticId = :cosmeticId "
-                                    + "and e.revokedAt is null "
-                                    + "and (e.expiresAt is null or e.expiresAt > :selectedAt)",
-                            CosmeticEntitlement.class)
-                    .setParameter("playerId", playerId)
-                    .setParameter("cosmeticId", cosmeticId)
-                    .setParameter("selectedAt", selectedAt)
-                    .setLockMode(LockModeType.PESSIMISTIC_READ)
-                    .getResultList();
-            if (active.isEmpty()) {
-                tx.rollback();
-                return PersistenceResult.NOT_ENTITLED;
+            if (!CosmeticCatalog.isFree(cosmeticId)) {
+                List<CosmeticEntitlement> active = em.createQuery(
+                                "select e from CosmeticEntitlement e "
+                                        + "where e.playerId = :playerId "
+                                        + "and e.cosmeticId = :cosmeticId "
+                                        + "and e.revokedAt is null "
+                                        + "and (e.expiresAt is null or e.expiresAt > :selectedAt)",
+                                CosmeticEntitlement.class)
+                        .setParameter("playerId", playerId)
+                        .setParameter("cosmeticId", cosmeticId)
+                        .setParameter("selectedAt", selectedAt)
+                        .setLockMode(LockModeType.PESSIMISTIC_READ)
+                        .getResultList();
+                if (active.isEmpty()) {
+                    tx.rollback();
+                    return PersistenceResult.NOT_ENTITLED;
+                }
             }
             // PostgreSQL upsert avoids a first-selection race between Java, Bedrock
             // and a linked client while the entitlement row lock serializes revoke.

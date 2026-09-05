@@ -9,5 +9,6 @@ public record CosmeticDefinition(
         Material icon,
         String nameKey,
         String descriptionKey,
-        boolean selectionRequired) {
+        boolean selectionRequired,
+        boolean free) {
 }

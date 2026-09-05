@@ -50,7 +50,7 @@ final class InMemoryCosmeticRepository implements CosmeticRepository {
         boolean entitled = entitlements.getOrDefault(playerId, Map.of()).entrySet().stream()
                 .anyMatch(entry -> entry.getKey().cosmeticId().equals(cosmeticId)
                         && entry.getValue().active(selectedAt));
-        if (!entitled) return PersistenceResult.NOT_ENTITLED;
+        if (!entitled && !CosmeticCatalog.isFree(cosmeticId)) return PersistenceResult.NOT_ENTITLED;
         selections.computeIfAbsent(playerId, ignored -> new EnumMap<>(CosmeticSlot.class))
                 .put(slot, cosmeticId);
         selectionWrites++;

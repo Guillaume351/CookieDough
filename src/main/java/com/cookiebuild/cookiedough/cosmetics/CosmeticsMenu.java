@@ -32,7 +32,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 /** Cross-edition cosmetic inventory. Player actions never grant entitlements. */
 public final class CosmeticsMenu implements Listener {
-    private static final int[] JAVA_SLOTS = { 9, 10, 11, 12, 13, 14, 15 };
+    private static final int[] JAVA_SLOTS = { 9, 10, 11, 12, 13, 14, 15, 16 };
 
     private final CookieDough plugin;
     private final CosmeticService service;
@@ -139,7 +139,7 @@ public final class CosmeticsMenu implements Listener {
             lore.add(item.entitled()
                     ? (!item.cosmetic().selectionRequired() ? message(player, "cosmetics.active")
                             : item.selected() ? message(player, "cosmetics.selected")
-                            : message(player, "cosmetics.available"))
+                            : message(player, item.cosmetic().free() ? "cosmetics.free" : "cosmetics.available"))
                     : message(player, "cosmetics.locked"));
             if (item.cosmetic().slot() == CosmeticSlot.PROFILE_FRAME) {
                 lore.add(message(player, "cosmetics.profile_frame.game_fallback"));

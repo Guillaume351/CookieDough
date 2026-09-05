@@ -21,7 +21,7 @@ final class BedrockCosmeticsForm {
             String state = item.entitled()
                 ? (!item.cosmetic().selectionRequired() ? message.apply("cosmetics.active")
                         : item.selected() ? message.apply("cosmetics.selected")
-                        : message.apply("cosmetics.available"))
+                        : message.apply(item.cosmetic().free() ? "cosmetics.free" : "cosmetics.available"))
                 : message.apply("cosmetics.locked");
             button(builder, actions, "§f§l" + message.apply(item.cosmetic().nameKey())
                 + "\n§7" + state, entry.action());
