@@ -17,6 +17,8 @@ import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
 import com.cookiebuild.cookiedough.model.PlayerSession;
 import com.cookiebuild.cookiedough.model.CoinTransaction;
 import com.cookiebuild.cookiedough.model.PlayerLinkChallenge;
+import com.cookiebuild.cookiedough.model.CosmeticEntitlement;
+import com.cookiebuild.cookiedough.model.CosmeticSelection;
 
 import jakarta.persistence.EntityManager;
 
@@ -91,6 +93,8 @@ public class HibernateUtil {
             configuration.addAnnotatedClass(MinigameProgression.class); // Add MinigameProgression entity
             configuration.addAnnotatedClass(CoinTransaction.class);
             configuration.addAnnotatedClass(PlayerLinkChallenge.class);
+            configuration.addAnnotatedClass(CosmeticEntitlement.class);
+            configuration.addAnnotatedClass(CosmeticSelection.class);
 
             // Register additional entities from other modules
             for (Class<?> entityClass : additionalEntities) {

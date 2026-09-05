@@ -23,6 +23,7 @@ import com.cookiebuild.cookiedough.commands.QuickPlayCommand;
 import com.cookiebuild.cookiedough.commands.RallyCommand;
 import com.cookiebuild.cookiedough.commands.RulesCommand;
 import com.cookiebuild.cookiedough.commands.SocialSafetyCommand;
+import com.cookiebuild.cookiedough.commands.SupportLinkCommand;
 import com.cookiebuild.cookiedough.commands.PartyCommand;
 import com.cookiebuild.cookiedough.commands.PracticeCommand;
 import com.cookiebuild.cookiedough.commands.EventsCommand;
@@ -53,6 +54,10 @@ import com.cookiebuild.cookiedough.service.MobileLinkService;
 import com.cookiebuild.cookiedough.listener.PlayerTransitionFlightGuard;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
+import com.cookiebuild.cookiedough.cosmetics.CosmeticEffects;
+import com.cookiebuild.cookiedough.cosmetics.CosmeticService;
+import com.cookiebuild.cookiedough.cosmetics.CosmeticsMenu;
+import com.cookiebuild.cookiedough.cosmetics.JpaCosmeticRepository;
 
 public final class CookieDough extends JavaPlugin {
     private static CookieDough instance;
@@ -70,8 +75,12 @@ public final class CookieDough extends JavaPlugin {
     private PlayerHubMenu playerHubMenu;
     private MobileLinkService mobileLinkService;
     private AppLinkCommand appLinkCommand;
+    private SupportLinkCommand supportLinkCommand;
     private AdminBridge adminBridge;
     private PlayerTransitionFlightGuard playerTransitionFlightGuard;
+    private CosmeticService cosmeticService;
+    private CosmeticEffects cosmeticEffects;
+    private CosmeticsMenu cosmeticsMenu;
 
     public static CookieDough getInstance() {
         return instance;
@@ -86,6 +95,8 @@ public final class CookieDough extends JavaPlugin {
         getServer().getPluginManager().registerEvents(lobbyManager, this);
         getServer().getPluginManager().registerEvents(playerHubMenu, this);
         getServer().getPluginManager().registerEvents(practiceManager, this);
+        getServer().getPluginManager().registerEvents(cosmeticsMenu, this);
+        getServer().getPluginManager().registerEvents(cosmeticEffects, this);
     }
 
     public LobbyManager getLobbyManager() {
@@ -139,6 +150,19 @@ public final class CookieDough extends JavaPlugin {
         return playerHubMenu;
     }
 
+    public CosmeticService getCosmeticService() {
+        return cosmeticService;
+    }
+
+    public CosmeticEffects getCosmeticEffects() {
+        return cosmeticEffects;
+    }
+
+    /** Public, non-damaging effect hook for minigames after they decide a winner. */
+    public void playCosmeticVictoryEffect(org.bukkit.entity.Player winner) {
+        if (cosmeticEffects != null) cosmeticEffects.playVictoryEffect(winner);
+    }
+
     public MessageScheduler getMessageScheduler() {
         return messageScheduler;
     }
@@ -187,6 +211,9 @@ public final class CookieDough extends JavaPlugin {
         friendManager = new FriendManager(this);
         practiceManager = new PracticeManager(this);
         communityEventManager = new CommunityEventManager(this);
+        cosmeticService = new CosmeticService(new JpaCosmeticRepository());
+        cosmeticEffects = new CosmeticEffects(this, cosmeticService);
+        cosmeticsMenu = new CosmeticsMenu(this, cosmeticService, cosmeticEffects);
         String mobileLinkPepper = System.getenv("MOBILE_LINK_PEPPER");
         if (MobileLinkService.isValidPepper(mobileLinkPepper)) {
             mobileLinkService = new MobileLinkService(mobileLinkPepper);
@@ -213,6 +240,7 @@ public final class CookieDough extends JavaPlugin {
 
         // Register listeners
         registerListeners();
+        cosmeticEffects.start();
 
         // Persist a durable play-time checkpoint. After an unclean restart the
         // recovery path closes sessions at this checkpoint instead of counting
@@ -340,12 +368,34 @@ public final class CookieDough extends JavaPlugin {
             return true;
         });
         getCommand("feedback").setExecutor(new FeedbackCommand());
+        getCommand("cosmetics").setExecutor((sender, command, label, args) -> {
+            if (sender instanceof org.bukkit.entity.Player player) {
+                cosmeticsMenu.open(player);
+            } else {
+                sender.sendMessage("This command can only be used by players.");
+            }
+            return true;
+        });
+        getCommand("fly").setExecutor((sender, command, label, args) -> {
+            if (sender instanceof org.bukkit.entity.Player player) {
+                cosmeticsMenu.toggleFlight(player);
+            } else {
+                sender.sendMessage("This command can only be used by players.");
+            }
+            return true;
+        });
         if (mobileLinkService != null) {
             appLinkCommand = new AppLinkCommand(this, mobileLinkService);
+            supportLinkCommand = new SupportLinkCommand(this, mobileLinkService);
             getCommand("app").setExecutor(appLinkCommand);
+            getCommand("support").setExecutor(supportLinkCommand);
         } else {
             getCommand("app").setExecutor((sender, command, label, args) -> {
                 sender.sendMessage("The Cookie Build app link service is temporarily unavailable.");
+                return true;
+            });
+            getCommand("support").setExecutor((sender, command, label, args) -> {
+                sender.sendMessage("The Cookie Build support link service is temporarily unavailable.");
                 return true;
             });
         }
@@ -353,6 +403,9 @@ public final class CookieDough extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (cosmeticEffects != null) {
+            cosmeticEffects.stop();
+        }
         if (adminBridge != null) {
             adminBridge.close();
         }
@@ -367,6 +420,9 @@ public final class CookieDough extends JavaPlugin {
         }
         if (appLinkCommand != null) {
             appLinkCommand.shutdown(Duration.ofSeconds(5));
+        }
+        if (supportLinkCommand != null) {
+            supportLinkCommand.shutdown(Duration.ofSeconds(5));
         }
         if (partyManager != null) {
             partyManager.shutdown(Duration.ofSeconds(5));

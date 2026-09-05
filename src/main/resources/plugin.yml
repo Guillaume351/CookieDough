@@ -64,3 +64,20 @@ commands:
   app:
     description: Link or unlink your Cookie Build mobile app
     usage: /<command> [link|status|revoke]
+  support:
+    description: Create a private one-time code for the Cookie Build web shop
+    usage: /<command> link
+    permission: cookiedough.support.link
+  cosmetics:
+    description: Preview and equip your cosmetics
+    usage: /<command>
+  fly:
+    description: Toggle entitled lobby-only flight
+    usage: /<command>
+permissions:
+  cookiedough.support.link:
+    description: Create a private one-time Cookie Build web shop code
+    default: true
+  cookiedough.flight.preserve:
+    description: Prevent cosmetic cleanup from removing independently managed staff flight
+    default: op

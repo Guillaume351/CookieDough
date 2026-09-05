@@ -7,18 +7,19 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-import com.cookiebuild.cookiedough.model.PlayerLinkChallenge;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 
-/** Persists secure, short-lived mobile player-link challenges. */
+/** Persists secure, purpose-scoped player-link challenges. */
 public final class MobileLinkService {
     static final Duration CHALLENGE_TTL = Duration.ofMinutes(10);
     private static final Duration CHALLENGE_RETENTION = Duration.ofDays(7);
@@ -27,6 +28,21 @@ public final class MobileLinkService {
 
     private final SecureRandom random;
     private final String pepper;
+
+    public enum Purpose {
+        MOBILE_LINK("mobile_link"),
+        COMMERCE_SESSION("commerce_session");
+
+        private final String wireValue;
+
+        Purpose(String wireValue) {
+            this.wireValue = wireValue;
+        }
+
+        public String wireValue() {
+            return wireValue;
+        }
+    }
 
     public MobileLinkService(String pepper) {
         this(pepper, new SecureRandom());
@@ -42,18 +58,18 @@ public final class MobileLinkService {
 
     /**
      * Creates a new challenge and atomically invalidates any older outstanding
-     * challenge for the same player.
+     * challenge for the same player and purpose.
      */
     public LinkChallenge createChallenge(UUID playerId, String edition) {
-        String code = generateCode(random);
+        return createChallenge(playerId, edition, Purpose.MOBILE_LINK);
+    }
+
+    public LinkChallenge createChallenge(UUID playerId, String edition, Purpose purpose) {
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(purpose, "purpose");
         Instant now = Instant.now();
-        PlayerLinkChallenge challenge = new PlayerLinkChallenge();
-        challenge.setId(UUID.randomUUID());
-        challenge.setPlayerId(playerId);
-        challenge.setEdition(normalizeEdition(edition));
-        challenge.setCodeHmac(hmacHex(code, pepper));
-        challenge.setCreatedAt(now);
-        challenge.setExpiresAt(now.plus(CHALLENGE_TTL));
+        Instant expiresAt = now.plus(CHALLENGE_TTL);
+        String normalizedEdition = normalizeEdition(edition);
 
         try (EntityManager entityManager = HibernateUtil.createEntityManager()) {
             EntityTransaction transaction = entityManager.getTransaction();
@@ -64,10 +80,12 @@ public final class MobileLinkService {
                         update PlayerLinkChallenge challenge
                            set challenge.consumedAt = :now
                          where challenge.playerId = :playerId
+                           and challenge.purpose = :purpose
                            and challenge.consumedAt is null
                         """)
                         .setParameter("now", now)
                         .setParameter("playerId", playerId)
+                        .setParameter("purpose", purpose.wireValue())
                         .executeUpdate();
                 entityManager.createQuery("""
                         delete from PlayerLinkChallenge challenge
@@ -76,8 +94,22 @@ public final class MobileLinkService {
                         """)
                         .setParameter("cutoff", now.minus(CHALLENGE_RETENTION))
                         .executeUpdate();
-                entityManager.persist(challenge);
+                String code = generateUniqueCode(random, candidate -> entityManager.createNativeQuery("""
+                        insert into player_link_challenges
+                          (id, player_id, edition, purpose, code_hmac, expires_at, created_at)
+                        values (:id, :playerId, :edition, :purpose, :codeHmac, :expiresAt, :createdAt)
+                        on conflict (code_hmac) do nothing
+                        """)
+                        .setParameter("id", UUID.randomUUID())
+                        .setParameter("playerId", playerId)
+                        .setParameter("edition", normalizedEdition)
+                        .setParameter("purpose", purpose.wireValue())
+                        .setParameter("codeHmac", hmacHex(candidate, pepper))
+                        .setParameter("expiresAt", expiresAt)
+                        .setParameter("createdAt", now)
+                        .executeUpdate() == 1);
                 transaction.commit();
+                return new LinkChallenge(code, expiresAt, purpose);
             } catch (RuntimeException exception) {
                 if (transaction.isActive()) {
                     transaction.rollback();
@@ -85,7 +117,6 @@ public final class MobileLinkService {
                 throw exception;
             }
         }
-        return new LinkChallenge(code, challenge.getExpiresAt());
     }
 
     public boolean hasActiveLink(UUID playerId) {
@@ -156,10 +187,12 @@ public final class MobileLinkService {
                         update PlayerLinkChallenge challenge
                            set challenge.consumedAt = :now
                          where challenge.playerId = :playerId
+                           and challenge.purpose = :purpose
                            and challenge.consumedAt is null
                         """)
                         .setParameter("now", now)
                         .setParameter("playerId", playerId)
+                        .setParameter("purpose", Purpose.MOBILE_LINK.wireValue())
                         .executeUpdate();
                 transaction.commit();
                 return links > 0;
@@ -213,6 +246,14 @@ public final class MobileLinkService {
         return code.toString();
     }
 
+    static String generateUniqueCode(SecureRandom random, Predicate<String> reserve) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            String candidate = generateCode(random);
+            if (reserve.test(candidate)) return candidate;
+        }
+        throw new IllegalStateException("Could not reserve a unique player-link code");
+    }
+
     static String hmacHex(String code, String pepper) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
@@ -245,6 +286,6 @@ public final class MobileLinkService {
         return "bedrock".equalsIgnoreCase(edition) ? "bedrock" : "java";
     }
 
-    public record LinkChallenge(String code, Instant expiresAt) {
+    public record LinkChallenge(String code, Instant expiresAt, Purpose purpose) {
     }
 }

@@ -6,11 +6,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import com.cookiebuild.cookiedough.model.Match;
 import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.PlayerMatchPerformance;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
+import com.cookiebuild.cookiedough.cosmetics.VictoryEffectDispatcher;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -26,9 +28,19 @@ public class MatchService {
     private static final ObjectMapper JSON = new ObjectMapper();
     @SuppressWarnings("unused")
     private final EntityManager legacyEntityManager;
+    private final VictoryEffectDispatcher victoryEffects;
+    private final Supplier<EntityManager> entityManagers;
 
     public MatchService(EntityManager entityManager) {
         this.legacyEntityManager = entityManager;
+        this.victoryEffects = VictoryEffectDispatcher.live();
+        this.entityManagers = HibernateUtil::createEntityManager;
+    }
+
+    MatchService(Supplier<EntityManager> entityManagers, VictoryEffectDispatcher victoryEffects) {
+        this.legacyEntityManager = null;
+        this.victoryEffects = Objects.requireNonNull(victoryEffects, "victoryEffects");
+        this.entityManagers = Objects.requireNonNull(entityManagers, "entityManagers");
     }
 
     public Match startMatch(String gameType, Collection<PlayerData> participants) {
@@ -81,11 +93,13 @@ public class MatchService {
         }
         List<UUID> winnerIds = winners == null ? List.of() : winners.stream()
                 .filter(Objects::nonNull).map(PlayerData::getId).filter(Objects::nonNull).distinct().toList();
-        return inTransaction(em -> {
+        Match completed = inTransaction(em -> {
             Match managedMatch = requireMatch(em, match.getId());
             finishMatch(em, managedMatch, winnerIds);
             return managedMatch;
         });
+        victoryEffects.dispatchAll(winnerIds);
+        return completed;
     }
 
     /** Stores every performance and the final result in one transaction. */
@@ -105,7 +119,7 @@ public class MatchService {
         List<UUID> winnerIds = winners == null ? List.of() : winners.stream()
                 .filter(Objects::nonNull).distinct().toList();
         List<Performance> results = performances == null ? List.of() : List.copyOf(performances);
-        return inTransaction(em -> {
+        Match completed = inTransaction(em -> {
             Match managedMatch = requireMatch(em, match.getId());
             for (Performance result : results) {
                 PlayerData player = requirePlayer(em, result.playerId());
@@ -119,6 +133,8 @@ public class MatchService {
             finishMatch(em, managedMatch, winnerIds);
             return managedMatch;
         });
+        victoryEffects.dispatchAll(winnerIds);
+        return completed;
     }
 
     private void finishMatch(EntityManager em, Match match, Collection<UUID> winnerIds) {
@@ -171,7 +187,7 @@ public class MatchService {
     }
 
     private <T> T inTransaction(TransactionWork<T> work) {
-        try (EntityManager em = HibernateUtil.createEntityManager()) {
+        try (EntityManager em = entityManagers.get()) {
             EntityTransaction transaction = em.getTransaction();
             try {
                 transaction.begin();

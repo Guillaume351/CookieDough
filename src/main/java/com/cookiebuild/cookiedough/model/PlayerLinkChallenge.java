@@ -9,8 +9,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * A short-lived, single-use challenge used to link an in-game identity to the
- * Cookie Build mobile app. The plaintext code is never persisted.
+ * A purpose-scoped, short-lived challenge used to prove control of an in-game
+ * identity. The plaintext code is never persisted.
  */
 @Entity
 @Table(name = "player_link_challenges")
@@ -23,6 +23,9 @@ public class PlayerLinkChallenge {
 
     @Column(nullable = false, length = 16)
     private String edition;
+
+    @Column(nullable = false, length = 24)
+    private String purpose;
 
     @Column(name = "code_hmac", nullable = false, unique = true, length = 64)
     private String codeHmac;
@@ -61,6 +64,14 @@ public class PlayerLinkChallenge {
 
     public void setEdition(String edition) {
         this.edition = edition;
+    }
+
+    public String getPurpose() {
+        return purpose;
+    }
+
+    public void setPurpose(String purpose) {
+        this.purpose = purpose;
     }
 
     public String getCodeHmac() {

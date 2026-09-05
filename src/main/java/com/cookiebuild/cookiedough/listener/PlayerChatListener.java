@@ -5,6 +5,10 @@ import com.cookiebuild.cookiedough.chat.ChatManager;
 import com.cookiebuild.cookiedough.dao.GenericDAOImpl;
 import com.cookiebuild.cookiedough.model.ChatMessage;
 import io.papermc.paper.event.player.AsyncChatEvent;
+import io.papermc.paper.chat.ChatRenderer;
+import com.cookiebuild.cookiedough.cosmetics.CosmeticCatalog;
+import com.cookiebuild.cookiedough.cosmetics.CosmeticSlot;
+import com.cookiebuild.cookiedough.cosmetics.SupporterChatRenderer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -44,6 +48,17 @@ public class PlayerChatListener implements Listener {
 
         event.viewers().removeIf(audience -> audience instanceof Player viewer
                 && chatManager.isBlocked(viewer.getUniqueId(), player.getUniqueId()));
+
+        // Wrap the renderer only after moderation/viewer filtering. The original
+        // display name, message component and viewer-aware renderer remain the
+        // source of truth; only the authorized Supporter name prefix is added.
+        var cosmeticEffects = CookieDough.getInstance().getCosmeticEffects();
+        if (cosmeticEffects != null) {
+            ChatRenderer originalRenderer = event.renderer();
+            event.renderer(SupporterChatRenderer.wrap(originalRenderer,
+                    playerId -> cosmeticEffects.hasActiveSelection(playerId,
+                            CosmeticSlot.BADGE, CosmeticCatalog.SUPPORTER_BADGE)));
+        }
 
         ChatMessage chatMessage = new ChatMessage(player.getUniqueId(), player.getWorld().getName(), message);
 

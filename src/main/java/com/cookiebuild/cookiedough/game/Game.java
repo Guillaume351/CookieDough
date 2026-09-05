@@ -351,6 +351,10 @@ public abstract class Game implements GameStatus {
             FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.QUEUE_LEFT,
                     "game=" + gameName + " wait_seconds=" + waitSeconds + " reason=match_started");
             if (CookieDough.getInstance() != null) {
+                if (CookieDough.getInstance().getCosmeticEffects() != null) {
+                    CookieDough.getInstance().getCosmeticEffects()
+                            .disableLobbyFlightBeforeArena(player.getPlayer());
+                }
                 if (CookieDough.getInstance().getPracticeManager() != null) {
                     CookieDough.getInstance().getPracticeManager().stop(player.getPlayer(), false);
                 }
