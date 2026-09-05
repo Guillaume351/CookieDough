@@ -254,6 +254,12 @@ public final class CosmeticEffects implements Listener {
         });
     }
 
+    /** Transport guards call this immediately before installing their own temporary permission. */
+    public void releaseLobbyFlightOwnership(UUID playerId) {
+        managedFlight.remove(playerId);
+        fallSafety.remove(playerId);
+    }
+
     /** Called synchronously by the shared game lifecycle before arena teleport. */
     public void disableLobbyFlightBeforeArena(Player player) {
         if (player != null) disableManagedFlight(player);

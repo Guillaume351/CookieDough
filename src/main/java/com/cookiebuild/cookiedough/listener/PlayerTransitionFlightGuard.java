@@ -8,6 +8,7 @@ import java.util.function.BooleanSupplier;
 
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import com.cookiebuild.cookiedough.CookieDough;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
@@ -22,6 +23,7 @@ public final class PlayerTransitionFlightGuard {
 
     interface FlightSubject {
         UUID id();
+        default void takeFlightOwnership() { }
         boolean online();
         boolean onGround();
         boolean retainsFlight();
@@ -109,6 +111,7 @@ public final class PlayerTransitionFlightGuard {
     }
 
     private long begin(FlightSubject subject) {
+        subject.takeFlightOwnership();
         long generation = sequence.incrementAndGet();
         generations.put(subject.id(), generation);
         subject.flying(false);
@@ -151,6 +154,12 @@ public final class PlayerTransitionFlightGuard {
     private static FlightSubject subject(Player player) {
         return new FlightSubject() {
             @Override public UUID id() { return player.getUniqueId(); }
+            @Override public void takeFlightOwnership() {
+                CookieDough plugin = CookieDough.getInstance();
+                if (plugin != null && plugin.getCosmeticEffects() != null) {
+                    plugin.getCosmeticEffects().releaseLobbyFlightOwnership(player.getUniqueId());
+                }
+            }
             @Override public boolean online() { return player.isOnline(); }
             @Override public boolean onGround() { return player.isOnGround(); }
             @Override public boolean retainsFlight() {
