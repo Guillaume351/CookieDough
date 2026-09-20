@@ -42,6 +42,22 @@ class HubGameMenuModelTest {
     }
 
     @Test
+    void javaInventoryFitsEveryAdvertisedGameWithoutOverwritingNavigation() {
+        HubGameMenuModel model = HubGameMenuModel.index(Locale.ENGLISH);
+        List<Integer> slots = PlayerHubMenu.gameMenuSlots();
+        assertTrue(slots.size() >= model.entries().size(), "Every game needs a visible Java slot");
+        java.util.Set<Integer> occupied = new java.util.HashSet<>();
+        occupied.add(PlayerHubMenu.GAMES_BACK_SLOT);
+        for (int index = 0; index < model.entries().size(); index++) {
+            int slot = slots.get(index);
+            assertTrue(slot >= 0 && slot < PlayerHubMenu.GAMES_INVENTORY_SIZE);
+            assertTrue(occupied.add(slot), "Game slots must not overlap each other or Back");
+        }
+        assertTrue(model.entries().stream().anyMatch(e -> e.action().equals("game:details:NomadWars")));
+        assertTrue(model.entries().stream().anyMatch(e -> e.action().equals("game:details:FatKing")));
+    }
+
+    @Test
     void runningArenaAddsTheSameImageBackedSpectateActionForJavaAndBedrock() {
         Game arena = new SpectatableGame();
         arena.setState(GameState.RUNNING);

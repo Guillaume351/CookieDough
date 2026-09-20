@@ -50,6 +50,13 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 /** One discoverable lobby menu, rendered natively for Java and Bedrock players. */
 public final class PlayerHubMenu implements Listener {
+    static final int GAMES_INVENTORY_SIZE = 36;
+    static final int GAMES_BACK_SLOT = 31;
+
+    static List<Integer> gameMenuSlots() {
+        return List.of(4, 9, 11, 13, 15, 17, 19, 21, 23, 25);
+    }
+
     private final CookieDough plugin;
     private final LobbyManager lobby;
     private final PlayerGoalTracker goals;
@@ -242,15 +249,15 @@ public final class PlayerHubMenu implements Listener {
 
     private Inventory gamesInventory(Player player) {
         HubGameMenuModel model = HubGameMenuModel.index(player.locale());
-        MenuHolder holder = new MenuHolder(MenuPage.GAMES, 36,
+        MenuHolder holder = new MenuHolder(MenuPage.GAMES, GAMES_INVENTORY_SIZE,
                 Component.text(model.title(), NamedTextColor.GOLD));
         Inventory inventory = holder.inventory();
-        int[] slots = { 4, 9, 11, 13, 15, 17, 21, 23 };
+        List<Integer> slots = gameMenuSlots();
         for (int index = 0; index < model.entries().size(); index++) {
             HubGameMenuModel.Entry entry = model.entries().get(index);
-            inventory.setItem(slots[index], item(entry.icon(), entry.label(), entry.action(), entry.detail()));
+            inventory.setItem(slots.get(index), item(entry.icon(), entry.label(), entry.action(), entry.detail()));
         }
-        inventory.setItem(31, item(Material.ARROW, message(player, "hub.back"), "back",
+        inventory.setItem(GAMES_BACK_SLOT, item(Material.ARROW, message(player, "hub.back"), "back",
                 message(player, "hub.back_lore")));
         return inventory;
     }
