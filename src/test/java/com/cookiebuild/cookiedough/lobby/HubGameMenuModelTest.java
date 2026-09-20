@@ -17,11 +17,11 @@ import com.cookiebuild.cookiedough.ui.BedrockFormImages;
 
 class HubGameMenuModelTest {
     @Test
-    void everyLocaleGetsQuickPlayAndEightReadableGameSubmenusWithImagesAndSafeActions() {
+    void everyLocaleGetsQuickPlayAndNineReadableGameSubmenusWithImagesAndSafeActions() {
         for (Locale locale : List.of(Locale.ENGLISH, Locale.FRENCH, Locale.of("es"), Locale.GERMAN,
                 Locale.ITALIAN, Locale.of("pt", "BR"), Locale.of("bg"), Locale.of("hi"))) {
             HubGameMenuModel index = HubGameMenuModel.index(locale);
-            assertEquals(9, index.entries().size());
+            assertEquals(10, index.entries().size());
             assertEquals("quick", index.entries().getFirst().action());
             assertEquals("actions/quick_play", index.entries().getFirst().bedrockTexture());
             for (HubGameMenuModel.Entry summary : index.entries().subList(1, index.entries().size())) {

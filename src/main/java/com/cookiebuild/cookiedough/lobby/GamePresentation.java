@@ -38,7 +38,9 @@ public record GamePresentation(
             new GamePresentation("Skyblock", Material.GRASS_BLOCK, "modes/skyblock", EntityType.BEE,
                     "game.description.skyblock", ReleaseStage.BETA),
             new GamePresentation("NomadWars", Material.COMPASS, "actions/preview", EntityType.CAMEL,
-                    "game.description.nomadwars", ReleaseStage.COMING_SOON));
+                    "game.description.nomadwars", ReleaseStage.BETA),
+            new GamePresentation("FatKing", Material.GOLDEN_HELMET, "actions/shop", EntityType.PIGLIN,
+                    "game.description.fatking", ReleaseStage.BETA));
 
     public static List<GamePresentation> games() {
         return GAMES;

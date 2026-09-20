@@ -45,13 +45,15 @@ class GameSelectionPolicyTest {
     }
 
     @Test
-    void previewQueuesNeverDivertPublicQuickPlay() {
+    void explicitlySelectedBetaQueuesNeverDivertPublicQuickPlay() {
         GameSelectionPolicy policy = new GameSelectionPolicy();
         StubGame preview = game("NomadWars", 8, 2, 1);
         preview.quickPlayEligible = false;
         StubGame open = game("MicroBattles", 12, 2, 0);
-        assertSame(open, policy.select(List.of(preview, open)));
-        org.junit.jupiter.api.Assertions.assertNull(policy.select(List.of(preview)));
+        StubGame fatKing = game("FatKing", 8, 4, 3);
+        fatKing.quickPlayEligible = false;
+        assertSame(open, policy.select(List.of(preview, fatKing, open)));
+        org.junit.jupiter.api.Assertions.assertNull(policy.select(List.of(preview, fatKing)));
     }
 
     @Test
