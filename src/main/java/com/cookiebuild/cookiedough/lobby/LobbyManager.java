@@ -614,6 +614,11 @@ public class LobbyManager implements Listener {
             sendNoOpenGame(player, gameName);
             return;
         }
+        if (!game.canAdmitPlayer(player)) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.game.access_denied", player.locale(), game.getGameName()));
+            return;
+        }
         if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE
                 || cookiePlayer.getState() == PlayerState.SPECTATING) {
             boolean replacing = GameManager.getQueueIntent(player.getUniqueId()) != null;
@@ -776,8 +781,9 @@ public class LobbyManager implements Listener {
     }
 
     public boolean canAdmitQueuedIntent(CookiePlayer cookiePlayer, Game game) {
-        if (cookiePlayer == null || game == null || game.getState() != GameState.OPEN
-                || !game.isAdmissionsOpen()) return false;
+        if (cookiePlayer == null || cookiePlayer.getPlayer() == null || game == null
+                || game.getState() != GameState.OPEN || !game.isAdmissionsOpen()
+                || !game.canAdmitPlayer(cookiePlayer.getPlayer())) return false;
         if (cookiePlayer.getState() == PlayerState.LOBBY) {
             return GameManager.getGameOfPlayer(cookiePlayer) == null;
         }

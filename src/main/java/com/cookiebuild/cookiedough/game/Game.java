@@ -59,6 +59,11 @@ public abstract class Game implements GameStatus {
         if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()) {
             return false;
         }
+        if (!canAdmitPlayer(player.getPlayer())) {
+            player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.game.access_denied", player.getPlayer().locale(), gameName));
+            return false;
+        }
         if (!PlayerWrapperListener.isPlayerDataReady(player.getPlayer().getUniqueId())) {
             player.getPlayer().sendMessage(ChatColor.YELLOW + LocaleManager
                     .getMessage("player.data_loading", player.getPlayer().locale()));
@@ -588,6 +593,11 @@ public abstract class Game implements GameStatus {
 
     /** Preview modes can accept explicit testers without entering public Quick Play. */
     public boolean isQuickPlayEligible() {
+        return true;
+    }
+
+    /** Side-effect-free player eligibility, checked before leaving any current activity. */
+    public boolean canAdmitPlayer(Player player) {
         return true;
     }
 
