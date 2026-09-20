@@ -162,7 +162,7 @@ public final class AppLinkCommand implements CommandExecutor {
     }
 
     /** Uses Floodgate when present without making it a hard plugin dependency. */
-    private static String detectEdition(UUID playerId) {
+    static String detectEdition(UUID playerId) {
         try {
             Class<?> apiClass = Class.forName("org.geysermc.floodgate.api.FloodgateApi");
             Method getInstance = apiClass.getMethod("getInstance");

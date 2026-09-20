@@ -28,8 +28,6 @@ import com.cookiebuild.cookiedough.player.PlayerState;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -37,22 +35,22 @@ import net.kyori.adventure.text.format.TextDecoration;
 
 public class LobbyScoreboard {
     private record GameStatsSpec(String gameType, String progressionKey, String label,
-            NamedTextColor headerColor, NamedTextColor statsColor, String metricLabel, String metricKey) {
+            NamedTextColor headerColor) {
     }
 
     private static final List<GameStatsSpec> GAME_STATS = List.of(
             new GameStatsSpec("MicroBattles", MinigameProgressionService.MICROBATTLES, "MICRO",
-                    NamedTextColor.AQUA, NamedTextColor.DARK_AQUA, "K", null),
+                    NamedTextColor.AQUA),
             new GameStatsSpec("Pitchout", MinigameProgressionService.PITCHOUT, "PITCH",
-                    NamedTextColor.LIGHT_PURPLE, NamedTextColor.DARK_PURPLE, "K", null),
+                    NamedTextColor.LIGHT_PURPLE),
             new GameStatsSpec("SkyWars", MinigameProgressionService.SKYWARS, "SKY",
-                    NamedTextColor.GOLD, NamedTextColor.YELLOW, "K", null),
+                    NamedTextColor.GOLD),
             new GameStatsSpec("BuildBattles", MinigameProgressionService.BUILDBATTLES, "BUILD",
-                    NamedTextColor.GREEN, NamedTextColor.DARK_GREEN, "S", "score"),
+                    NamedTextColor.GREEN),
             new GameStatsSpec("TurfWars", MinigameProgressionService.TURFWARS, "TURF",
-                    NamedTextColor.RED, NamedTextColor.DARK_RED, "K", null),
+                    NamedTextColor.RED),
             new GameStatsSpec("BedWars", MinigameProgressionService.BEDWARS, "BED",
-                    NamedTextColor.YELLOW, NamedTextColor.GOLD, "FK", "finalKills"));
+                    NamedTextColor.YELLOW));
     private final Player player;
     private final PluginTaskDispatcher tasks;
     private final Scoreboard scoreboard;
@@ -61,7 +59,6 @@ public class LobbyScoreboard {
     private static final Component SCOREBOARD_TITLE = Component.text("Cookie Build")
             .color(NamedTextColor.GOLD)
             .decorate(TextDecoration.BOLD);
-    private static final Gson GSON = new Gson();
 
     // Cache system
     private static final Map<java.util.UUID, PlayerStats> statsCache = new ConcurrentHashMap<>();
@@ -267,23 +264,6 @@ public class LobbyScoreboard {
         }
     }
 
-    private void displayGameStats(GameStatsSpec game, List<PlayerMatchPerformance> performances, int line) {
-        int wins = (int) performances.stream()
-                .filter(p -> p.getMatch().getWinners().stream()
-                        .anyMatch(winner -> winner.getId().equals(player.getUniqueId())))
-                .count();
-
-        int metric = game.metricKey() == null
-                ? performances.stream().mapToInt(PlayerMatchPerformance::getKillsInMatch).sum()
-                : performances.stream().mapToInt(performance -> getMetricFromJson(
-                        performance.getGameSpecificMetrics(), game.metricKey())).sum();
-        setScore(Component.text("  W ").color(game.statsColor())
-                .append(Component.text(wins).color(NamedTextColor.WHITE))
-                .append(Component.text(" • " + game.metricLabel() + " ").color(game.statsColor()))
-                .append(Component.text(metric).color(NamedTextColor.WHITE))
-                .append(Component.text(" • P " + performances.size()).color(NamedTextColor.GRAY)), line);
-    }
-
     private void setScore(Component text, int score) {
         if (this.scoreboard == null || objective == null || score < 0)
             return;
@@ -326,20 +306,6 @@ public class LobbyScoreboard {
     private String getEntryForScore(int score) {
         // Use section symbol (§) to create invisible unique identifiers
         return "§" + (score % 10) + "§" + ((score / 10) % 10);
-    }
-
-    private int getMetricFromJson(String json, String key) {
-        if (json == null || json.isBlank()) {
-            return 0;
-        }
-        try {
-            Map<String, String> metrics = GSON.fromJson(json,
-                    new TypeToken<Map<String, String>>() {
-                    }.getType());
-            return Integer.parseInt(metrics.getOrDefault(key, "0"));
-        } catch (Exception e) {
-            return 0;
-        }
     }
 
     private String formatPlayTime(Long milliseconds) {

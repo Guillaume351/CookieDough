@@ -54,6 +54,7 @@ public class LobbyManager implements Listener {
     private final StatueManager statueManager;
     private LobbyPlayerCountDisplay playerCountDisplay;
     private SkyblockBillboard skyblockBillboard;
+    private SkyblockLobbyGuide skyblockGuide;
     private BukkitTask signRefreshTask;
 
     // Singleton
@@ -112,6 +113,10 @@ public class LobbyManager implements Listener {
     }
 
     public void shutdown() {
+        if (skyblockGuide != null) {
+            skyblockGuide.shutdown();
+            skyblockGuide = null;
+        }
         if (signRefreshTask != null) {
             signRefreshTask.cancel();
             signRefreshTask = null;
@@ -137,15 +142,6 @@ public class LobbyManager implements Listener {
     private void refreshSigns() {
         ArrayList<Game> games = new ArrayList<>(GameManager.getGames().stream()
                 .map(Game::getGameName).distinct().map(GameManager::getGameByName).toList());
-
-        // Only log detailed refresh info if we expect changes or every 30 cycles (30
-        // seconds)
-        boolean detailedLogging = false;
-
-        if (detailedLogging) {
-            CookieDough.getInstance().getLogger().info("=== SIGN REFRESH ===");
-            CookieDough.getInstance().getLogger().info("Games: " + games.size() + " | Signs: " + gameSigns.size());
-        }
 
         // Remove any invalid signs (destroyed blocks)
         int initialSignCount = gameSigns.size();
@@ -176,9 +172,9 @@ public class LobbyManager implements Listener {
                 boolean wasUpdated = false;
                 if (i < games.size()) {
                     Game game = games.get(i);
-                    wasUpdated = updateSignContentIfChanged(sign, game, detailedLogging);
+                    wasUpdated = updateSignContentIfChanged(sign, game);
                 } else {
-                    wasUpdated = clearSignContentIfChanged(sign, detailedLogging);
+                    wasUpdated = clearSignContentIfChanged(sign);
                 }
 
                 if (wasUpdated) {
@@ -189,23 +185,13 @@ public class LobbyManager implements Listener {
             }
         }
 
-        // Only log if signs were updated, or every 30 seconds
+        // Log when the displayed game information changes.
         if (signsActuallyUpdated > 0) {
             CookieDough.getInstance().getLogger().info("Updated " + signsActuallyUpdated + " signs");
-        } else if (detailedLogging) {
-            CookieDough.getInstance().getLogger().info("No sign updates needed");
         }
     }
 
-    private static int refreshCycleCount = 0;
-
-    private boolean shouldLogDetailed() {
-        refreshCycleCount++;
-        // Log detailed info every 30 cycles (30 seconds) or if it's the first cycle
-        return refreshCycleCount == 1 || refreshCycleCount % 30 == 0;
-    }
-
-    private boolean updateSignContentIfChanged(Sign sign, Game game, boolean detailedLogging) {
+    private boolean updateSignContentIfChanged(Sign sign, Game game) {
         try {
             // Ensure chunk is loaded
             if (!sign.getBlock().getChunk().isLoaded()) {
@@ -278,7 +264,7 @@ public class LobbyManager implements Listener {
         }
     }
 
-    private boolean clearSignContentIfChanged(Sign sign, boolean detailedLogging) {
+    private boolean clearSignContentIfChanged(Sign sign) {
         try {
             // Check if sign is already empty
             boolean isEmpty = sign.getLine(0).isEmpty() &&
@@ -436,6 +422,16 @@ public class LobbyManager implements Listener {
             plugin.getLogger().info("Skyblock lobby billboard ready with persistent map id "
                     + skyblockBillboard.mapId());
         }
+    }
+
+    public void startSkyblockGuide() {
+        if (skyblockGuide != null) return;
+        if (!(plugin instanceof CookieDough cookieDough)) {
+            plugin.getLogger().warning("Skipping the Skyblock lobby guide: CookieDough runtime is unavailable");
+            return;
+        }
+        skyblockGuide = new SkyblockLobbyGuide(cookieDough, this);
+        skyblockGuide.start();
     }
 
     public static boolean teleportPlayerToLobby(CookiePlayer cookiePlayer) {

@@ -356,6 +356,10 @@ public abstract class Game implements GameStatus {
             FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.QUEUE_LEFT,
                     "game=" + gameName + " wait_seconds=" + waitSeconds + " reason=match_started");
             if (CookieDough.getInstance() != null) {
+                if (CookieDough.getInstance().getCosmeticEffects() != null) {
+                    CookieDough.getInstance().getCosmeticEffects()
+                            .disableLobbyFlightBeforeArena(player.getPlayer());
+                }
                 if (CookieDough.getInstance().getPracticeManager() != null) {
                     CookieDough.getInstance().getPracticeManager().stop(player.getPlayer(), false);
                 }
@@ -571,6 +575,7 @@ public abstract class Game implements GameStatus {
         return startTimer;
     }
 
+    @Override
     public int getCountdownSeconds() {
         if (startTimer <= 0) return 0;
         int delay = inQuickStart ? QUICK_START_DELAY_SECONDS : START_DELAY_SECONDS;
@@ -601,6 +606,7 @@ public abstract class Game implements GameStatus {
         return true;
     }
 
+    @Override
     public boolean isAdmissionsOpen() {
         return admissionsOpen && state == GameState.OPEN;
     }
@@ -676,6 +682,11 @@ public abstract class Game implements GameStatus {
 
     public int getPlayerCount() {
         return players.size();
+    }
+
+    @Override
+    public int getQueuePlayerCount() {
+        return isAdmissionsOpen() ? players.size() : 0;
     }
 
     /**

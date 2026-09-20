@@ -28,6 +28,20 @@ class WorldEventListenerTest {
     }
 
     @Test
+    void lobbyAndRegisteredActivityWorldsAreSaved() {
+        assertTrue(WorldPolicy.shouldAutoSave("lobby"));
+        assertTrue(WorldPolicy.shouldAutoSave("LOBBY"));
+        assertFalse(WorldPolicy.shouldAutoSave("pitchout_match_123"));
+
+        WorldPolicy.registerPersistentWorld("skyblock_player_123");
+        try {
+            assertTrue(WorldPolicy.shouldAutoSave("skyblock_player_123"));
+        } finally {
+            WorldPolicy.unregisterPersistentWorld("skyblock_player_123");
+        }
+    }
+
+    @Test
     void worldWithoutClockDoesNotAbortWorldConfiguration() {
         assertDoesNotThrow(() -> assertFalse(WorldEventListener.setTimeIfSupported(time -> {
             throw new IllegalArgumentException("Cannot set time in world without world clock");

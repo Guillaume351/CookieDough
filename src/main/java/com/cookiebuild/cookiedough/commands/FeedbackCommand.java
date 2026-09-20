@@ -12,6 +12,7 @@ import org.bukkit.entity.Player;
 
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.utils.DiscordUtils;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 import com.cookiebuild.cookiedough.game.FunnelTelemetry;
 
 public final class FeedbackCommand implements CommandExecutor {
@@ -25,36 +26,54 @@ public final class FeedbackCommand implements CommandExecutor {
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage(ChatColor.YELLOW + "/feedback <message>");
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage(
+                    "feedback.command.usage", player.locale()));
             return true;
         }
         long now = System.currentTimeMillis();
         if (now - lastFeedback.getOrDefault(player.getUniqueId(), 0L) < COOLDOWN_MS) {
-            player.sendMessage(ChatColor.RED + "Please wait before sending more feedback.");
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "feedback.command.cooldown", player.locale()));
             return true;
         }
-        String message = String.join(" ", args).replace('\n', ' ').replace('\r', ' ').trim();
-        if (message.length() > 300) {
-            message = message.substring(0, 300);
-        }
-        String webhook = System.getenv("DISCORD_FEEDBACK_WEBHOOK_URL");
-        if (webhook == null || webhook.isBlank()) {
-            player.sendMessage(ChatColor.RED + "Feedback delivery is temporarily unavailable. Please use /events for our community link.");
+        String message = normalizeMessage(args);
+        String dedicatedWebhook = System.getenv("DISCORD_FEEDBACK_WEBHOOK_URL");
+        String webhook = selectWebhook(dedicatedWebhook,
+                System.getenv("DISCORD_PLAYER_STATUS_WEBHOOK_URL"));
+        if (webhook == null) {
+            player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "feedback.command.unavailable", player.locale()));
             return true;
         }
+        String channel = dedicatedWebhook != null && !dedicatedWebhook.isBlank()
+                ? "dedicated" : "player_status";
         lastFeedback.put(player.getUniqueId(), now);
-        player.sendMessage(ChatColor.YELLOW + "Sending your feedback…");
+        player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage(
+                "feedback.command.sending", player.locale()));
         DiscordUtils.sendDiscordMessage(webhook, "PLAYER FEEDBACK from " + player.getName() + ": " + message)
                 .thenAccept(delivered -> CookieDough.getInstance().getServer().getScheduler().runTask(
                         CookieDough.getInstance(), () -> {
                             FunnelTelemetry.record(player, FunnelTelemetry.Event.FEEDBACK,
-                                    "delivered=" + delivered);
+                                    "delivered=" + delivered + " channel=" + channel);
                             if (player.isOnline()) {
                                 player.sendMessage((delivered ? ChatColor.GREEN : ChatColor.RED)
-                                        + (delivered ? "Feedback sent. Thank you!"
-                                                : "Feedback could not be delivered. Please try again later."));
+                                        + LocaleManager.getMessage(delivered
+                                                        ? "feedback.command.sent" : "feedback.command.failed",
+                                                player.locale()));
                             }
                         }));
         return true;
+    }
+
+    static String selectWebhook(String dedicatedWebhook, String sharedStatusWebhook) {
+        if (dedicatedWebhook != null && !dedicatedWebhook.isBlank()) {
+            return dedicatedWebhook;
+        }
+        return sharedStatusWebhook == null || sharedStatusWebhook.isBlank() ? null : sharedStatusWebhook;
+    }
+
+    static String normalizeMessage(String[] args) {
+        String message = String.join(" ", args).replace('\n', ' ').replace('\r', ' ').trim();
+        return message.length() > 300 ? message.substring(0, 300) : message;
     }
 }
