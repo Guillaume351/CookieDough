@@ -17,11 +17,11 @@ import com.cookiebuild.cookiedough.ui.BedrockFormImages;
 
 class HubGameMenuModelTest {
     @Test
-    void everyLocaleGetsQuickPlayAndSevenReadableGameSubmenusWithImagesAndSafeActions() {
+    void everyLocaleGetsQuickPlayAndNineReadableGameSubmenusWithImagesAndSafeActions() {
         for (Locale locale : List.of(Locale.ENGLISH, Locale.FRENCH, Locale.of("es"), Locale.GERMAN,
                 Locale.ITALIAN, Locale.of("pt", "BR"), Locale.of("bg"), Locale.of("hi"))) {
             HubGameMenuModel index = HubGameMenuModel.index(locale);
-            assertEquals(8, index.entries().size());
+            assertEquals(10, index.entries().size());
             assertEquals("quick", index.entries().getFirst().action());
             assertEquals("actions/quick_play", index.entries().getFirst().bedrockTexture());
             for (HubGameMenuModel.Entry summary : index.entries().subList(1, index.entries().size())) {
@@ -39,6 +39,22 @@ class HubGameMenuModelTest {
                         .allMatch(entry -> BedrockFormImages.isKnown(entry.bedrockTexture())));
             }
         }
+    }
+
+    @Test
+    void javaInventoryFitsEveryAdvertisedGameWithoutOverwritingNavigation() {
+        HubGameMenuModel model = HubGameMenuModel.index(Locale.ENGLISH);
+        List<Integer> slots = PlayerHubMenu.gameMenuSlots();
+        assertTrue(slots.size() >= model.entries().size(), "Every game needs a visible Java slot");
+        java.util.Set<Integer> occupied = new java.util.HashSet<>();
+        occupied.add(PlayerHubMenu.GAMES_BACK_SLOT);
+        for (int index = 0; index < model.entries().size(); index++) {
+            int slot = slots.get(index);
+            assertTrue(slot >= 0 && slot < PlayerHubMenu.GAMES_INVENTORY_SIZE);
+            assertTrue(occupied.add(slot), "Game slots must not overlap each other or Back");
+        }
+        assertTrue(model.entries().stream().anyMatch(e -> e.action().equals("game:details:NomadWars")));
+        assertTrue(model.entries().stream().anyMatch(e -> e.action().equals("game:details:FatKing")));
     }
 
     @Test

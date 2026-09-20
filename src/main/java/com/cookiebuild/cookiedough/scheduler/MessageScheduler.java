@@ -26,6 +26,7 @@ public class MessageScheduler {
 
     // Liste des clés de messages à faire tourner
     private final List<String> messageKeys = Arrays.asList(
+            "scheduled.shop",
             "scheduled.quick_play",
             "scheduled.practice",
             "scheduled.party",

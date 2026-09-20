@@ -26,7 +26,10 @@ class LobbyConfigurationTest {
 
         ConfigurationSection selectors = config.getConfigurationSection("lobby.game-selectors");
         assertNotNull(selectors);
-        assertEquals(GamePresentation.games().size(), selectors.getKeys(false).size());
+        // FatKing is deliberately menu-only until an NPC position is reviewed.
+        assertEquals(GamePresentation.games().size() - 1, selectors.getKeys(false).size());
+        assertFalse(selectors.contains("fatking"));
+        assertFalse(selectors.getBoolean("nomadwars.enabled"));
 
         ConfigurationSection skyblock = selectors.getConfigurationSection("skyblock");
         assertNotNull(skyblock);
@@ -41,6 +44,7 @@ class LobbyConfigurationTest {
         for (String key : selectors.getKeys(false)) {
             ConfigurationSection selector = selectors.getConfigurationSection(key);
             assertNotNull(selector);
+            assertTrue(GamePresentation.find(selector.getString("game")).isPresent());
             String block = selector.getInt("x") + ":" + selector.getInt("y") + ":" + selector.getInt("z");
             assertTrue(occupiedBlocks.add(block), "Lobby selectors must not overlap: " + block);
         }

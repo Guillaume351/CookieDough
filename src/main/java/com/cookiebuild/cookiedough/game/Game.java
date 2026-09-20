@@ -59,6 +59,11 @@ public abstract class Game implements GameStatus {
         if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()) {
             return false;
         }
+        if (!canAdmitPlayer(player.getPlayer())) {
+            player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
+                    "lobby.game.access_denied", player.getPlayer().locale(), gameName));
+            return false;
+        }
         if (!PlayerWrapperListener.isPlayerDataReady(player.getPlayer().getUniqueId())) {
             player.getPlayer().sendMessage(ChatColor.YELLOW + LocaleManager
                     .getMessage("player.data_loading", player.getPlayer().locale()));
@@ -351,6 +356,10 @@ public abstract class Game implements GameStatus {
             FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.QUEUE_LEFT,
                     "game=" + gameName + " wait_seconds=" + waitSeconds + " reason=match_started");
             if (CookieDough.getInstance() != null) {
+                if (CookieDough.getInstance().getCosmeticEffects() != null) {
+                    CookieDough.getInstance().getCosmeticEffects()
+                            .disableLobbyFlightBeforeArena(player.getPlayer());
+                }
                 if (CookieDough.getInstance().getPracticeManager() != null) {
                     CookieDough.getInstance().getPracticeManager().stop(player.getPlayer(), false);
                 }
@@ -566,6 +575,7 @@ public abstract class Game implements GameStatus {
         return startTimer;
     }
 
+    @Override
     public int getCountdownSeconds() {
         if (startTimer <= 0) return 0;
         int delay = inQuickStart ? QUICK_START_DELAY_SECONDS : START_DELAY_SECONDS;
@@ -586,6 +596,17 @@ public abstract class Game implements GameStatus {
         GameManager.notifyGameChanged(this, "state_changed");
     }
 
+    /** Preview modes can accept explicit testers without entering public Quick Play. */
+    public boolean isQuickPlayEligible() {
+        return true;
+    }
+
+    /** Side-effect-free player eligibility, checked before leaving any current activity. */
+    public boolean canAdmitPlayer(Player player) {
+        return true;
+    }
+
+    @Override
     public boolean isAdmissionsOpen() {
         return admissionsOpen && state == GameState.OPEN;
     }
@@ -661,6 +682,11 @@ public abstract class Game implements GameStatus {
 
     public int getPlayerCount() {
         return players.size();
+    }
+
+    @Override
+    public int getQueuePlayerCount() {
+        return isAdmissionsOpen() ? players.size() : 0;
     }
 
     /**

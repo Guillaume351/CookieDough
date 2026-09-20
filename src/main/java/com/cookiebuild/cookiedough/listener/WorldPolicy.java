@@ -25,4 +25,8 @@ public final class WorldPolicy {
     public static boolean isPersistent(String worldName) {
         return worldName != null && PERSISTENT_WORLDS.contains(worldName.toLowerCase(java.util.Locale.ROOT));
     }
+
+    static boolean shouldAutoSave(String worldName) {
+        return "lobby".equalsIgnoreCase(worldName) || isPersistent(worldName);
+    }
 }

@@ -45,6 +45,18 @@ class GameSelectionPolicyTest {
     }
 
     @Test
+    void explicitlySelectedBetaQueuesNeverDivertPublicQuickPlay() {
+        GameSelectionPolicy policy = new GameSelectionPolicy();
+        StubGame preview = game("NomadWars", 8, 2, 1);
+        preview.quickPlayEligible = false;
+        StubGame open = game("MicroBattles", 12, 2, 0);
+        StubGame fatKing = game("FatKing", 8, 4, 3);
+        fatKing.quickPlayEligible = false;
+        assertSame(open, policy.select(List.of(preview, fatKing, open)));
+        org.junit.jupiter.api.Assertions.assertNull(policy.select(List.of(preview, fatKing)));
+    }
+
+    @Test
     void rotatesEmptyQueuesDeterministically() {
         GameSelectionPolicy policy = new GameSelectionPolicy();
         StubGame build = game("BuildBattles", 12, 2, 0);
@@ -101,12 +113,14 @@ class GameSelectionPolicyTest {
 
     private static final class StubGame extends Game {
         private final int playerCount;
+        private boolean quickPlayEligible = true;
 
         private StubGame(String name, int playerCount) {
             super(name);
             this.playerCount = playerCount;
         }
 
+        @Override public boolean isQuickPlayEligible() { return quickPlayEligible; }
         @Override public int getPlayerCount() { return playerCount; }
         @Override public void registerANewGame() { }
         @Override protected void teleportToGame(CookiePlayer player) { }

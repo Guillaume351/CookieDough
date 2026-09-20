@@ -51,6 +51,8 @@ dependencies {
 
     testImplementation platform('org.junit:junit-bom:6.0.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.geysermc.cumulus:cumulus:1.1.2'
+    testImplementation 'org.mockito:mockito-core:5.20.0'
     testCompileOnly 'io.papermc.paper:paper-api:26.2.build.116-stable'
     testRuntimeOnly 'io.papermc.paper:paper-api:26.2.build.116-stable'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

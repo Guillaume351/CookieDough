@@ -209,6 +209,9 @@ public class PlayerWrapperListener implements Listener {
         for (Player online : Bukkit.getOnlinePlayers()) {
             online.sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                     "player.joined.server", online.locale(), player.getName()));
+            if (shouldPlayJoinNotification(player.getUniqueId(), online.getUniqueId())) {
+                online.playSound(online.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.75f, 1.15f);
+            }
         }
 
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
@@ -694,6 +697,11 @@ public class PlayerWrapperListener implements Listener {
             current = current.getCause();
         }
         return current.getMessage() == null ? current.getClass().getSimpleName() : current.getMessage();
+    }
+
+    static boolean shouldPlayJoinNotification(UUID joiningPlayerId, UUID listenerPlayerId) {
+        return joiningPlayerId != null && listenerPlayerId != null
+                && !joiningPlayerId.equals(listenerPlayerId);
     }
 
     @EventHandler

@@ -159,6 +159,7 @@ public class GameManager {
                 || player.getState() != PlayerState.PERSISTENT_MODE && !externalSpectator) {
             return false;
         }
+        if (!checkPlayerAdmission(player.getPlayer(), game)) return false;
         UUID playerId = player.getPlayer().getUniqueId();
         cancelQueueIntent(playerId);
         queueIntentFailureNoticeAt.remove(playerId);
@@ -178,6 +179,9 @@ public class GameManager {
                 || game.getPartyAdmissionProblem(members.size()) != null) {
             return false;
         }
+        if (members.stream().filter(java.util.Objects::nonNull)
+                .filter(member -> member.getPlayer() != null)
+                .anyMatch(member -> !checkPlayerAdmission(member.getPlayer(), game))) return false;
         List<CookiePlayer> distinct = members.stream().filter(java.util.Objects::nonNull)
                 .filter(member -> member.getPlayer() != null)
                 .filter(member -> member.getPlayer().isOnline())
@@ -220,6 +224,7 @@ public class GameManager {
                 || game.getState() != GameState.OPEN || !game.isAdmissionsOpen()) {
             return false;
         }
+        if (!checkPlayerAdmission(player.getPlayer(), game)) return false;
         UUID playerId = player.getPlayer().getUniqueId();
         Game current = getGameOfPlayer(player);
         boolean participant = current != null && !current.isExternalSpectator(playerId)
@@ -259,6 +264,7 @@ public class GameManager {
         if (game == null || game.getState() != GameState.OPEN || !game.isAdmissionsOpen()) return;
         long now = System.currentTimeMillis();
         expireQueueIntents(now);
+        cancelIneligibleQueueIntents(game, Bukkit::getPlayer);
         LobbyManager lobby = LobbyManager.getInstance();
         if (lobby == null) return;
         QueueAdmissionPlan plan = queueAdmissionPlan(game, lobby);
@@ -410,6 +416,34 @@ public class GameManager {
 
     private record QueueAdmissionPlan(List<List<QueueIntent>> readyCohorts,
             List<List<QueueIntent>> blockedCohorts) { }
+
+    private static boolean checkPlayerAdmission(org.bukkit.entity.Player player, Game game) {
+        if (game.canAdmitPlayer(player)) return true;
+        player.sendMessage(org.bukkit.ChatColor.RED + com.cookiebuild.cookiedough.utils.LocaleManager
+                .getMessage("lobby.game.access_denied", player.locale(), game.getGameName()));
+        return false;
+    }
+
+    /** Revoked access cancels the entire cohort once, before any activity transition. */
+    static void cancelIneligibleQueueIntents(Game game,
+            java.util.function.Function<UUID, org.bukkit.entity.Player> players) {
+        for (QueueIntent intent : List.copyOf(queueIntents.values())) {
+            if (!intent.gameId().equals(game.getGameId()) || queueIntents.get(intent.playerId()) != intent)
+                continue;
+            org.bukkit.entity.Player player = players.apply(intent.playerId());
+            if (player == null || !player.isOnline() || game.canAdmitPlayer(player)) continue;
+            List<QueueIntent> cohort = queueIntents.values().stream()
+                    .filter(member -> member.cohortId().equals(intent.cohortId())).toList();
+            cancelQueueIntent(intent.playerId());
+            for (QueueIntent member : cohort) {
+                org.bukkit.entity.Player online = players.apply(member.playerId());
+                if (online != null && online.isOnline()) {
+                    online.sendMessage(org.bukkit.ChatColor.RED + com.cookiebuild.cookiedough.utils.LocaleManager
+                            .getMessage("lobby.queue.access_revoked", online.locale(), game.getGameName()));
+                }
+            }
+        }
+    }
 
     private static void notifyQueueAdmissionFailure(QueueIntent intent, long now) {
         org.bukkit.entity.Player online = Bukkit.getPlayer(intent.playerId());

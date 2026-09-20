@@ -26,14 +26,25 @@ class GameConfigurationTest {
     void admissionsCanOnlyReopenWhileGameIsOpen() {
         TestGame game = new TestGame();
         assertTrue(game.isAdmissionsOpen());
+        assertEquals(0, game.getQueuePlayerCount());
 
         game.closeAdmissions();
         assertFalse(game.isAdmissionsOpen());
+        assertEquals(0, game.getQueuePlayerCount());
         assertTrue(game.reopenAdmissions());
 
         game.setState(GameState.RUNNING);
         assertFalse(game.reopenAdmissions());
         assertFalse(game.isAdmissionsOpen());
+    }
+
+    @Test
+    void exposesTheRemainingCountdownForLobbyDisplays() {
+        TestGame game = new TestGame();
+        assertEquals(0, game.getCountdownSeconds());
+
+        game.setStartTimer(21);
+        assertEquals(9, game.getCountdownSeconds());
     }
 
     private static final class TestGame extends Game {

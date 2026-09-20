@@ -14,17 +14,35 @@ class LobbyDisplayTextTest {
     @Test
     void splitsNpcNameAndStatusAcrossTwoCompactLines() {
         assertEquals(
-                "MicroBattles\n👥 13 • ▶",
-                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc("MicroBattles", 13, GameState.RUNNING)));
+                "MicroBattles\n👥 13 • Lobby 0/8 • ▶",
+                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc(
+                        "MicroBattles", 13, 0, 8, false, GameState.RUNNING, 0)));
         assertEquals(
-                "Pitchout\n👥 0 • ✔",
-                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc("Pitchout", 0, GameState.OPEN)));
+                "Pitchout\n👥 0 • Lobby 0/16 • ✔",
+                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc(
+                        "Pitchout", 0, 0, 16, true, GameState.OPEN, 0)));
+    }
+
+    @Test
+    void addsAClearCountdownLineWhenTheQueueIsStarting() {
+        assertEquals(
+                "Pitchout\n👥 4 • Lobby 1/16\n⏳ 9s",
+                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc(
+                        "Pitchout", 4, 1, 16, true, GameState.OPEN, 9)));
+    }
+
+    @Test
+    void marksAnOpenArenaWithClosedAdmissionsAsUnavailable() {
+        assertEquals(
+                "BedWars\n👥 2 • Lobby 0/8 • ✖",
+                PLAIN_TEXT.serialize(LobbyDisplayText.gameNpc(
+                        "BedWars", 2, 0, 8, false, GameState.OPEN, 0)));
     }
 
     @Test
     void keepsUnavailableNpcNamesCompact() {
         assertEquals(
-                "SkyWars\n👥 0 • ✖",
+                "SkyWars\n👥 0 • Lobby 0/- • ✖",
                 PLAIN_TEXT.serialize(LobbyDisplayText.unavailableGameNpc("SkyWars", 0)));
     }
 

@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
@@ -36,5 +38,23 @@ class MobileLinkServiceTest {
         assertFalse(MobileLinkService.isValidPepper("replace-with-a-long-random-secret"));
         assertFalse(MobileLinkService.isValidPepper("change-me-change-me-change-me-change-me"));
         assertTrue(MobileLinkService.isValidPepper(PEPPER));
+    }
+
+    @Test
+    void challengePurposesAreDisjointAndExpiryRemainsTenMinutes() {
+        assertEquals("mobile_link", MobileLinkService.Purpose.MOBILE_LINK.wireValue());
+        assertEquals("commerce_session", MobileLinkService.Purpose.COMMERCE_SESSION.wireValue());
+        assertEquals(Duration.ofMinutes(10), MobileLinkService.CHALLENGE_TTL);
+    }
+
+    @Test
+    void codeReservationRetriesAHashCollision() {
+        AtomicInteger reservations = new AtomicInteger();
+
+        String code = MobileLinkService.generateUniqueCode(new SecureRandom(),
+                ignored -> reservations.incrementAndGet() == 2);
+
+        assertEquals(2, reservations.get());
+        assertEquals(8, code.length());
     }
 }
