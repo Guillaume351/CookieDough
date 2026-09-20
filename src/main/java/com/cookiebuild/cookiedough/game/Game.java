@@ -586,6 +586,11 @@ public abstract class Game implements GameStatus {
         GameManager.notifyGameChanged(this, "state_changed");
     }
 
+    /** Preview modes can accept explicit testers without entering public Quick Play. */
+    public boolean isQuickPlayEligible() {
+        return true;
+    }
+
     public boolean isAdmissionsOpen() {
         return admissionsOpen && state == GameState.OPEN;
     }

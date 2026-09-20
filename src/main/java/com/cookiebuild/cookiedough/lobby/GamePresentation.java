@@ -36,7 +36,9 @@ public record GamePresentation(
             new GamePresentation("BedWars", Material.RED_BED, "modes/bedwars", EntityType.FOX,
                     "game.description.bedwars", ReleaseStage.BETA),
             new GamePresentation("Skyblock", Material.GRASS_BLOCK, "modes/skyblock", EntityType.BEE,
-                    "game.description.skyblock", ReleaseStage.BETA));
+                    "game.description.skyblock", ReleaseStage.BETA),
+            new GamePresentation("NomadWars", Material.COMPASS, "actions/preview", EntityType.CAMEL,
+                    "game.description.nomadwars", ReleaseStage.COMING_SOON));
 
     public static List<GamePresentation> games() {
         return GAMES;

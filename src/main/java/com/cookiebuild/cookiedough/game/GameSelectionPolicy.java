@@ -28,6 +28,7 @@ public final class GameSelectionPolicy {
                 .filter(Objects::nonNull)
                 .filter(game -> game.getState() == GameState.OPEN)
                 .filter(Game::isAdmissionsOpen)
+                .filter(Game::isQuickPlayEligible)
                 .filter(game -> game.getPlayerCount() < game.getCapacity())
                 .map(game -> (Game) game)
                 .toList();
