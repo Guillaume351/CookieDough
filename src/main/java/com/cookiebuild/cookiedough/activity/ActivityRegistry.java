@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataType;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 
 /** Thread-safe bridge between CookieDough lifecycle code and persistent plugins. */
@@ -76,6 +77,12 @@ public final class ActivityRegistry {
     }
 
     public static ActivityAdmissionResult enter(String name, CookiePlayer player) {
+        if (player != null && player.getPlayer() != null
+                && PlayerWrapperListener.isPersistentRecoveryPending(player.getPlayer().getUniqueId())
+                && !PlayerWrapperListener.isRecoveringActivity(player.getPlayer().getUniqueId(), name)) {
+            PlayerWrapperListener.rejectPersistentRecoveryTransfer(player.getPlayer());
+            return ActivityAdmissionResult.rejected("Your saved activity must recover before changing activities.");
+        }
         PersistentActivity activity = find(name);
         if (activity == null || !activity.isAvailable()) {
             return ActivityAdmissionResult.rejected(name + " is temporarily unavailable.");
@@ -84,11 +91,18 @@ public final class ActivityRegistry {
         if (current != null && current != activity) {
             return ActivityAdmissionResult.rejected("Leave " + current.name() + " before joining " + name + ".");
         }
-        return activity.enter(player);
+        ActivityAdmissionResult result = activity.enter(player);
+        if (result.admitted()) PlayerWrapperListener.completePersistentRecovery(player.getPlayer(), name);
+        return result;
     }
 
     public static boolean leave(CookiePlayer player, String reason) {
         if (player == null || player.getPlayer() == null) return true;
+        if (PlayerWrapperListener.isPersistentRecoveryPending(player.getPlayer().getUniqueId())) {
+            // A legacy/stale ticket may overlap a game roster. Let that owner eject its kit,
+            // preserving the recovery ticket and durable marker for the next retry.
+            return com.cookiebuild.cookiedough.game.GameManager.getGameOfPlayer(player) != null;
+        }
         PersistentActivity activity = owner(player.getPlayer().getUniqueId());
         String safeReason = reason == null ? "unknown" : reason;
         boolean left = activity == null || activity.leave(player, safeReason);
@@ -98,12 +112,18 @@ public final class ActivityRegistry {
 
     public static boolean canLeave(CookiePlayer player, String reason) {
         if (player == null || player.getPlayer() == null) return true;
+        if (PlayerWrapperListener.isPersistentRecoveryPending(player.getPlayer().getUniqueId())) {
+            // A legacy/stale ticket may overlap a game roster. Let that owner eject its kit,
+            // preserving the recovery ticket and durable marker for the next retry.
+            return com.cookiebuild.cookiedough.game.GameManager.getGameOfPlayer(player) != null;
+        }
         PersistentActivity activity = owner(player.getPlayer().getUniqueId());
         return activity == null || activity.canLeave(player, reason == null ? "unknown" : reason);
     }
 
     public static void notifyLeaveBlocked(CookiePlayer player, String reason) {
         if (player == null || player.getPlayer() == null) return;
+        if (PlayerWrapperListener.rejectPersistentRecoveryTransfer(player.getPlayer())) return;
         PersistentActivity activity = owner(player.getPlayer().getUniqueId());
         if (activity == null) return;
         try {
