@@ -29,6 +29,10 @@ public class FileUtils {
     }
 
     public static void deleteDirectory(File dir) throws IOException {
+        if (!dir.exists()) {
+            return;
+        }
+
         if (dir.isDirectory()) {
             File[] files = dir.listFiles();
             if (files != null) {

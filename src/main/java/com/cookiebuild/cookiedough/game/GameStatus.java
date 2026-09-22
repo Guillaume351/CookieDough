@@ -11,9 +11,17 @@ public interface GameStatus {
 
     int getPlayerCount();
 
+    int getQueuePlayerCount();
+
     boolean addPlayerToAvailableTeam(CookiePlayer player);
 
     GameState getState();
 
     String getGameName();
+
+    int getCapacity();
+
+    int getCountdownSeconds();
+
+    boolean isAdmissionsOpen();
 }
