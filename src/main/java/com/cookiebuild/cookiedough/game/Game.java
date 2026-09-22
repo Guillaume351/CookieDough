@@ -59,6 +59,7 @@ public abstract class Game implements GameStatus {
         if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()) {
             return false;
         }
+        if (PlayerWrapperListener.rejectPersistentRecoveryTransfer(player.getPlayer())) return false;
         if (!canAdmitPlayer(player.getPlayer())) {
             player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
                     "lobby.game.access_denied", player.getPlayer().locale(), gameName));
@@ -128,6 +129,7 @@ public abstract class Game implements GameStatus {
 
     /** Admits a read-only viewer without consuming a participant slot. */
     public synchronized boolean addSpectator(CookiePlayer player) {
+        if (player != null && PlayerWrapperListener.rejectPersistentRecoveryTransfer(player.getPlayer())) return false;
         if (player == null || player.getPlayer() == null || !player.getPlayer().isOnline()
                 || state != GameState.RUNNING || !supportsSpectating()
                 || player.getState() != PlayerState.LOBBY

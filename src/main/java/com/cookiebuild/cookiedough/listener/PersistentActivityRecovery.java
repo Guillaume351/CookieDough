@@ -58,8 +58,18 @@ final class PersistentActivityRecovery {
         }
     }
 
+    void recovered(UUID playerId, String activityName) {
+        Ticket ticket = tickets.get(playerId);
+        if (ticket != null && ticket.activityName().equalsIgnoreCase(activityName)) recovered(ticket);
+    }
+
     boolean isHolding(UUID playerId) {
         return playerId != null && tickets.containsKey(playerId);
+    }
+
+    boolean isHolding(UUID playerId, String activityName) {
+        Ticket ticket = playerId == null ? null : tickets.get(playerId);
+        return ticket != null && activityName != null && ticket.activityName().equalsIgnoreCase(activityName);
     }
 
     void remove(UUID playerId) {

@@ -116,6 +116,41 @@ public class PlayerWrapperListener implements Listener {
         else Bukkit.getScheduler().runTask(CookieDough.getInstance(), recovery);
     }
 
+    public static boolean isPersistentRecoveryPending(UUID playerId) {
+        return instance != null && instance.persistentRecovery.isHolding(playerId);
+    }
+
+    public static boolean isRecoveringActivity(UUID playerId, String activityName) {
+        return instance != null && instance.persistentRecovery.isHolding(playerId, activityName);
+    }
+
+    /** Refuse inventory ownership transfers until the saved activity has restored its state. */
+    public static boolean rejectPersistentRecoveryTransfer(Player player) {
+        if (player == null || !isPersistentRecoveryPending(player.getUniqueId())) return false;
+        player.sendMessage(Component.text(LocaleManager.getMessage(
+                "persistent.resume_unavailable", player.locale()), NamedTextColor.RED));
+        return true;
+    }
+
+    public static void completePersistentRecovery(Player player, String activityName) {
+        PlayerWrapperListener current = instance;
+        if (current == null || player == null || !current.persistentRecovery.isHolding(player.getUniqueId(), activityName)) return;
+        current.persistentRecovery.recovered(player.getUniqueId(), activityName);
+        player.setInvulnerable(false);
+    }
+
+    static boolean canRetryPersistentRecovery(CookiePlayer player) {
+        if (player == null || com.cookiebuild.cookiedough.game.GameManager.getGameOfPlayer(player) != null) return false;
+        return player.getState() != com.cookiebuild.cookiedough.player.PlayerState.IN_GAME
+                && player.getState() != com.cookiebuild.cookiedough.player.PlayerState.QUEUED
+                && player.getState() != com.cookiebuild.cookiedough.player.PlayerState.SPECTATING;
+    }
+
+    private boolean isRecoveryQuarantined(Player player) {
+        return persistentRecovery.isHolding(player.getUniqueId())
+                && canRetryPersistentRecovery(PlayerManager.getPlayer(player));
+    }
+
     public static Date getPlayerLoginTime(UUID playerId) {
         SessionHandle handle = instance == null ? null : instance.activePlayerSessions.get(playerId);
         return handle == null ? null : handle.startTime();
@@ -706,7 +741,7 @@ public class PlayerWrapperListener implements Listener {
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
-        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) {
+        if (isRecoveryQuarantined(event.getPlayer())) {
             if (event.getTo() != null && (event.getFrom().getBlockX() != event.getTo().getBlockX()
                     || event.getFrom().getBlockY() != event.getTo().getBlockY()
                     || event.getFrom().getBlockZ() != event.getTo().getBlockZ())) {
@@ -720,36 +755,36 @@ public class PlayerWrapperListener implements Listener {
     }
 
     @EventHandler public void onRecoveryDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Player player && persistentRecovery.isHolding(player.getUniqueId())) {
+        if (event.getEntity() instanceof Player player && isRecoveryQuarantined(player)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler public void onRecoveryDrop(PlayerDropItemEvent event) {
-        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) event.setCancelled(true);
+        if (isRecoveryQuarantined(event.getPlayer())) event.setCancelled(true);
     }
 
     @EventHandler public void onRecoveryPickup(EntityPickupItemEvent event) {
-        if (event.getEntity() instanceof Player player && persistentRecovery.isHolding(player.getUniqueId())) {
+        if (event.getEntity() instanceof Player player && isRecoveryQuarantined(player)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler public void onRecoveryInteract(PlayerInteractEvent event) {
-        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) event.setCancelled(true);
+        if (isRecoveryQuarantined(event.getPlayer())) event.setCancelled(true);
     }
 
     @EventHandler public void onRecoveryBreak(BlockBreakEvent event) {
-        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) event.setCancelled(true);
+        if (isRecoveryQuarantined(event.getPlayer())) event.setCancelled(true);
     }
 
     @EventHandler public void onRecoveryPlace(BlockPlaceEvent event) {
-        if (persistentRecovery.isHolding(event.getPlayer().getUniqueId())) event.setCancelled(true);
+        if (isRecoveryQuarantined(event.getPlayer())) event.setCancelled(true);
     }
 
     @EventHandler public void onRecoveryInventory(InventoryClickEvent event) {
         if (event.getWhoClicked() instanceof Player player
-                && persistentRecovery.isHolding(player.getUniqueId())) event.setCancelled(true);
+                && isRecoveryQuarantined(player)) event.setCancelled(true);
     }
 
     @EventHandler
@@ -763,6 +798,7 @@ public class PlayerWrapperListener implements Listener {
     }
 
     private boolean attemptPersistentResume(Player player, CookiePlayer cookiePlayer, String activityName) {
+        if (!canRetryPersistentRecovery(cookiePlayer)) return false;
         boolean newHold = persistentRecovery.hold(
                 player.getUniqueId(), activityName, System.currentTimeMillis());
         PersistentActivityRecovery.Ticket ticket = persistentRecovery.due(System.currentTimeMillis()).stream()
@@ -790,6 +826,8 @@ public class PlayerWrapperListener implements Listener {
 
     private void holdPersistentActivity(Player player, CookiePlayer cookiePlayer,
             String activityName, boolean admissionFailed) {
+        // A stale callback must never quarantine a newer game session.
+        if (!canRetryPersistentRecovery(cookiePlayer)) return;
         boolean firstHold = persistentRecovery.hold(
                 player.getUniqueId(), activityName, System.currentTimeMillis());
         if (admissionFailed) {

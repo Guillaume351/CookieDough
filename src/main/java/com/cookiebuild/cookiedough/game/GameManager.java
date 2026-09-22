@@ -418,6 +418,7 @@ public class GameManager {
             List<List<QueueIntent>> blockedCohorts) { }
 
     private static boolean checkPlayerAdmission(org.bukkit.entity.Player player, Game game) {
+        if (PlayerWrapperListener.rejectPersistentRecoveryTransfer(player)) return false;
         if (game.canAdmitPlayer(player)) return true;
         player.sendMessage(org.bukkit.ChatColor.RED + com.cookiebuild.cookiedough.utils.LocaleManager
                 .getMessage("lobby.game.access_denied", player.locale(), game.getGameName()));
