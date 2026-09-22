@@ -56,6 +56,9 @@ public class GameNPC {
         }
 
         reconcileNpc(location.getChunk());
+        plugin.getLogger().info("LOBBY_NPC_READY game=" + gameName + " type=" + npc.getType()
+                + " entity=" + npc.getUniqueId() + " world=" + location.getWorld().getName()
+                + " x=" + location.getX() + " y=" + location.getY() + " z=" + location.getZ());
         startNameRefreshTask();
     }
 
