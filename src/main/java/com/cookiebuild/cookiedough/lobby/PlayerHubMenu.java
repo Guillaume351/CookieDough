@@ -76,6 +76,11 @@ public final class PlayerHubMenu implements Listener {
         this.actionKey = new NamespacedKey(plugin, "hub_menu_action");
     }
 
+    /** Identifies only our hub inventories; never exempts world containers. */
+    public static boolean isMenuInventory(Inventory inventory) {
+        return inventory != null && inventory.getHolder() instanceof MenuHolder;
+    }
+
     public void open(Player player) {
         if (queuedGames.containsKey(player.getUniqueId())) {
             openQueue(player);
