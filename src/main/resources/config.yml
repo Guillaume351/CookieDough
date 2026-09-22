@@ -106,12 +106,25 @@ lobby:
       pitch: 0.0
       statue-offset: [1.0, 0.0, 0.0]
     nomadwars:
-      enabled: false
+      enabled: true
       game: "NomadWars"
       world: "lobby"
-      x: -8.5
+      # Reviewed against the lobby terrain: keep the adult camel clear of vines
+      # and the raised slab in the north-west bay.
+      x: -7.0
       y: 8.0
-      z: -8.5
-      yaw: -45.0
+      z: -8.1
+      yaw: -41.0
       pitch: 0.0
-      statue-offset: [-1.0, 0.0, 0.0]
+      statue-offset: [-1.5, 0.0, 1.6]
+    fatking:
+      enabled: true
+      game: "FatKing"
+      world: "lobby"
+      # South-east deck, facing spawn, between the existing selectors.
+      x: 5.5
+      y: 8.0
+      z: 10.5
+      yaw: 152.0
+      pitch: 0.0
+      statue-offset: [-1.0, 0.0, 1.0]
