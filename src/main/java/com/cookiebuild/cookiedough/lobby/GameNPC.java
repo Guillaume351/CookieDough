@@ -4,15 +4,19 @@ import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.DyeColor;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Camel;
 import org.bukkit.entity.Mob;
+import org.bukkit.entity.PiglinAbstract;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Sheep;
 import org.bukkit.entity.Slime;
 import org.bukkit.entity.Villager;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import java.util.ArrayList;
@@ -52,6 +56,9 @@ public class GameNPC {
         }
 
         reconcileNpc(location.getChunk());
+        plugin.getLogger().info("LOBBY_NPC_READY game=" + gameName + " type=" + npc.getType()
+                + " entity=" + npc.getUniqueId() + " world=" + location.getWorld().getName()
+                + " x=" + location.getX() + " y=" + location.getY() + " z=" + location.getZ());
         startNameRefreshTask();
     }
 
@@ -100,7 +107,25 @@ public class GameNPC {
         } else if (mob instanceof Villager villager) {
             villager.setProfession(Villager.Profession.MASON);
         }
+        configureBetaSelector(mob, gameName);
         updateNPCName();
+    }
+
+    static void configureBetaSelector(Mob mob, String gameName) {
+        if ("FatKing".equalsIgnoreCase(gameName) && mob instanceof PiglinAbstract piglin) {
+            // The lobby is an overworld: AI=false does not prevent conversion.
+            // Reapply on reconciliation as well as initial spawn.
+            piglin.setImmuneToZombification(true);
+            piglin.setAdult();
+            if (piglin.getEquipment() != null) {
+                piglin.getEquipment().setHelmet(new ItemStack(Material.GOLDEN_HELMET));
+                piglin.getEquipment().setHelmetDropChance(0.0f);
+            }
+        } else if ("NomadWars".equalsIgnoreCase(gameName) && mob instanceof Camel camel) {
+            camel.setAdult();
+            camel.setAgeLock(true);
+            camel.setSitting(false);
+        }
     }
 
     public void reconcileNpc(Chunk chunk) {
