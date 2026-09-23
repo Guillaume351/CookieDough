@@ -48,7 +48,7 @@ public final class QuickPlayCommand implements CommandExecutor {
             CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
             if (cookiePlayer != null && (cookiePlayer.getState() != PlayerState.LOBBY
                     || GameManager.getGameOfPlayer(cookiePlayer) != null)) {
-                LobbyManager.teleportPlayerToLobby(cookiePlayer);
+                if (!LobbyManager.teleportPlayerToLobby(cookiePlayer)) return true;
             }
         }
         if (args.length > 0 && !args[0].equalsIgnoreCase("replay")) {

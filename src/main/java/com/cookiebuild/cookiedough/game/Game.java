@@ -536,7 +536,7 @@ public abstract class Game implements GameStatus {
         }
     }
 
-    /** Call once when the result is known to expose a consistent replay action. */
+    /** Call once when the result is known to record completion and offer feedback. */
     public void offerReplay() {
         for (CookiePlayer cookiePlayer : getPlayers()) {
             if (!cookiePlayer.getPlayer().isOnline()) {
@@ -544,8 +544,6 @@ public abstract class Game implements GameStatus {
             }
             FunnelTelemetry.record(cookiePlayer.getPlayer(), FunnelTelemetry.Event.MATCH_COMPLETED,
                     "game=" + gameName);
-            boolean bedrockQueueOffer = CookieDough.getInstance().getRallyManager()
-                    .notifyAvailableAfterMatch(cookiePlayer.getPlayer(), gameName);
             cookiePlayer.getPlayer().sendMessage(net.kyori.adventure.text.Component.text(
                             LocaleManager.getMessage("feedback.action", cookiePlayer.getPlayer().locale()),
                             net.kyori.adventure.text.format.NamedTextColor.AQUA)
@@ -553,10 +551,6 @@ public abstract class Game implements GameStatus {
                     .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
                             net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
                                     "feedback.hover", cookiePlayer.getPlayer().locale())))));
-            if (!bedrockQueueOffer && CookieDough.getInstance() != null
-                    && CookieDough.getInstance().getPlayerHubMenu() != null) {
-                CookieDough.getInstance().getPlayerHubMenu().openReplay(cookiePlayer.getPlayer(), gameName);
-            }
         }
     }
 

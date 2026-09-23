@@ -217,6 +217,12 @@ public class LobbyManager implements Listener {
                     "Could not safely teleport " + player.getName() + " to the lobby");
             return false;
         }
+        if (!player.getWorld().equals(lobbyWorld)) {
+            CookieDough.getInstance().getLogger().severe(
+                    "Lobby teleport for " + player.getName() + " was redirected to "
+                            + player.getWorld().getName());
+            return false;
+        }
 
         // No source is destroyed until the destination teleport is acknowledged.
         // canLeave and leave execute synchronously on the main thread, so this
