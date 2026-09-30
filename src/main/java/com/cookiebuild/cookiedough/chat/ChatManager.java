@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Manages chat censorship and formatting in messages.
  */
 public class ChatManager {
+    /** {@code reason} is a message key resolved in the player's locale. */
     public record ModerationResult(boolean blocked, String reason) {
     }
 
@@ -59,13 +60,13 @@ public class ChatManager {
         SpamBlocker spamBlocker = spamBlockers.computeIfAbsent(player.getUniqueId(), ignored -> new SpamBlocker());
 
         if (spamBlocker.matches(message)) {
-            return new ModerationResult(true, "You're sending messages too quickly. Please wait a moment.");
+            return new ModerationResult(true, "chat.blocked.spam");
         }
 
         synchronized (chatBlockers) {
             for (ChatBlocker chatBlocker : chatBlockers) {
                 if (chatBlocker.matches(message)) {
-                    return new ModerationResult(true, "That message was blocked by the chat filter.");
+                    return new ModerationResult(true, "chat.blocked.filter");
                 }
             }
         }

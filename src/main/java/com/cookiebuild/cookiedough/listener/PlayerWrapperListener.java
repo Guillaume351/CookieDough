@@ -76,6 +76,7 @@ public class PlayerWrapperListener implements Listener {
     private final Set<UUID> newPlayerSessions = ConcurrentHashMap.newKeySet();
     private final Set<UUID> onboardingPendingSessions = ConcurrentHashMap.newKeySet();
     private final Set<UUID> onboardingCompletionRequested = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> deferredAppPromotion = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> disconnectReasons = new ConcurrentHashMap<>();
     private final PersistentActivityRecovery persistentRecovery = new PersistentActivityRecovery();
     private final ChangelogCoordinator changelog = new ChangelogCoordinator(new PostgresChangelogRepository());
@@ -242,11 +243,11 @@ public class PlayerWrapperListener implements Listener {
                 "locale=" + player.locale().toLanguageTag());
 
         for (Player online : Bukkit.getOnlinePlayers()) {
+            // The joining player gets the welcome message, not "X joined" about themselves.
+            if (!shouldPlayJoinNotification(player.getUniqueId(), online.getUniqueId())) continue;
             online.sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                     "player.joined.server", online.locale(), player.getName()));
-            if (shouldPlayJoinNotification(player.getUniqueId(), online.getUniqueId())) {
-                online.playSound(online.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.75f, 1.15f);
-            }
+            online.playSound(online.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.75f, 1.15f);
         }
 
         CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
@@ -289,7 +290,7 @@ public class PlayerWrapperListener implements Listener {
         if (resumeTarget == null) {
             player.showTitle(net.kyori.adventure.title.Title.title(
                     Component.text("Cookie Build", NamedTextColor.GOLD),
-                    Component.text(LocaleManager.getMessage("lobby.menu.subtitle", player.locale()),
+                    Component.text(com.cookiebuild.cookiedough.ui.PlatformText.message(player, "lobby.menu.subtitle"),
                             NamedTextColor.YELLOW)));
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
         }
@@ -371,6 +372,8 @@ public class PlayerWrapperListener implements Listener {
             }
             if (experience.showAppPromotion()) {
                 showMobileAppPromotion(player, handle);
+            } else if (experience.deferAppPromotion()) {
+                deferredAppPromotion.add(handle.playerId());
             }
             if (!resumedPersistent && !awaitingPersistentRecovery && !resumedMatch && quickPlayQueued) {
                 if (onboardingPending) {
@@ -436,25 +439,56 @@ public class PlayerWrapperListener implements Listener {
                 });
     }
 
+    /**
+     * Java players can click the hint; Bedrock players cannot click chat, so
+     * they get plain wording that points at the compass instead. A quiet
+     * lobby promotes the featured queue, not a solo mode.
+     */
     private void showLobbyHint(Player player) {
+        boolean bedrock = com.cookiebuild.cookiedough.ui.BedrockFormSupport.isBedrock(player);
+        boolean quiet = Bukkit.getOnlinePlayers().size() <= 1;
+        String featured = com.cookiebuild.cookiedough.lobby.GamePresentation.readableName(
+                com.cookiebuild.cookiedough.game.GameSelectionPolicy.FEATURED_GAME, player.locale());
+        if (bedrock) {
+            player.sendMessage(Component.text(LocaleManager.getMessage("lobby.menu.action.bedrock", player.locale()),
+                    NamedTextColor.GOLD));
+            if (quiet) {
+                player.sendMessage(Component.text(LocaleManager.getMessage("lobby.solo.featured.bedrock",
+                        player.locale(), featured), NamedTextColor.GRAY));
+            }
+            return;
+        }
         Component hint = Component.text(LocaleManager.getMessage("lobby.menu.action", player.locale()),
                         NamedTextColor.GOLD)
                 .hoverEvent(HoverEvent.showText(Component.text(
                         LocaleManager.getMessage("lobby.menu.hover", player.locale()))))
                 .clickEvent(ClickEvent.runCommand("/menu"));
-        if (Bukkit.getOnlinePlayers().size() <= 1) {
+        if (quiet) {
             hint = hint.append(Component.text("  •  ", NamedTextColor.DARK_GRAY))
                     .append(Component.text(LocaleManager.getMessage("lobby.solo.prompt", player.locale()),
                                     NamedTextColor.GRAY))
-                    .append(Component.text(" " + LocaleManager.getMessage("lobby.solo.skyblock", player.locale()),
-                                    NamedTextColor.GREEN)
-                            .clickEvent(ClickEvent.runCommand("/quickplay Skyblock")))
-                    .append(Component.text(" / ", NamedTextColor.DARK_GRAY))
-                    .append(Component.text(LocaleManager.getMessage("lobby.solo.choose", player.locale()),
-                                    NamedTextColor.AQUA)
-                            .clickEvent(ClickEvent.runCommand("/menu")));
+                    .append(Component.text(" " + LocaleManager.getMessage("lobby.solo.featured", player.locale(),
+                                    featured), NamedTextColor.GREEN)
+                            .clickEvent(ClickEvent.runCommand("/quickplay")));
         }
         player.sendMessage(hint);
+    }
+
+    /**
+     * Shows the first-session app reminder at the first meaningful moment
+     * (first completed match or 30 s in a queue). The durable max-3 /
+     * 30-day cap is still enforced by {@link MobilePromotionService}.
+     */
+    public static void offerDeferredAppPromotion(Player player, String trigger) {
+        PlayerWrapperListener current = instance;
+        if (current == null || player == null || !player.isOnline()
+                || !current.deferredAppPromotion.remove(player.getUniqueId())) {
+            return;
+        }
+        SessionHandle handle = current.activePlayerSessions.get(player.getUniqueId());
+        if (handle == null) return;
+        CookieDough.getInstance().getLogger().fine("Deferred app promotion trigger=" + trigger);
+        current.showMobileAppPromotion(player, handle);
     }
 
     private void showMobileAppPromotion(Player player, SessionHandle handle) {
@@ -468,11 +502,12 @@ public class PlayerWrapperListener implements Listener {
                         return;
                     }
                     if (!Boolean.TRUE.equals(claimed)) return;
+                    // Bedrock cannot open chat links: the address is spelled out instead.
                     player.sendMessage(Component.text(LocaleManager.getMessage(
                                     "app.promotion.message", player.locale()), NamedTextColor.LIGHT_PURPLE)
                             .append(Component.text("  "))
-                            .append(Component.text(LocaleManager.getMessage(
-                                            "app.promotion.download", player.locale()), NamedTextColor.AQUA)
+                            .append(Component.text(com.cookiebuild.cookiedough.ui.PlatformText.message(
+                                            player, "app.promotion.download"), NamedTextColor.AQUA)
                                     .hoverEvent(HoverEvent.showText(Component.text(LocaleManager.getMessage(
                                             "app.promotion.download_hover", player.locale()))))
                                     .clickEvent(ClickEvent.openUrl("https://www.cookie-build.com/#mobile-app"))));
@@ -493,6 +528,7 @@ public class PlayerWrapperListener implements Listener {
         queuedQuickPlay.remove(player.getUniqueId());
         queuedPersistentActivities.remove(player.getUniqueId());
         onboardingCompletionRequested.remove(player.getUniqueId());
+        deferredAppPromotion.remove(player.getUniqueId());
         CookieDough.getInstance().getPlayerHubMenu().clearPlayer(player.getUniqueId());
         CookieDough.getInstance().getPlayerTransitionFlightGuard().abandon(player);
         cleanupScoreboard(player.getUniqueId());

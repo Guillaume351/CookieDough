@@ -207,10 +207,12 @@ public class GameNPC {
     }
 
     private void updateNPCName() {
+        Locale locale = LobbyManager.displayLocale();
+        String displayName = presentation.displayName(locale);
         if (presentation.persistent()) {
             npc.customName(LobbyDisplayText.persistentActivityNpc(
-                    presentation.gameName(),
-                    LobbyModePlayerCounter.forPersistentActivity(gameName)));
+                    displayName,
+                    LobbyModePlayerCounter.forPersistentActivity(gameName), locale));
             npc.setCustomNameVisible(true);
             return;
         }
@@ -220,18 +222,21 @@ public class GameNPC {
             boolean queueOpen = game.isAdmissionsOpen();
             int queuePlayerCount = game.getQueuePlayerCount();
             npc.customName(LobbyDisplayText.gameNpc(
-                    presentation.gameName(),
+                    displayName,
+                    presentation.featured(),
                     totalPlayerCount,
                     queuePlayerCount,
                     game.getCapacity(),
+                    game instanceof com.cookiebuild.cookiedough.game.Game arena ? arena.getMinimumPlayers() : 2,
                     queueOpen,
                     game.getState(),
-                    queueOpen ? game.getCountdownSeconds() : 0));
+                    queueOpen ? game.getCountdownSeconds() : 0,
+                    locale));
             npc.setCustomNameVisible(true);
             playLocalQueueSignal(queueOpen, queuePlayerCount);
         } else {
             npc.customName(LobbyDisplayText.unavailableGameNpc(
-                    presentation.gameName(), totalPlayerCount));
+                    displayName, presentation.featured(), totalPlayerCount, locale));
             npc.setCustomNameVisible(true);
         }
     }

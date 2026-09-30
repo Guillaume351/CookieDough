@@ -12,16 +12,14 @@ class BedrockRallyInviteContractTest {
     void nativeFormUsesSameOneTimeNoticeAcceptanceAndImageBackedButtons() throws Exception {
         String source = Files.readString(Path.of(
                 "src/main/java/com/cookiebuild/cookiedough/retention/RallyManager.java"));
-        String game = Files.readString(Path.of(
-                "src/main/java/com/cookiebuild/cookiedough/game/Game.java"));
 
         assertTrue(source.contains("BedrockFormSupport.isBedrock(recipient)"));
         assertTrue(source.contains("SimpleForm.builder()"));
         assertTrue(source.contains("\"actions/join\""));
         assertTrue(source.contains("acceptInGameNotice(recipient, notice.id())"));
         assertTrue(source.contains("BedrockFormSupport.send(recipient, builder.build())"));
-        assertTrue(source.contains("builder.closedOrInvalidResultHandler"));
-        assertTrue(source.contains("plugin.getPlayerHubMenu().openReplay(player, completedGameName)"));
-        assertTrue(game.contains("if (!bedrockQueueOffer"));
+        // The post-match replay continuation no longer rides on this invite
+        // form: "What next?" opens from the lobby-arrival hook instead.
+        assertTrue(!source.contains("notifyAvailableAfterMatch"));
     }
 }

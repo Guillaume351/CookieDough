@@ -22,12 +22,18 @@ import com.cookiebuild.cookiedough.game.GameManager;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 import com.cookiebuild.cookiedough.player.PlayerManager;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /** Durable parties synchronized with the website/mobile party API. */
 public final class PartyManager {
     private static final long REFRESH_TICKS = 40L;
     private static final long FAILURE_LOG_INTERVAL_MS = 60_000L;
-    private static final String UNAVAILABLE = "Party service is temporarily unavailable. Please try again.";
+    private static final String UNAVAILABLE = "party.error.unavailable";
 
     record PartyGameSelection(Game game, String rejectionReason) {
     }
@@ -71,10 +77,10 @@ public final class PartyManager {
 
     public void create(Player leader, Consumer<String> completion) {
         UUID leaderId = leader.getUniqueId();
-        mutate("create party", () -> coordinator.create(leaderId), result -> {
+        mutate(leader, "create party", () -> coordinator.create(leaderId), result -> {
             String message = result == PartyRepository.CreateResult.CREATED
-                    ? "Party created."
-                    : "You are already in a party.";
+                    ? message(leader, "party.create.done")
+                    : message(leader, "party.already_in_party");
             completion.accept(message);
         }, completion);
     }
@@ -84,43 +90,49 @@ public final class PartyManager {
         UUID targetId = target.getUniqueId();
         String inviterName = inviter.getName();
         String targetName = target.getName();
-        mutate("invite player to party", () -> coordinator.invite(inviterId, targetId), result -> {
+        mutate(inviter, "invite player to party", () -> coordinator.invite(inviterId, targetId), result -> {
             String message = switch (result) {
                 case INVITED -> {
                     if (target.isOnline()) {
-                        target.sendMessage(ChatColor.GOLD + inviterName + " invited you to a party. "
-                                + ChatColor.YELLOW + "Use /party join " + inviterName
-                                + " or accept in the Cookie Build app.");
+                        // The plain text is the whole call to action for Bedrock;
+                        // Java players can also click it to open the social menu.
+                        target.sendMessage(Component.text(message(target, "party.invite.received", inviterName),
+                                        NamedTextColor.GOLD)
+                                .clickEvent(ClickEvent.runCommand("/amis"))
+                                .hoverEvent(HoverEvent.showText(Component.text("/amis", NamedTextColor.YELLOW))));
                     }
-                    yield "Party invitation sent to " + targetName + ".";
+                    yield message(inviter, "party.invite.sent", targetName);
                 }
-                case NOT_LEADER -> "Only the party leader can invite players.";
-                case PARTY_FULL -> "Your party is full.";
-                case TARGET_IN_PARTY -> targetName + " is already in a party.";
-                case SELF_INVITE -> "You cannot invite yourself.";
+                case NOT_LEADER -> message(inviter, "party.invite.not_leader");
+                case PARTY_FULL -> message(inviter, "party.invite.full");
+                case TARGET_IN_PARTY -> message(inviter, "party.invite.target_in_party", targetName);
+                case SELF_INVITE -> message(inviter, "party.invite.self");
             };
             completion.accept(message);
         }, completion);
     }
 
     public void join(Player player, Player leader, Consumer<String> completion) {
+        join(player, leader.getUniqueId(), leader.getName(), completion);
+    }
+
+    /** Accepts a pending invitation even when the leader is offline (e.g. invited from the app). */
+    public void join(Player player, UUID leaderId, String leaderName, Consumer<String> completion) {
         UUID playerId = player.getUniqueId();
-        UUID leaderId = leader.getUniqueId();
         String playerName = player.getName();
-        String leaderName = leader.getName();
-        mutate("join party", () -> coordinator.join(playerId, leaderId), result -> {
+        mutate(player, "join party", () -> coordinator.join(playerId, leaderId), result -> {
             String message = switch (result) {
                 case JOINED -> {
                     PartyRepository.Party party = coordinator.snapshot().partyFor(playerId);
                     if (party != null) {
-                        broadcast(party.id(), playerName + " joined the party.");
+                        broadcast(party.id(), "party.join.broadcast", playerName);
                     }
-                    yield "Joined " + leaderName + "'s party.";
+                    yield message(player, "party.join.done", leaderName);
                 }
-                case INVITE_MISSING -> "That party invitation is missing or already used.";
-                case INVITE_EXPIRED -> "That party invitation expired.";
-                case PARTY_FULL -> "That party is full.";
-                case ALREADY_IN_PARTY -> "You are already in a party.";
+                case INVITE_MISSING -> message(player, "party.join.missing");
+                case INVITE_EXPIRED -> message(player, "party.join.expired");
+                case PARTY_FULL -> message(player, "party.join.full");
+                case ALREADY_IN_PARTY -> message(player, "party.already_in_party");
             };
             completion.accept(message);
         }, completion);
@@ -131,16 +143,54 @@ public final class PartyManager {
         String playerName = player.getName();
         PartyRepository.Party before = coordinator.snapshot().partyFor(playerId);
         UUID formerPartyId = before == null ? null : before.id();
-        mutate("leave party", () -> coordinator.leave(playerId), result -> {
+        mutate(player, "leave party", () -> coordinator.leave(playerId), result -> {
             if (result == PartyRepository.LeaveResult.NOT_IN_PARTY) {
-                completion.accept("You are not in a party.");
+                completion.accept(message(player, "party.leave.not_in_party"));
                 return;
             }
             if (formerPartyId != null) {
-                broadcast(formerPartyId, playerName + " left the party.");
+                broadcast(formerPartyId, "party.leave.broadcast", playerName);
             }
-            completion.accept("You left the party.");
+            completion.accept(message(player, "party.leave.done"));
         }, completion);
+    }
+
+    /**
+     * Loads leaders who sent this player a pending invitation. Runs on the party
+     * worker; the completion runs on the main thread and receives an empty list
+     * when the service is unavailable.
+     */
+    public void loadPendingInvites(Player player, Consumer<List<UUID>> completion) {
+        UUID playerId = player.getUniqueId();
+        if (!running.get()) {
+            completion.accept(List.of());
+            return;
+        }
+        try {
+            worker.execute(() -> {
+                List<UUID> leaders;
+                try {
+                    leaders = coordinator.pendingInviteLeaders(playerId);
+                } catch (RuntimeException error) {
+                    markUnavailable("list pending party invitations", error);
+                    leaders = List.of();
+                }
+                List<UUID> result = leaders;
+                runOnMain(() -> completion.accept(result));
+            });
+        } catch (java.util.concurrent.RejectedExecutionException rejected) {
+            completion.accept(List.of());
+        }
+    }
+
+    /** Leader of the player's durable party, or null when the player is not in one. */
+    public UUID getLeaderId(UUID playerId) {
+        PartyRepository.Party party = coordinator.snapshot().partyFor(playerId);
+        return party == null ? null : party.leaderId();
+    }
+
+    public static int maxPartySize() {
+        return PartyRepository.MAX_PARTY_SIZE;
     }
 
     public String queueParty(Player requester) {
@@ -150,7 +200,7 @@ public final class PartyManager {
     /** Queues the entire durable party for one exact arena without splitting it. */
     public String queueParty(Player requester, Game requestedGame) {
         if (!isAvailable()) {
-            return UNAVAILABLE;
+            return message(requester, UNAVAILABLE);
         }
         PartyRepository.Party party = coordinator.snapshot().partyFor(requester.getUniqueId());
         if (party == null) {
@@ -160,15 +210,15 @@ public final class PartyManager {
             return null;
         }
         if (!party.leaderId().equals(requester.getUniqueId())) {
-            return "Only the party leader can start Quick Play.";
+            return message(requester, "party.queue.leader_only");
         }
         List<CookiePlayer> members = onlineCookiePlayers(party);
         if (members.size() != party.members().size()) {
-            return "All party members must be online before starting Quick Play.";
+            return message(requester, "party.queue.all_online");
         }
         if (members.stream().anyMatch(member -> !PlayerWrapperListener.isPlayerDataReady(
                 member.getPlayer().getUniqueId()))) {
-            return "A party member's profile is still loading.";
+            return message(requester, "party.queue.member_loading");
         }
         PartyGameSelection selection = requestedGame == null
                 ? selectPartyGame(GameManager.getGames(), members.size())
@@ -178,19 +228,29 @@ public final class PartyManager {
                                 ? new PartyGameSelection(requestedGame, "")
                                 : new PartyGameSelection(null,
                                         requestedGame.getPartyAdmissionProblem(members.size()) == null
-                                                ? "That queue is no longer available for the whole party."
-                                                : requestedGame.getPartyAdmissionProblem(members.size()));
+                                                ? message(requester, "party.queue.not_available")
+                                                : message(requester, "party.queue.incompatible",
+                                                        com.cookiebuild.cookiedough.lobby.GamePresentation.readableName(
+                                                                requestedGame.getGameName(), requester.locale()),
+                                                        members.size()));
         Game game = selection.game();
         if (game == null) {
-            return selection.rejectionReason();
+            String reason = selection.rejectionReason();
+            if (reason == null || reason.isBlank()) {
+                return message(requester, "party.queue.no_game");
+            }
+            // A requested game's reason is already localized; automatic selection only
+            // reports the first raw rejection, so it is replaced by a localized summary.
+            return requestedGame != null ? reason : message(requester, "party.queue.no_compatible", members.size());
         }
         if (!GameManager.registerPartyQueueIntent(members, game, party.id())) {
-            return com.cookiebuild.cookiedough.utils.LocaleManager.getMessage(
+            return LocaleManager.getMessage(
                     "lobby.queue.leave_failed", requester.locale());
         }
         for (CookiePlayer member : members) {
-            member.getPlayer().sendMessage(ChatColor.GOLD + "[Party] " + ChatColor.GREEN
-                    + com.cookiebuild.cookiedough.utils.LocaleManager.getMessage(
+            member.getPlayer().sendMessage(ChatColor.GOLD + message(member.getPlayer(), "party.prefix") + " "
+                    + ChatColor.GREEN
+                    + LocaleManager.getMessage(
                             "lobby.queue.intent_registered", member.getPlayer().locale(), game.getGameName()));
         }
         return "";
@@ -215,9 +275,8 @@ public final class PartyManager {
         if (selected != null) {
             return new PartyGameSelection(selected, "");
         }
-        return new PartyGameSelection(null, firstRejection == null
-                ? "No game is currently available for your party."
-                : firstRejection);
+        // A null reason means "no open game at all"; queueParty localizes it.
+        return new PartyGameSelection(null, firstRejection);
     }
 
     public UUID getPartyId(UUID playerId) {
@@ -285,14 +344,14 @@ public final class PartyManager {
 
     public String describe(Player player) {
         if (!isAvailable()) {
-            return UNAVAILABLE;
+            return message(player, UNAVAILABLE);
         }
         PartyRepository.Party party = coordinator.snapshot().partyFor(player.getUniqueId());
         if (party == null) {
-            return "You are not in a party. Use /party create or /party invite <player>.";
+            return message(player, "party.describe.none");
         }
-        return "Party leader: " + playerName(party.leaderId()) + " | Members: " + party.members().stream()
-                .map(this::playerName).toList();
+        return message(player, "party.describe.summary", playerName(party.leaderId()),
+                String.join(", ", party.members().stream().map(this::playerName).toList()));
     }
 
     /** A disconnect no longer destroys durable party membership. */
@@ -335,7 +394,7 @@ public final class PartyManager {
                 .toList();
     }
 
-    private void broadcast(UUID partyId, String message) {
+    private void broadcast(UUID partyId, String key, Object... args) {
         PartyRepository.Party party = coordinator.snapshot().parties().get(partyId);
         if (party == null) {
             return;
@@ -343,12 +402,18 @@ public final class PartyManager {
         for (UUID member : party.members()) {
             Player player = Bukkit.getPlayer(member);
             if (player != null) {
-                player.sendMessage(ChatColor.GOLD + "[Party] " + ChatColor.YELLOW + message);
+                player.sendMessage(ChatColor.GOLD + message(player, "party.prefix") + " " + ChatColor.YELLOW
+                        + message(player, key, args));
             }
         }
     }
 
-    private String playerName(UUID playerId) {
+    private static String message(Player player, String key, Object... args) {
+        return LocaleManager.getMessage(key, player == null ? java.util.Locale.ENGLISH : player.locale(), args);
+    }
+
+    /** Best-effort display name for a party member, including offline members. */
+    public String playerName(UUID playerId) {
         String name = Bukkit.getOfflinePlayer(playerId).getName();
         return name == null ? playerId.toString().substring(0, 8) : name;
     }
@@ -375,10 +440,10 @@ public final class PartyManager {
         });
     }
 
-    private <T> void mutate(String operation, ThrowingSupplier<T> work,
+    private <T> void mutate(Player actor, String operation, ThrowingSupplier<T> work,
             Consumer<T> onSuccess, Consumer<String> onFailure) {
         if (!running.get()) {
-            onFailure.accept(UNAVAILABLE);
+            onFailure.accept(message(actor, UNAVAILABLE));
             return;
         }
         worker.execute(() -> {
@@ -389,7 +454,7 @@ public final class PartyManager {
                 runOnMain(() -> onSuccess.accept(result));
             } catch (RuntimeException error) {
                 markUnavailable(operation, error);
-                runOnMain(() -> onFailure.accept(UNAVAILABLE));
+                runOnMain(() -> onFailure.accept(message(actor, UNAVAILABLE)));
             }
         });
     }
@@ -400,8 +465,8 @@ public final class PartyManager {
             UUID previous = before.partyByMember().get(playerId);
             UUID current = after.partyByMember().get(playerId);
             if (!java.util.Objects.equals(previous, current)) {
-                player.sendMessage(ChatColor.GOLD + "[Party] " + ChatColor.YELLOW
-                        + "Party membership synced from the Cookie Build app.");
+                player.sendMessage(ChatColor.GOLD + message(player, "party.prefix") + " " + ChatColor.YELLOW
+                        + message(player, "party.synced"));
             }
         }
     }

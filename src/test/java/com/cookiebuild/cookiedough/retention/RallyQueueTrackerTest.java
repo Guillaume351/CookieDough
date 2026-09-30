@@ -33,6 +33,44 @@ class RallyQueueTrackerTest {
     }
 
     @Test
+    void automaticAppPushNeedsThirtySecondsOfUnderfillAndRetriesSparingly() {
+        RallyQueueTracker tracker = new RallyQueueTracker();
+        UUID gameId = UUID.randomUUID();
+        RallyQueueTracker.QueueState underfilled = queue(gameId, true, 1, 2);
+
+        assertTrue(tracker.observe(List.of(underfilled), 0).automaticPushCandidates().isEmpty());
+        assertTrue(tracker.observe(List.of(underfilled), 29_999).automaticPushCandidates().isEmpty());
+        assertEquals(List.of(gameId), tracker.observe(List.of(underfilled), 30_000).automaticPushCandidates());
+        assertTrue(tracker.observe(List.of(underfilled), 31_000).automaticPushCandidates().isEmpty());
+        assertEquals(List.of(gameId), tracker.observe(List.of(underfilled), 330_000).automaticPushCandidates());
+    }
+
+    @Test
+    void automaticAppPushSkipsReadyQueuesAndResetsWhenTheQueueEmpties() {
+        RallyQueueTracker tracker = new RallyQueueTracker();
+        UUID gameId = UUID.randomUUID();
+        tracker.observe(List.of(queue(gameId, true, 2, 2)), 0);
+        assertTrue(tracker.observe(List.of(queue(gameId, true, 2, 2)), 60_000).automaticPushCandidates().isEmpty());
+
+        tracker.observe(List.of(queue(gameId, true, 0, 2)), 61_000);
+        tracker.observe(List.of(queue(gameId, true, 1, 2)), 62_000);
+        assertTrue(tracker.observe(List.of(queue(gameId, true, 1, 2)), 91_999).automaticPushCandidates().isEmpty());
+        assertEquals(List.of(gameId), tracker.observe(List.of(queue(gameId, true, 1, 2)), 92_000)
+                .automaticPushCandidates());
+    }
+
+    @Test
+    void aScheduledPushDoesNotDelayTheInGameNotice() {
+        RallyQueueTracker tracker = new RallyQueueTracker();
+        UUID gameId = UUID.randomUUID();
+        tracker.observe(List.of(queue(gameId, true, 1, 2)), 0);
+        tracker.markPushScheduled(gameId, UUID.randomUUID(), 3_000);
+        tracker.releaseReady(3_000);
+        assertEquals(List.of(gameId), tracker.observe(List.of(queue(gameId, true, 1, 2)), 8_000)
+                .automaticCandidates());
+    }
+
+    @Test
     void emptyFilledOrStartedQueueCancelsAWaitingOutbox() {
         RallyQueueTracker tracker = new RallyQueueTracker();
         UUID gameId = UUID.randomUUID();

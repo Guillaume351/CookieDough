@@ -75,6 +75,8 @@ class GameplayContinuityContractTest {
         assertTrue(lobbyTeleport.contains("ActivityRegistry.notifyLeaveBlocked(cookiePlayer, \"returned_lobby\")"));
         assertTrue(lobbyTeleport.indexOf(".teleport(player, lobbySpawnLocation)")
                 < lobbyTeleport.indexOf("ActivityRegistry.leave(cookiePlayer, \"returned_lobby\")"));
+        assertTrue(lobbyTeleport.indexOf("player.getWorld().equals(lobbyWorld)")
+                < lobbyTeleport.indexOf("ActivityRegistry.leave(cookiePlayer, \"returned_lobby\")"));
         assertTrue(lobbyTeleport.contains(".teleport(player, sourceLocation)"));
         assertTrue(lobby.contains("return teleportPlayerToLobby(cookiePlayer);"));
         String quickPlay = lobby.substring(lobby.indexOf("public void joinAvailableGame"),
@@ -88,6 +90,8 @@ class GameplayContinuityContractTest {
         assertTrue(hubCommand.contains("boolean activityReady = ActivityRegistry.canLeave"));
         assertTrue(hubCommand.contains("if (LobbyManager.teleportPlayerToLobby(cookiePlayer))"));
         assertTrue(hubCommand.contains("? \"lobby.teleport_failed\" : \"lobby.queue.leave_failed\""));
+        String replayCommand = source("commands/QuickPlayCommand.java");
+        assertTrue(replayCommand.contains("if (!LobbyManager.teleportPlayerToLobby(cookiePlayer)) return true;"));
         assertTrue(manager.contains("lobby.canAdmitQueuedIntent(current, game)"));
         assertTrue(manager.contains("QueueAdmissionPlan plan = queueAdmissionPlan(game, lobby)"));
         assertTrue(manager.contains("cohort.size() > remaining || game.getPartyAdmissionProblem(cohort.size())"));

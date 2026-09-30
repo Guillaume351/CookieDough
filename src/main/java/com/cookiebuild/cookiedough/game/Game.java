@@ -62,7 +62,8 @@ public abstract class Game implements GameStatus {
         if (PlayerWrapperListener.rejectPersistentRecoveryTransfer(player.getPlayer())) return false;
         if (!canAdmitPlayer(player.getPlayer())) {
             player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
-                    "lobby.game.access_denied", player.getPlayer().locale(), gameName));
+                    "lobby.game.access_denied", player.getPlayer().locale(),
+                    displayName(player.getPlayer().locale())));
             return false;
         }
         if (!PlayerWrapperListener.isPlayerDataReady(player.getPlayer().getUniqueId())) {
@@ -147,7 +148,8 @@ public abstract class Game implements GameStatus {
             CookieDough.getInstance().getPlayerHubMenu().enterSpectator(player.getPlayer());
         }
         player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
-                "game.spectate.joined", player.getPlayer().locale(), gameName));
+                "game.spectate.joined", player.getPlayer().locale(),
+                displayName(player.getPlayer().locale())));
         FunnelTelemetry.record(player.getPlayer(), FunnelTelemetry.Event.SPECTATOR_JOINED,
                 "game=" + gameName);
         return true;
@@ -192,7 +194,7 @@ public abstract class Game implements GameStatus {
                             || player.getState() == PlayerState.SPECTATING)) {
                 player.setState(PlayerState.LOBBY);
             }
-            if (startTimer > 0 && players.size() < minimumPlayers) {
+            if (startTimer > 0 && players.size() < effectiveMinimumPlayers()) {
                 startTimer = 0;
                 inQuickStart = false;
             }
@@ -291,7 +293,7 @@ public abstract class Game implements GameStatus {
                         waiting.getPlayer().sendActionBar(createWaitingActionBar(waiting, waitingSeconds));
                         if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
                             CookieDough.getInstance().getPlayerHubMenu().updateQueueWait(
-                                    waiting.getPlayer(), gameName, waitingSeconds);
+                                    waiting.getPlayer(), this, waitingSeconds);
                         }
                     }
                 }
@@ -310,17 +312,57 @@ public abstract class Game implements GameStatus {
      * games.
      */
     protected boolean canStartCountdown() {
-        return players.size() >= minimumPlayers;
+        return players.size() >= effectiveMinimumPlayers();
+    }
+
+    /**
+     * Opt-in solo start. When this returns a value {@code >= 0} and exactly one
+     * player has waited at least that many seconds in an OPEN game, the
+     * countdown may start with that single player (the effective minimum
+     * becomes 1). The default {@code -1} keeps {@link #getMinimumPlayers()}
+     * unchanged.
+     */
+    protected int soloStartAfterSeconds() {
+        return QueueStartPolicy.SOLO_START_DISABLED;
+    }
+
+    /** Whether this mode starts a lone player's match by itself after {@link #soloStartAfterSeconds()}. */
+    public final boolean supportsSoloStart() {
+        return soloStartAfterSeconds() >= 0;
+    }
+
+    /** Headcount currently required to count down, including the opt-in solo start. */
+    protected final synchronized int effectiveMinimumPlayers() {
+        if (state != GameState.OPEN) return minimumPlayers;
+        return QueueStartPolicy.effectiveMinimumPlayers(minimumPlayers, players.size(),
+                getLongestQueueWaitSeconds(), soloStartAfterSeconds());
+    }
+
+    /** Longest current queue wait in seconds, or 0 when nobody is queued. */
+    public synchronized long getLongestQueueWaitSeconds() {
+        if (players.isEmpty() || queueEnteredAt.isEmpty()) return 0L;
+        long now = System.currentTimeMillis();
+        long oldest = queueEnteredAt.values().stream().mapToLong(Long::longValue).min().orElse(now);
+        return Math.max(0L, (now - oldest) / 1000L);
     }
 
     /** Creates the continuously refreshed status shown while a lobby cannot count down. */
     protected net.kyori.adventure.text.Component createWaitingActionBar(
             CookiePlayer waiting, long waitingSeconds) {
-        int missingPlayers = Math.max(0, minimumPlayers - players.size());
-        return net.kyori.adventure.text.Component.text(
-                LocaleManager.getMessage("game.waiting.players", waiting.getPlayer().locale(),
-                        waitingSeconds, missingPlayers),
+        java.util.Locale locale = waiting.getPlayer().locale();
+        long soloStartIn = QueueStartPolicy.secondsUntilSoloStart(players.size(),
+                getLongestQueueWaitSeconds(), soloStartAfterSeconds());
+        String text = soloStartIn >= 0
+                ? LocaleManager.getMessage("game.waiting.solo_start", locale, soloStartIn)
+                : LocaleManager.getMessage("game.waiting.status", locale,
+                        Math.max(2, minimumPlayers), players.size());
+        return net.kyori.adventure.text.Component.text(text,
                 net.kyori.adventure.text.format.NamedTextColor.YELLOW);
+    }
+
+    /** Readable, localized mode name for player-facing text. */
+    protected String displayName(java.util.Locale locale) {
+        return com.cookiebuild.cookiedough.lobby.GamePresentation.readableName(gameName, locale);
     }
 
     private void notifyCountdown() {
@@ -536,26 +578,32 @@ public abstract class Game implements GameStatus {
         }
     }
 
-    /** Call once when the result is known to expose a consistent replay action. */
+    /**
+     * Call once when the result is known. Records completion and remembers the
+     * mode so the "What next?" choice opens only after the player is safely
+     * back in the lobby (never during the arena-to-lobby transfer).
+     */
     public void offerReplay() {
         for (CookiePlayer cookiePlayer : getPlayers()) {
-            if (!cookiePlayer.getPlayer().isOnline()) {
+            Player player = cookiePlayer.getPlayer();
+            if (!player.isOnline()) {
                 continue;
             }
-            FunnelTelemetry.record(cookiePlayer.getPlayer(), FunnelTelemetry.Event.MATCH_COMPLETED,
+            FunnelTelemetry.record(player, FunnelTelemetry.Event.MATCH_COMPLETED,
                     "game=" + gameName);
-            boolean bedrockQueueOffer = CookieDough.getInstance().getRallyManager()
-                    .notifyAvailableAfterMatch(cookiePlayer.getPlayer(), gameName);
-            cookiePlayer.getPlayer().sendMessage(net.kyori.adventure.text.Component.text(
-                            LocaleManager.getMessage("feedback.action", cookiePlayer.getPlayer().locale()),
-                            net.kyori.adventure.text.format.NamedTextColor.AQUA)
-                    .clickEvent(net.kyori.adventure.text.event.ClickEvent.suggestCommand("/feedback "))
-                    .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
-                            net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
-                                    "feedback.hover", cookiePlayer.getPlayer().locale())))));
-            if (!bedrockQueueOffer && CookieDough.getInstance() != null
-                    && CookieDough.getInstance().getPlayerHubMenu() != null) {
-                CookieDough.getInstance().getPlayerHubMenu().openReplay(cookiePlayer.getPlayer(), gameName);
+            if (CookieDough.getInstance() != null && CookieDough.getInstance().getPlayerHubMenu() != null) {
+                CookieDough.getInstance().getPlayerHubMenu().recordMatchCompleted(player, gameName);
+            }
+            // Feedback stays a secondary action: clickable for Java, and offered
+            // as a button in the Bedrock post-match form instead of dead chat.
+            if (!com.cookiebuild.cookiedough.ui.BedrockFormSupport.isBedrock(player)) {
+                player.sendMessage(net.kyori.adventure.text.Component.text(
+                                LocaleManager.getMessage("feedback.action", player.locale()),
+                                net.kyori.adventure.text.format.NamedTextColor.AQUA)
+                        .clickEvent(net.kyori.adventure.text.event.ClickEvent.suggestCommand("/feedback "))
+                        .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
+                                net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
+                                        "feedback.hover", player.locale())))));
             }
         }
     }

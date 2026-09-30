@@ -19,9 +19,13 @@ class CosmeticCatalogTest {
                 CosmeticCatalog.SUPPORTER_PROFILE_FRAME,
                 CosmeticCatalog.LOBBY_FLIGHT,
                 CosmeticCatalog.SUPPORTER_JOIN_FLAIR,
-                CosmeticCatalog.COOKIE_SPARKLE_TRAIL),
+                CosmeticCatalog.COOKIE_SPARKLE_TRAIL,
+                CosmeticCatalog.NOTE_TRAIL,
+                CosmeticCatalog.HEART_TRAIL,
+                CosmeticCatalog.STREAK_STAR_TRAIL,
+                CosmeticCatalog.APP_COMPANION_BADGE),
                 CosmeticCatalog.items().stream().map(CosmeticDefinition::id).collect(Collectors.toSet()));
-        assertEquals(8, CosmeticCatalog.items().size());
+        assertEquals(12, CosmeticCatalog.items().size());
         assertEquals(7, CosmeticCatalog.items().stream().map(CosmeticDefinition::slot).distinct().count());
         assertTrue(CosmeticCatalog.find(CosmeticCatalog.SUPPORTER_BADGE)
                 .filter(item -> item.slot() == CosmeticSlot.BADGE).isPresent());

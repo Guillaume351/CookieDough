@@ -32,7 +32,7 @@ class CosmeticMenuActionTest {
         service.select(player, CosmeticSlot.EMOTE, CosmeticCatalog.COOKIE_CHEER);
 
         var entries = CosmeticMenuView.entries(service.inventory(player));
-        assertEquals(8, entries.size());
+        assertEquals(12, entries.size());
         assertTrue(entries.stream().map(CosmeticMenuView.Entry::action)
                 .allMatch(action -> CosmeticMenuAction.parse(action).isPresent()));
         assertTrue(entries.stream().anyMatch(entry -> entry.action().equals("deselect:EMOTE")));
@@ -40,5 +40,22 @@ class CosmeticMenuActionTest {
                 .equals(CosmeticCatalog.SUPPORTER_JOIN_FLAIR)
                 && entry.item().selected()
                 && entry.action().equals("noop")));
+        assertTrue(entries.stream().anyMatch(entry -> entry.action().equals("buy:note_trail")));
+        assertTrue(entries.stream().anyMatch(entry -> entry.action().equals("locked:cookie_crumb_trail")));
+        assertTrue(entries.stream().anyMatch(entry -> entry.action().equals("locked:app_companion_badge")));
+    }
+
+    @Test
+    void onlyCoinShopItemsCanBeBought() {
+        assertEquals(CosmeticMenuAction.Kind.BUY, CosmeticMenuAction.parse("buy:heart_trail").orElseThrow().kind());
+        assertEquals(CosmeticMenuAction.Kind.CONFIRM_BUY,
+                CosmeticMenuAction.parse("confirm_buy:note_trail").orElseThrow().kind());
+        assertFalse(CosmeticMenuAction.parse("buy:supporter_badge").isPresent());
+        assertFalse(CosmeticMenuAction.parse("confirm_buy:cookie_crumb_trail").isPresent());
+        assertFalse(CosmeticMenuAction.parse("confirm_buy:app_companion_badge").isPresent());
+        assertEquals("cosmetics.unlock.shop", CosmeticMenuView.unlockHint(
+                CosmeticCatalog.find(CosmeticCatalog.COOKIE_CHEER).orElseThrow()).key());
+        assertEquals("cosmetics.unlock.coins", CosmeticMenuView.unlockHint(
+                CosmeticCatalog.find(CosmeticCatalog.NOTE_TRAIL).orElseThrow()).key());
     }
 }

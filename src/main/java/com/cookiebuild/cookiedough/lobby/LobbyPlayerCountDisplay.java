@@ -63,7 +63,8 @@ final class LobbyPlayerCountDisplay {
         int playerCount = Bukkit.getOnlinePlayers().size();
         int gamePlayerCount = ModePopulationService.totalActivePlayers();
         if (playerCount != displayedPlayerCount || gamePlayerCount != displayedGamePlayerCount) {
-            display.customName(LobbyDisplayText.onlinePlayers(playerCount, gamePlayerCount));
+            display.customName(LobbyDisplayText.onlinePlayers(playerCount, gamePlayerCount,
+                    LobbyManager.displayLocale()));
             displayedPlayerCount = playerCount;
             displayedGamePlayerCount = gamePlayerCount;
         }

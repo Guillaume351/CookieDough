@@ -7,6 +7,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import com.cookiebuild.cookiedough.retention.CommunityEventManager;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 public final class EventsCommand implements CommandExecutor {
     private final CommunityEventManager events;
@@ -23,8 +24,8 @@ public final class EventsCommand implements CommandExecutor {
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("remind")) {
             boolean enabled = events.toggleReminder(player);
-            player.sendMessage((enabled ? ChatColor.GREEN : ChatColor.YELLOW)
-                    + "Event reminders " + (enabled ? "enabled." : "disabled."));
+            player.sendMessage((enabled ? ChatColor.GREEN : ChatColor.YELLOW) + LocaleManager.getMessage(
+                    enabled ? "events.remind.enabled" : "events.remind.disabled", player.locale()));
         } else {
             events.show(player);
         }

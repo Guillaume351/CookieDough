@@ -56,6 +56,7 @@ public final class RallyManager {
     private final ExecutorService worker;
     private final Set<UUID> manualInFlight = new HashSet<>();
     private final Set<UUID> adminInFlight = new HashSet<>();
+    private final Set<UUID> automaticInFlight = new HashSet<>();
     private final Set<UUID> acceptedUnconfirmed = ConcurrentHashMap.newKeySet();
     private final RallyResponseDeliveryTracker responseDeliveries = new RallyResponseDeliveryTracker();
     private final AtomicLong lastFailureLog = new AtomicLong();
@@ -107,6 +108,21 @@ public final class RallyManager {
             Game game = byId.get(gameId);
             if (game != null) publishInGameNotice(game, now);
         }
+        for (UUID gameId : observation.automaticPushCandidates()) {
+            requestAutomatic(byId.get(gameId));
+        }
+    }
+
+    /**
+     * Pushes "players are missing for X" to opted-in app users once a queue has
+     * stayed underfilled for 30 s. The durable repository cooldowns (90 s
+     * network, 5 min per gamemode, 30 min per automatic gamemode) still apply.
+     */
+    private void requestAutomatic(Game game) {
+        if (game == null || gamemodeId(game.getGameName()) == null || !queueState(game).underfilled()) return;
+        Player target = firstOnlinePlayer(game);
+        if (target == null || !automaticInFlight.add(game.getGameId())) return;
+        enqueue(game, RallyRepository.Source.AUTOMATIC, null, target, ignored -> { });
     }
 
     public void request(Player player, String requestedGamemode, Consumer<String> completion) {
@@ -229,7 +245,7 @@ public final class RallyManager {
             if (GameManager.registerPostMatchQueueIntent(cookiePlayer, game)) {
                 player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                         replacing ? "lobby.queue.intent_replaced" : "lobby.queue.intent_registered",
-                        player.locale(), game.getGameName()));
+                        player.locale(), readable(game, player.locale())));
             } else {
                 player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage(
                         "lobby.queue.leave_failed", player.locale()));
@@ -261,27 +277,9 @@ public final class RallyManager {
         for (UUID recipientId : notice.recipients()) {
             Player recipient = Bukkit.getPlayer(recipientId);
             if (recipient == null || !recipient.isOnline()) continue;
-            sendInGameNotice(recipient, game, notice, null);
+            sendInGameNotice(recipient, game, notice);
         }
         return notice.recipients().size();
-    }
-
-    /** Offers one active underfilled queue once a participant reaches the replay transition. */
-    public boolean notifyAvailableAfterMatch(Player player, String completedGameName) {
-        if (!running || player == null || !player.isOnline()) return false;
-        Game game = GameManager.getGames().stream()
-                .filter(candidate -> queueState(candidate).underfilled())
-                .max(java.util.Comparator.comparingInt(Game::getPlayerCount)).orElse(null);
-        if (game == null) return false;
-        InGameQueueNoticeRegistry.Notice notice = notices.includeRecipient(
-                game.getGameId(), game.getGameName(), player.getUniqueId(), System.currentTimeMillis()).orElse(null);
-        if (notice == null) return false;
-        Runnable replay = () -> {
-            if (player.isOnline() && plugin.getPlayerHubMenu() != null) {
-                plugin.getPlayerHubMenu().openReplay(player, completedGameName);
-            }
-        };
-        return sendInGameNotice(player, game, notice, replay);
     }
 
     private static boolean isExternalSpectator(CookiePlayer candidate) {
@@ -291,38 +289,24 @@ public final class RallyManager {
         return owned != null && owned.isExternalSpectator(candidate.getPlayer().getUniqueId());
     }
 
-    private boolean sendInGameNotice(Player recipient, Game game,
-            InGameQueueNoticeRegistry.Notice notice, Runnable bedrockDismissAction) {
+    private boolean sendInGameNotice(Player recipient, Game game, InGameQueueNoticeRegistry.Notice notice) {
         if (BedrockFormSupport.isBedrock(recipient)) {
-            java.util.concurrent.atomic.AtomicBoolean continued = new java.util.concurrent.atomic.AtomicBoolean();
-            Runnable continueOnce = () -> {
-                if (bedrockDismissAction != null && continued.compareAndSet(false, true)) {
-                    bedrockDismissAction.run();
-                }
-            };
             SimpleForm.Builder builder = SimpleForm.builder()
-                    .title(game.getGameName())
+                    .title(readable(game, recipient.locale()))
                     .content(LocaleManager.getMessage(
-                            "rally.invite.message", recipient.locale(), game.getGameName()));
+                            "rally.invite.message", recipient.locale(), readable(game, recipient.locale())));
             BedrockFormImages.button(builder, BedrockButtonText.format(LocaleManager.getMessage(
                     "rally.invite.action", recipient.locale()), LocaleManager.getMessage(
                             "rally.invite.hover", recipient.locale())), "actions/join");
             BedrockFormImages.button(builder, BedrockButtonText.format(LocaleManager.getMessage(
-                    bedrockDismissAction == null ? "hub.game.detail.close" : "replay.menu.title",
-                    recipient.locale())), bedrockDismissAction == null ? "actions/close" : "actions/back");
+                    "hub.game.detail.close", recipient.locale())), "actions/close");
             builder.validResultHandler(response -> {
                 if (response.clickedButtonId() == 0) {
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         if (recipient.isOnline()) acceptInGameNotice(recipient, notice.id());
                     });
-                } else if (bedrockDismissAction != null) {
-                    Bukkit.getScheduler().runTask(plugin, continueOnce);
                 }
             });
-            if (bedrockDismissAction != null) {
-                builder.closedOrInvalidResultHandler(() ->
-                        Bukkit.getScheduler().runTask(plugin, continueOnce));
-            }
             if (BedrockFormSupport.send(recipient, builder.build())) {
                 FunnelTelemetry.record(recipient, FunnelTelemetry.Event.QUEUE_INVITE_SHOWN,
                         "game=" + game.getGameName());
@@ -330,7 +314,8 @@ public final class RallyManager {
             }
         }
         recipient.sendMessage(Component.text(LocaleManager.getMessage(
-                        "rally.invite.message", recipient.locale(), game.getGameName()), NamedTextColor.YELLOW)
+                        "rally.invite.message", recipient.locale(), readable(game, recipient.locale())),
+                        NamedTextColor.YELLOW)
                 .append(Component.space())
                 .append(Component.text(LocaleManager.getMessage(
                                 "rally.invite.action", recipient.locale()), NamedTextColor.AQUA)
@@ -437,7 +422,11 @@ public final class RallyManager {
         long now = System.currentTimeMillis();
         long releaseAt = result.availableAt().toEpochMilli();
         long nextAutomatic = now + MANUAL_GAMEMODE_COOLDOWN.toMillis();
-        if (gameId != null) {
+        if (gameId != null && source == RallyRepository.Source.AUTOMATIC) {
+            // Keep in-game notices on their own cadence: an app push must not
+            // silence the lobby invitation for five minutes.
+            tracker.markPushScheduled(gameId, result.outboxId(), releaseAt);
+        } else if (gameId != null) {
             tracker.markScheduled(gameId, result.outboxId(), releaseAt, nextAutomatic,
                     source == RallyRepository.Source.PLAYER || source == RallyRepository.Source.ADMIN);
         } else if (source == RallyRepository.Source.LOGIN) {
@@ -451,6 +440,8 @@ public final class RallyManager {
     private void clearInFlight(UUID gameId, RallyRepository.Source source, Player actor) {
         if (source == RallyRepository.Source.ADMIN) {
             adminInFlight.remove(gameId);
+        } else if (source == RallyRepository.Source.AUTOMATIC) {
+            automaticInFlight.remove(gameId);
         } else if (actor != null) {
             manualInFlight.remove(actor.getUniqueId());
         }
@@ -515,8 +506,12 @@ public final class RallyManager {
         String key = source == RallyRepository.Source.LOGIN
                 ? "rally.call.login.launched"
                 : "rally.call.game.launched";
-        String gameName = game == null ? "Cookie Build" : game.getGameName();
+        String gameName = game == null ? "Cookie Build" : readable(game, target.locale());
         target.sendMessage(ChatColor.LIGHT_PURPLE + LocaleManager.getMessage(key, target.locale(), gameName));
+    }
+
+    private static String readable(Game game, Locale locale) {
+        return com.cookiebuild.cookiedough.lobby.GamePresentation.readableName(game.getGameName(), locale);
     }
 
     private static void sendRecentCall(Player target) {

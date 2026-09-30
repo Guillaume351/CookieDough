@@ -41,13 +41,38 @@ class GamePresentationTest {
     void betaModesAreExplicit() {
         assertEquals(GamePresentation.ReleaseStage.BETA,
                 GamePresentation.forGame("BedWars").releaseStage());
-        assertEquals("BedWars [BETA]", GamePresentation.forGame("BedWars").displayName(Locale.ENGLISH));
+        assertEquals("Bed Wars [BETA]", GamePresentation.forGame("BedWars").displayName(Locale.ENGLISH));
         assertEquals(java.util.Set.of("BedWars", "Skyblock", "NomadWars", "FatKing"), GamePresentation.games().stream()
                 .filter(game -> game.releaseStage() == GamePresentation.ReleaseStage.BETA)
                 .map(GamePresentation::gameName).collect(java.util.stream.Collectors.toSet()));
         assertEquals(java.util.Set.of(), GamePresentation.games().stream()
                 .filter(game -> game.releaseStage() == GamePresentation.ReleaseStage.COMING_SOON)
                 .map(GamePresentation::gameName).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
+    void playersSeeReadableLocalizedNamesInsteadOfInternalIds() {
+        java.util.Map<String, String> expected = java.util.Map.of(
+                "BuildBattles", "Build Battle", "FatKing", "Fat King", "NomadWars", "Nomad Wars",
+                "BedWars", "Bed Wars", "SkyWars", "Sky Wars", "TurfWars", "Turf Wars",
+                "MicroBattles", "Micro Battles", "Pitchout", "Pitchout", "Skyblock", "Skyblock");
+        for (Locale locale : java.util.List.of(Locale.ENGLISH, Locale.FRENCH, Locale.GERMAN, Locale.ITALIAN,
+                Locale.of("es"), Locale.of("pt", "BR"), Locale.of("bg"), Locale.of("hi"))) {
+            expected.forEach((id, name) -> assertEquals(name, GamePresentation.readableName(id, locale)));
+        }
+        assertEquals("Unknown", GamePresentation.readableName("Unknown", Locale.ENGLISH));
+    }
+
+    @Test
+    void buildBattleIsTheOnlyFeaturedModeAndBetaModesUseRealPackIcons() {
+        assertEquals(java.util.Set.of("BuildBattles"), GamePresentation.games().stream()
+                .filter(GamePresentation::featured).map(GamePresentation::gameName)
+                .collect(java.util.stream.Collectors.toSet()));
+        for (GamePresentation game : GamePresentation.games()) {
+            assertTrue(com.cookiebuild.cookiedough.ui.BedrockFormImages.isKnown(game.bedrockTexture()));
+            assertFalse(game.bedrockTexture().equals("actions/shop")
+                    || game.bedrockTexture().equals("actions/preview"), game.gameName());
+        }
     }
 
     @Test

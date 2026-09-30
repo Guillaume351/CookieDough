@@ -201,8 +201,12 @@ public final class CosmeticEffects implements Listener {
     }
 
     public Component decorateChatDisplayName(UUID playerId, Component displayName) {
-        return SupporterTitleFormatter.decorate(displayName, hasActiveSelection(
-                playerId, CosmeticSlot.BADGE, CosmeticCatalog.SUPPORTER_BADGE));
+        return CosmeticBadges.decorate(displayName, selectedBadge(playerId), false);
+    }
+
+    /** Thread-safe: the active BADGE selection, or null. */
+    public String selectedBadge(UUID playerId) {
+        return selected(playerId, CosmeticSlot.BADGE);
     }
 
     /** Preview/player emote hook. Revalidates the entitlement asynchronously. */
@@ -351,13 +355,14 @@ public final class CosmeticEffects implements Listener {
 
     private void applyBadge(Player player) {
         UUID playerId = player.getUniqueId();
-        if (!hasActiveSelection(playerId, CosmeticSlot.BADGE, CosmeticCatalog.SUPPORTER_BADGE)) {
+        java.util.Optional<Component> prefix = CosmeticBadges.tabPrefix(selectedBadge(playerId));
+        if (prefix.isEmpty()) {
             restoreListName(player);
             return;
         }
         Component current = player.playerListName();
         if (!current.equals(appliedListNames.get(playerId))) originalListNames.put(playerId, current);
-        Component decorated = Component.text("★ Supporter ", NamedTextColor.GOLD)
+        Component decorated = prefix.get()
                 .append(originalListNames.getOrDefault(playerId, Component.text(player.getName())));
         appliedListNames.put(playerId, decorated);
         if (!decorated.equals(current)) player.playerListName(decorated);
@@ -413,11 +418,24 @@ public final class CosmeticEffects implements Listener {
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.45f, 1.35f);
     }
 
+    /** Particle of each hub trail; all are native particles mapped by Geyser. */
+    static Particle trailParticle(String trail) {
+        if (trail == null) return null;
+        return switch (trail) {
+            case CosmeticCatalog.COOKIE_CRUMB_TRAIL -> Particle.FALLING_HONEY;
+            case CosmeticCatalog.COOKIE_SPARKLE_TRAIL -> Particle.END_ROD;
+            case CosmeticCatalog.NOTE_TRAIL -> Particle.NOTE;
+            case CosmeticCatalog.HEART_TRAIL -> Particle.HEART;
+            case CosmeticCatalog.STREAK_STAR_TRAIL -> Particle.FIREWORK;
+            default -> null;
+        };
+    }
+
     private void tickTrail(Player player) {
         String trail = selected(player.getUniqueId(), CosmeticSlot.HUB_TRAIL);
+        Particle particle = trailParticle(trail);
         CookiePlayer wrapped = PlayerManager.getPlayer(player);
-        if ((!CosmeticCatalog.COOKIE_CRUMB_TRAIL.equals(trail)
-                && !CosmeticCatalog.COOKIE_SPARKLE_TRAIL.equals(trail))
+        if (particle == null
                 || wrapped == null || wrapped.getState() != PlayerState.LOBBY || !isLobby(player)) {
             lastTrailLocations.remove(player.getUniqueId());
             return;
@@ -426,9 +444,8 @@ public final class CosmeticEffects implements Listener {
         Location previous = lastTrailLocations.put(player.getUniqueId(), current.clone());
         if (previous == null || !previous.getWorld().equals(current.getWorld())
                 || previous.distanceSquared(current) < 0.04) return;
-        player.getWorld().spawnParticle(CosmeticCatalog.COOKIE_SPARKLE_TRAIL.equals(trail)
-                        ? Particle.END_ROD : Particle.FALLING_HONEY,
-                current.clone().add(0, 0.15, 0), 1, 0.08, 0.03, 0.08, 0.0);
+        double height = particle == Particle.HEART || particle == Particle.NOTE ? 0.4 : 0.15;
+        player.getWorld().spawnParticle(particle, current.clone().add(0, height, 0), 1, 0.08, 0.03, 0.08, 0.0);
     }
 
     private String selected(UUID playerId, CosmeticSlot slot) {

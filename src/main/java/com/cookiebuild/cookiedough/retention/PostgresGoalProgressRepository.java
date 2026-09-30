@@ -107,6 +107,23 @@ public final class PostgresGoalProgressRepository {
         }
     }
 
+    /** Lifetime finished matches and distinct modes, from the shared match history. */
+    public MatchHistory matchHistory(UUID playerId) {
+        try (EntityManager entityManager = HibernateUtil.createEntityManager()) {
+            Object[] row = (Object[]) entityManager.createNativeQuery("""
+                    select count(*), count(distinct lower(m.gametype))
+                      from match_players mp
+                      join matches m on m.id = mp.match_id
+                     where mp.player_id = :playerId
+                       and m.endtime is not null
+                    """).setParameter("playerId", playerId).getSingleResult();
+            return new MatchHistory(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+        }
+    }
+
+    public record MatchHistory(long matches, long distinctModes) {
+    }
+
     private static LocalDate localDate(Object value) {
         LocalDate date = nullableDate(value);
         if (date == null) throw new IllegalStateException("Goal date is missing");
