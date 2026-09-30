@@ -28,6 +28,15 @@ public final class CosmeticService {
         UNKNOWN_COSMETIC
     }
 
+    public enum PurchaseResult {
+        PURCHASED,
+        ALREADY_OWNED,
+        INSUFFICIENT_COINS,
+        NOT_FOR_SALE,
+        UNKNOWN_COSMETIC,
+        PLAYER_NOT_FOUND
+    }
+
     public record InventoryItem(CosmeticDefinition cosmetic, boolean entitled, boolean selected) {
     }
 
@@ -140,6 +149,45 @@ public final class CosmeticService {
     }
 
     /**
+     * Buys a coin-shop cosmetic at the catalog price. The price is never taken
+     * from the client; premium web-shop items are never sold for coins.
+     */
+    public PurchaseResult purchaseWithCoins(UUID playerId, String cosmeticId) {
+        Objects.requireNonNull(playerId, "playerId");
+        Optional<CosmeticDefinition> definition = CosmeticCatalog.find(cosmeticId);
+        if (definition.isEmpty()) return PurchaseResult.UNKNOWN_COSMETIC;
+        if (!definition.get().coinPurchasable()) return PurchaseResult.NOT_FOR_SALE;
+        Instant now = clock.instant();
+        CosmeticRepository.PurchaseResult persisted = repository.purchaseWithCoins(playerId, cosmeticId,
+                definition.get().slot(), definition.get().coinPrice(),
+                "coins:" + cosmeticId + ":" + now.toEpochMilli(), Date.from(now));
+        PurchaseResult result = switch (persisted) {
+            case PURCHASED -> PurchaseResult.PURCHASED;
+            case ALREADY_OWNED -> PurchaseResult.ALREADY_OWNED;
+            case INSUFFICIENT_COINS -> PurchaseResult.INSUFFICIENT_COINS;
+            case PLAYER_NOT_FOUND -> PurchaseResult.PLAYER_NOT_FOUND;
+        };
+        if (result == PurchaseResult.PURCHASED) notifyChange(playerId);
+        return result;
+    }
+
+    /**
+     * Idempotent reward grant (login calendar, app link...). The stable source
+     * makes replays harmless; the cosmetic is equipped only if its slot is empty.
+     */
+    public GrantResult grantReward(UUID playerId, String cosmeticId, String source) {
+        Objects.requireNonNull(playerId, "playerId");
+        Optional<CosmeticDefinition> definition = CosmeticCatalog.find(cosmeticId);
+        if (definition.isEmpty()) return GrantResult.UNKNOWN_COSMETIC;
+        validateSource(source);
+        Map<CosmeticSlot, String> select = definition.get().selectionRequired()
+                ? Map.of(definition.get().slot(), cosmeticId) : Map.of();
+        repository.grantAll(playerId, List.of(cosmeticId), source, Date.from(clock.instant()), null, select);
+        notifyChange(playerId);
+        return GrantResult.GRANTED;
+    }
+
+    /**
      * Atomic, provider-neutral monthly Supporter grant. Badge and profile frame
      * are selected only when their slots are currently empty; flight stays an
      * explicit player toggle and join flair is automatic while entitled.
@@ -199,6 +247,11 @@ public final class CosmeticService {
         boolean revoked = repository.revoke(playerId, cosmeticId, Date.from(clock.instant()));
         if (revoked) notifyChange(playerId);
         return revoked;
+    }
+
+    /** Lets other components refresh caches after a grant committed elsewhere (e.g. reward poller). */
+    public void notifyExternalChange(UUID playerId) {
+        notifyChange(playerId);
     }
 
     void onChange(Consumer<UUID> listener) {

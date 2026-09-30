@@ -85,4 +85,12 @@ public interface PartyRepository {
     JoinResult join(UUID inviteeId, UUID leaderId);
 
     LeaveResult leave(UUID playerId);
+
+    /**
+     * Leaders of active parties that sent this player a pending, unexpired
+     * invitation, newest first. Read-only; used by the in-game social menu.
+     */
+    default List<UUID> pendingInviteLeaders(UUID inviteeId) {
+        return List.of();
+    }
 }

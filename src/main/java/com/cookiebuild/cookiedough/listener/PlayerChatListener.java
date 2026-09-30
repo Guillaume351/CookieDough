@@ -6,9 +6,9 @@ import com.cookiebuild.cookiedough.dao.GenericDAOImpl;
 import com.cookiebuild.cookiedough.model.ChatMessage;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import io.papermc.paper.chat.ChatRenderer;
-import com.cookiebuild.cookiedough.cosmetics.CosmeticCatalog;
-import com.cookiebuild.cookiedough.cosmetics.CosmeticSlot;
-import com.cookiebuild.cookiedough.cosmetics.SupporterChatRenderer;
+import com.cookiebuild.cookiedough.cosmetics.CosmeticBadges;
+import com.cookiebuild.cookiedough.ui.BedrockFormSupport;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -34,14 +34,16 @@ public class PlayerChatListener implements Listener {
         if (moderationService != null && moderationService.isMuted(player.getUniqueId())) {
             event.setCancelled(true);
             player.sendMessage(net.kyori.adventure.text.Component.text(
-                    "You are currently muted.", net.kyori.adventure.text.format.NamedTextColor.RED));
+                    LocaleManager.getMessage("chat.muted", player.locale()),
+                    net.kyori.adventure.text.format.NamedTextColor.RED));
             return;
         }
 
         ChatManager.ModerationResult moderation = chatManager.checkChat(player, message);
         if (moderation.blocked()) {
             event.setCancelled(true);
-            player.sendMessage(net.kyori.adventure.text.Component.text(moderation.reason(),
+            player.sendMessage(net.kyori.adventure.text.Component.text(
+                    LocaleManager.getMessage(moderation.reason(), player.locale()),
                     net.kyori.adventure.text.format.NamedTextColor.RED));
             return;
         }
@@ -55,9 +57,8 @@ public class PlayerChatListener implements Listener {
         var cosmeticEffects = CookieDough.getInstance().getCosmeticEffects();
         if (cosmeticEffects != null) {
             ChatRenderer originalRenderer = event.renderer();
-            event.renderer(SupporterChatRenderer.wrap(originalRenderer,
-                    playerId -> cosmeticEffects.hasActiveSelection(playerId,
-                            CosmeticSlot.BADGE, CosmeticCatalog.SUPPORTER_BADGE)));
+            event.renderer(CosmeticBadges.wrap(originalRenderer, cosmeticEffects::selectedBadge,
+                    viewer -> viewer instanceof Player viewingPlayer && BedrockFormSupport.isBedrock(viewingPlayer)));
         }
 
         ChatMessage chatMessage = new ChatMessage(player.getUniqueId(), player.getWorld().getName(), message);

@@ -1,11 +1,22 @@
 config-version: 1
 
 community-event:
+  # Optional one-off event with opt-in /events remind reminders.
   enabled: false
   # ISO-8601 UTC instant, for example: 2026-07-18T18:00:00Z
   time: ""
   title: "Cookie Build Community Session"
   url: "https://www.cookie-build.com"
+  # Recurring "Soirée Cookie": the website push/app listing uses the same
+  # schedule. Match coins are multiplied during the window and every online
+  # player gets an in-game announcement 30 min and 5 min before, and at start.
+  recurring:
+    enabled: true
+    days: [WEDNESDAY, SATURDAY]
+    start: "21:00"
+    duration-minutes: 60
+    timezone: "Europe/Paris"
+    coin-multiplier: 2
 
 # Generated automatically on first start; keep stable to compare cohorts without logging UUIDs.
 telemetry:

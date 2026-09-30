@@ -13,13 +13,18 @@ import org.bukkit.command.TabExecutor;
 import org.bukkit.entity.Player;
 
 import com.cookiebuild.cookiedough.retention.FriendManager;
+import com.cookiebuild.cookiedough.social.SocialMenu;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 
+/** {@code /friend} (aliases {@code /friends}, {@code /amis}); no argument opens the social menu. */
 public final class FriendCommand implements TabExecutor {
     private static final List<String> ACTIONS = List.of("list", "add", "accept", "deny", "remove");
     private final FriendManager friends;
+    private final SocialMenu menu;
 
-    public FriendCommand(FriendManager friends) {
+    public FriendCommand(FriendManager friends, SocialMenu menu) {
         this.friends = friends;
+        this.menu = menu;
     }
 
     @Override
@@ -31,12 +36,16 @@ public final class FriendCommand implements TabExecutor {
         java.util.function.Consumer<String> reply = result -> {
             if (player.isOnline()) player.sendMessage(ChatColor.YELLOW + result);
         };
-        if (args.length == 0 || args[0].equalsIgnoreCase("list")) {
+        if (args.length == 0 || args[0].equalsIgnoreCase("menu")) {
+            menu.open(player);
+            return true;
+        }
+        if (args[0].equalsIgnoreCase("list")) {
             friends.describe(player, reply);
             return true;
         }
         if (args.length < 2) {
-            reply.accept("/friend [list|add <player>|accept <player>|deny <player>|remove <player>]");
+            reply.accept(LocaleManager.getMessage("friend.help", player.locale()));
             return true;
         }
         String targetName = String.join(" ", Arrays.copyOfRange(args, 1, args.length)).trim();
@@ -45,7 +54,7 @@ public final class FriendCommand implements TabExecutor {
             case "accept" -> friends.accept(player, targetName, reply);
             case "deny" -> friends.deny(player, targetName, reply);
             case "remove" -> friends.remove(player, targetName, reply);
-            default -> reply.accept("/friend [list|add <player>|accept <player>|deny <player>|remove <player>]");
+            default -> reply.accept(LocaleManager.getMessage("friend.help", player.locale()));
         }
         return true;
     }

@@ -3,14 +3,16 @@ package com.cookiebuild.cookiedough.retention;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.time.temporal.WeekFields;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -19,24 +21,31 @@ import org.bukkit.entity.Player;
 import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.cookiebuild.cookiedough.game.FunnelTelemetry;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 /** Durable lightweight goals; coin claims are independently idempotent in the database. */
 public final class PlayerGoalTracker {
+    /**
+     * Snapshot shown by the hub, /goals and game summaries. {@code weeklyFinished}
+     * counts matches toward the "finish 5 matches" weekly objective.
+     */
     public record GoalView(int dailyMatches, int dailyWins, int weeklyMatches, int weeklyWins,
-            int weeklyEliminations, int achievements) {
+            int weeklyFinished, int achievements) {
         public boolean dailyComplete() {
             return dailyMatches >= 1 && dailyWins >= 1;
         }
 
         public boolean weeklyComplete() {
-            return weeklyMatches >= 3 && weeklyWins >= 1 && weeklyEliminations >= 10;
+            return weeklyMatches >= GoalRules.WEEKLY_MATCHES_TARGET
+                    && weeklyWins >= GoalRules.WEEKLY_WINS_TARGET
+                    && weeklyFinished >= GoalRules.WEEKLY_FINISHED_TARGET;
         }
     }
 
-    private record Reward(int coins, int experience, String game, String label) {
+    private record Reward(int coins, int experience, String game, String labelKey) {
     }
     private static final class Progress {
-        LocalDate day = utcToday();
+        LocalDate day = parisToday();
         int dailyMatches;
         int dailyWins;
         String week = weekKey();
@@ -76,36 +85,37 @@ public final class PlayerGoalTracker {
         if (won) {
             progress.dailyWins++;
             progress.wins++;
-            LocalDate today = utcToday();
+            LocalDate today = parisToday();
             if (!today.equals(progress.firstWinDate)) {
                 progress.firstWinDate = today;
             }
-            rewards.put("first-win:" + today, new Reward(25, 30, game, "First win of the day"));
+            rewards.put("first-win:" + today, new Reward(GoalRules.DAILY_WIN_COINS, GoalRules.DAILY_WIN_XP,
+                    game, "goals.daily.first_win"));
         }
-        rewards.put("daily-match:" + progress.day, new Reward(15, 20, game, "Daily objective: play a match"));
-        claimThreshold(rewards, progress.matches >= 3, "weekly-matches:" + progress.week, 50, 25, game,
-                "Weekly objective: play 3 matches");
-        claimThreshold(rewards, progress.wins >= 1, "weekly-win:" + progress.week, 50, 25, game,
-                "Weekly objective: win a match");
-        claimThreshold(rewards, progress.kills >= 10, "weekly-kills:" + progress.week, 75, 40, game,
-                "Weekly objective: earn 10 eliminations");
-        addAchievement(progress, rewards, "first_match", "First Match", 10, game);
-        if (won) {
-            addAchievement(progress, rewards, "first_win", "First Win", 20, game);
+        rewards.put("daily-match:" + progress.day, new Reward(GoalRules.DAILY_MATCH_COINS,
+                GoalRules.DAILY_MATCH_XP, game, "goals.daily.play_match"));
+        for (GoalRules.Objective objective : GoalRules.completedWeekly(progress.matches, progress.wins)) {
+            rewards.put(objective.key() + ":" + progress.week, new Reward(objective.coins(),
+                    objective.experience(), game, objective.labelKey()));
         }
-        if (progress.kills >= 10) {
-            addAchievement(progress, rewards, "ten_kills", "Ten Eliminations", 25, game);
+        for (GoalRules.Achievement achievement : GoalRules.matchAchievements(game, won, progress.kills)) {
+            addAchievement(progress, rewards, achievement, game);
         }
         dirty = true;
         persistAsync(playerId, progress);
         queueRewards(playerId, rewards);
+        scheduleLifetimeMilestones(playerId);
     }
 
+    /**
+     * Grants a named achievement. {@code title} is only a fallback for callers
+     * whose key has no localized {@code goals.achievement.<key>} message.
+     */
     public synchronized boolean grantAchievement(Player player, String key, String title, int coins) {
         Progress progress = progress(player.getUniqueId());
         boolean newlyGranted = progress.achievements.add(key);
         queueRewards(player.getUniqueId(), Map.of("achievement:" + key,
-                new Reward(coins, 0, null, "Achievement unlocked: " + title)));
+                new Reward(coins, 0, null, "goals.achievement." + key)));
         if (!newlyGranted) {
             return false;
         }
@@ -114,11 +124,37 @@ public final class PlayerGoalTracker {
         return true;
     }
 
-    public synchronized String summary(UUID playerId) {
+    /** Localized one-line summary for the online player's locale (English fallback). */
+    public String summary(UUID playerId) {
+        Player online = plugin.getServer().getPlayer(playerId);
+        return summary(playerId, online == null ? Locale.ENGLISH : online.locale());
+    }
+
+    public synchronized String summary(UUID playerId, Locale locale) {
         GoalView view = view(playerId);
-        return "Daily — Match " + view.dailyMatches() + "/1, Win " + view.dailyWins()
-                + "/1 | Weekly — Matches " + view.weeklyMatches() + "/3, Wins " + view.weeklyWins()
-                + "/1, Eliminations " + view.weeklyEliminations() + "/10 | Achievements: " + view.achievements();
+        return LocaleManager.getMessage("goals.summary", locale, view.dailyMatches(), view.dailyWins(),
+                view.weeklyMatches(), view.weeklyWins(), view.weeklyFinished(), view.achievements());
+    }
+
+    /** Multi-line localized /goals output; plain text so it works on Bedrock. */
+    public synchronized List<String> describe(UUID playerId, Locale locale) {
+        GoalView view = view(playerId);
+        List<String> lines = new ArrayList<>();
+        lines.add(ChatColor.GOLD + "" + ChatColor.BOLD + LocaleManager.getMessage("goals.title", locale));
+        lines.add(ChatColor.YELLOW + LocaleManager.getMessage("goals.section.daily", locale));
+        lines.add(line(locale, "goals.daily.play_match", view.dailyMatches(), 1, GoalRules.DAILY_MATCH_COINS));
+        lines.add(line(locale, "goals.daily.first_win", view.dailyWins(), 1, GoalRules.DAILY_WIN_COINS));
+        lines.add(ChatColor.AQUA + LocaleManager.getMessage("goals.section.weekly", locale));
+        lines.add(line(locale, GoalRules.WEEKLY_MATCHES.labelKey(), view.weeklyMatches(),
+                GoalRules.WEEKLY_MATCHES_TARGET, GoalRules.WEEKLY_MATCHES.coins()));
+        lines.add(line(locale, GoalRules.WEEKLY_WIN.labelKey(), view.weeklyWins(),
+                GoalRules.WEEKLY_WINS_TARGET, GoalRules.WEEKLY_WIN.coins()));
+        lines.add(line(locale, GoalRules.WEEKLY_FINISHED.labelKey(), view.weeklyFinished(),
+                GoalRules.WEEKLY_FINISHED_TARGET, GoalRules.WEEKLY_FINISHED.coins()));
+        lines.add(ChatColor.LIGHT_PURPLE + LocaleManager.getMessage("goals.achievements", locale,
+                view.achievements(), GoalRules.CATALOG.size()));
+        lines.add(ChatColor.GRAY + LocaleManager.getMessage("goals.reset", locale));
+        return List.copyOf(lines);
     }
 
     public synchronized GoalView view(UUID playerId) {
@@ -126,7 +162,9 @@ public final class PlayerGoalTracker {
         resetWeekIfNeeded(progress);
         resetDayIfNeeded(progress);
         return new GoalView(Math.min(progress.dailyMatches, 1), Math.min(progress.dailyWins, 1),
-                Math.min(progress.matches, 3), Math.min(progress.wins, 1), Math.min(progress.kills, 10),
+                Math.min(progress.matches, GoalRules.WEEKLY_MATCHES_TARGET),
+                Math.min(progress.wins, GoalRules.WEEKLY_WINS_TARGET),
+                Math.min(progress.matches, GoalRules.WEEKLY_FINISHED_TARGET),
                 progress.achievements.size());
     }
 
@@ -144,17 +182,53 @@ public final class PlayerGoalTracker {
         persistAsync(playerId, progress(playerId));
     }
 
-    private void claimThreshold(Map<String, Reward> rewards, boolean completed, String key, int coins,
-            int experience, String game, String label) {
-        if (completed) {
-            rewards.put(key, new Reward(coins, experience, game, label));
-        }
+    private static String line(Locale locale, String labelKey, int value, int target, int coins) {
+        boolean done = value >= target;
+        return (done ? ChatColor.GREEN + "✔ " : ChatColor.GRAY + "• ") + ChatColor.WHITE
+                + LocaleManager.getMessage(labelKey, locale) + ChatColor.GRAY + " " + value + "/" + target
+                + ChatColor.GOLD + " " + LocaleManager.getMessage("goals.reward_coins", locale, coins);
     }
 
-    private void addAchievement(Progress progress, Map<String, Reward> rewards, String key, String title, int coins,
+    private void addAchievement(Progress progress, Map<String, Reward> rewards, GoalRules.Achievement achievement,
             String game) {
-        progress.achievements.add(key);
-        rewards.put("achievement:" + key, new Reward(coins, 0, game, "Achievement unlocked: " + title));
+        progress.achievements.add(achievement.key());
+        rewards.put("achievement:" + achievement.key(), new Reward(achievement.coins(), 0, game,
+                achievement.labelKey()));
+    }
+
+    /**
+     * Ten matches and five modes are lifetime milestones read from match
+     * history. Game modes persist the match row around the reward, so the
+     * check runs a few seconds later and the next match catches any lag.
+     */
+    private void scheduleLifetimeMilestones(UUID playerId) {
+        plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+            PostgresGoalProgressRepository.MatchHistory history;
+            try {
+                history = repository.matchHistory(playerId);
+            } catch (RuntimeException error) {
+                plugin.getLogger().warning("Could not read match history for goal milestones: "
+                        + error.getMessage());
+                return;
+            }
+            plugin.getServer().getScheduler().runTask(plugin, () -> grantLifetime(playerId, history));
+        }, 100L);
+    }
+
+    private synchronized void grantLifetime(UUID playerId, PostgresGoalProgressRepository.MatchHistory history) {
+        Progress progress = progress(playerId);
+        List<GoalRules.Achievement> earned = GoalRules.lifetimeAchievements(history.matches(),
+                history.distinctModes(), progress.achievements);
+        if (earned.isEmpty()) return;
+        Map<String, Reward> rewards = new LinkedHashMap<>();
+        for (GoalRules.Achievement achievement : earned) {
+            progress.achievements.add(achievement.key());
+            rewards.put("achievement:" + achievement.key(), new Reward(achievement.coins(), 0, null,
+                    achievement.labelKey()));
+        }
+        dirty = true;
+        persistAsync(playerId, progress);
+        queueRewards(playerId, rewards);
     }
 
     private void queueRewards(UUID playerId, Map<String, Reward> rewards) {
@@ -164,9 +238,10 @@ public final class PlayerGoalTracker {
         Map<String, Reward> snapshot = Map.copyOf(rewards);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             MinigameProgressionService service = new MinigameProgressionService(null);
-            Set<String> claimed = new HashSet<>();
+            Set<String> claimed = new LinkedHashSet<>();
             snapshot.forEach((key, reward) -> {
                 boolean applied = reward.game() == null
+                        || MinigameProgressionService.supportedMinigameKey(reward.game()) == null
                         ? service.claimGlobalReward(playerId, key, reward.coins())
                         : service.claimGoalReward(playerId, reward.game(), reward.experience(), reward.coins(), key);
                 if (applied) claimed.add(key);
@@ -182,8 +257,12 @@ public final class PlayerGoalTracker {
                 }
                 for (String key : claimed) {
                     Reward reward = snapshot.get(key);
-                    online.sendMessage(ChatColor.GREEN + reward.label() + "! " + ChatColor.GOLD
-                            + "+" + reward.coins() + " coins"
+                    String label = LocaleManager.getMessage(reward.labelKey(), online.locale());
+                    String prefix = key.startsWith("achievement:") ? "goals.reward.achievement"
+                            : key.startsWith("weekly") ? "goals.reward.weekly" : "goals.reward.daily";
+                    online.sendMessage(ChatColor.GREEN + LocaleManager.getMessage(prefix, online.locale(), label)
+                            + " " + ChatColor.GOLD + LocaleManager.getMessage("goals.reward_coins", online.locale(),
+                                    reward.coins())
                             + (reward.experience() > 0 ? ChatColor.AQUA + " +" + reward.experience() + " XP" : ""));
                 }
             });
@@ -206,7 +285,7 @@ public final class PlayerGoalTracker {
     }
 
     private void resetDayIfNeeded(Progress progress) {
-        LocalDate today = utcToday();
+        LocalDate today = parisToday();
         if (!today.equals(progress.day)) {
             progress.day = today;
             progress.dailyMatches = 0;
@@ -227,7 +306,7 @@ public final class PlayerGoalTracker {
                 progress.kills = yaml.getInt(uuidText + ".kills");
                 String firstWin = yaml.getString(uuidText + ".first-win-date", "");
                 progress.firstWinDate = firstWin.isBlank() ? null : LocalDate.parse(firstWin);
-                progress.day = LocalDate.parse(yaml.getString(uuidText + ".day", utcToday().toString()));
+                progress.day = LocalDate.parse(yaml.getString(uuidText + ".day", parisToday().toString()));
                 progress.dailyMatches = yaml.getInt(uuidText + ".daily-matches");
                 progress.dailyWins = yaml.getInt(uuidText + ".daily-wins");
                 progress.achievements.addAll(yaml.getStringList(uuidText + ".achievements"));
@@ -264,13 +343,11 @@ public final class PlayerGoalTracker {
     }
 
     private static String weekKey() {
-        LocalDate date = utcToday();
-        WeekFields iso = WeekFields.ISO;
-        return date.get(iso.weekBasedYear()) + "-W" + String.format("%02d", date.get(iso.weekOfWeekBasedYear()));
+        return ParisCalendar.weekKey(parisToday());
     }
 
-    private static LocalDate utcToday() {
-        return LocalDate.now(ZoneOffset.UTC);
+    private static LocalDate parisToday() {
+        return ParisCalendar.today();
     }
 
     private void loadDatabaseAndMergeYaml() {

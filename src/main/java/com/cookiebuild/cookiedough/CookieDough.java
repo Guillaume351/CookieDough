@@ -48,6 +48,7 @@ import com.cookiebuild.cookiedough.retention.RallyManager;
 import com.cookiebuild.cookiedough.retention.CommunityEventManager;
 import com.cookiebuild.cookiedough.retention.PlayerGoalTracker;
 import com.cookiebuild.cookiedough.retention.FriendManager;
+import com.cookiebuild.cookiedough.retention.RetentionRewardService;
 import com.cookiebuild.cookiedough.service.MinigameProgressionService;
 import com.cookiebuild.cookiedough.service.PlayerStatsService;
 import com.cookiebuild.cookiedough.service.PlayerSessionRecoveryService;
@@ -82,6 +83,8 @@ public final class CookieDough extends JavaPlugin {
     private CosmeticService cosmeticService;
     private CosmeticEffects cosmeticEffects;
     private CosmeticsMenu cosmeticsMenu;
+    private RetentionRewardService retentionRewards;
+    private com.cookiebuild.cookiedough.social.SocialMenu socialMenu;
 
     public static CookieDough getInstance() {
         return instance;
@@ -97,7 +100,9 @@ public final class CookieDough extends JavaPlugin {
         getServer().getPluginManager().registerEvents(playerHubMenu, this);
         getServer().getPluginManager().registerEvents(practiceManager, this);
         getServer().getPluginManager().registerEvents(cosmeticsMenu, this);
+        getServer().getPluginManager().registerEvents(socialMenu, this);
         getServer().getPluginManager().registerEvents(cosmeticEffects, this);
+        getServer().getPluginManager().registerEvents(retentionRewards, this);
     }
 
     public LobbyManager getLobbyManager() {
@@ -147,6 +152,11 @@ public final class CookieDough extends JavaPlugin {
         return friendManager;
     }
 
+    /** "Friends & party" menu (Java inventory / Bedrock form); call {@code open(player)} on the main thread. */
+    public com.cookiebuild.cookiedough.social.SocialMenu getSocialMenu() {
+        return socialMenu;
+    }
+
     public PlayerHubMenu getPlayerHubMenu() {
         return playerHubMenu;
     }
@@ -157,6 +167,20 @@ public final class CookieDough extends JavaPlugin {
 
     public CosmeticEffects getCosmeticEffects() {
         return cosmeticEffects;
+    }
+
+    /** Shop / cosmetics menu (Java inventory or Bedrock form). Hub: {@code getCosmeticsMenu().openShop(player)}. */
+    public CosmeticsMenu getCosmeticsMenu() {
+        return cosmeticsMenu;
+    }
+
+    /** Login calendar, returning-player welcome and website reward grants. */
+    public RetentionRewardService getRetentionRewards() {
+        return retentionRewards;
+    }
+
+    public CommunityEventManager getCommunityEventManager() {
+        return communityEventManager;
     }
 
     /** Public, non-damaging effect hook for minigames after they decide a winner. */
@@ -210,11 +234,13 @@ public final class CookieDough extends JavaPlugin {
         rallyManager = new RallyManager(this);
         goalTracker = new PlayerGoalTracker(this);
         friendManager = new FriendManager(this);
+        socialMenu = new com.cookiebuild.cookiedough.social.SocialMenu(this, friendManager, partyManager);
         practiceManager = new PracticeManager(this);
         communityEventManager = new CommunityEventManager(this);
         cosmeticService = new CosmeticService(new JpaCosmeticRepository());
         cosmeticEffects = new CosmeticEffects(this, cosmeticService);
         cosmeticsMenu = new CosmeticsMenu(this, cosmeticService, cosmeticEffects);
+        retentionRewards = new RetentionRewardService(this);
         String mobileLinkPepper = System.getenv("MOBILE_LINK_PEPPER");
         if (MobileLinkService.isValidPepper(mobileLinkPepper)) {
             mobileLinkService = new MobileLinkService(mobileLinkPepper);
@@ -261,6 +287,7 @@ public final class CookieDough extends JavaPlugin {
         }, 0, 20);
         partyManager.start();
         rallyManager.start();
+        retentionRewards.start();
         getLogger().info("MessageScheduler initialized and started");
 
         getLogger().info("CookieDough enabled!");
@@ -352,13 +379,13 @@ public final class CookieDough extends JavaPlugin {
         getCommand("mute").setExecutor(socialSafety);
         getCommand("block").setExecutor(socialSafety);
         getCommand("report").setExecutor(socialSafety);
-        getCommand("party").setExecutor(new PartyCommand(partyManager));
+        getCommand("party").setExecutor(new PartyCommand(partyManager, socialMenu));
         getCommand("rally").setExecutor(new RallyCommand(rallyManager));
         getCommand("rules").setExecutor(new RulesCommand());
         getCommand("practice").setExecutor(new PracticeCommand(practiceManager));
         getCommand("events").setExecutor(new EventsCommand(communityEventManager));
         getCommand("goals").setExecutor(new GoalsCommand(goalTracker));
-        FriendCommand friendCommand = new FriendCommand(friendManager);
+        FriendCommand friendCommand = new FriendCommand(friendManager, socialMenu);
         getCommand("friend").setExecutor(friendCommand);
         getCommand("friend").setTabCompleter(friendCommand);
         getCommand("menu").setExecutor((sender, command, label, args) -> {
@@ -370,6 +397,14 @@ public final class CookieDough extends JavaPlugin {
             return true;
         });
         getCommand("feedback").setExecutor(new FeedbackCommand());
+        getCommand("calendrier").setExecutor((sender, command, label, args) -> {
+            if (sender instanceof org.bukkit.entity.Player player) {
+                retentionRewards.showCalendar(player);
+            } else {
+                sender.sendMessage("This command can only be used by players.");
+            }
+            return true;
+        });
         getCommand("cosmetics").setExecutor((sender, command, label, args) -> {
             if (sender instanceof org.bukkit.entity.Player player) {
                 cosmeticsMenu.open(player);
@@ -393,7 +428,9 @@ public final class CookieDough extends JavaPlugin {
             getCommand("support").setExecutor(supportLinkCommand);
         } else {
             getCommand("app").setExecutor((sender, command, label, args) -> {
-                sender.sendMessage("The Cookie Build app link service is temporarily unavailable.");
+                sender.sendMessage(sender instanceof org.bukkit.entity.Player player
+                        ? LocaleManager.getMessage("app.error.unavailable", player.locale())
+                        : "The Cookie Build app link service is temporarily unavailable.");
                 return true;
             });
             getCommand("support").setExecutor((sender, command, label, args) -> {
@@ -419,6 +456,9 @@ public final class CookieDough extends JavaPlugin {
         }
         if (goalTracker != null) {
             goalTracker.shutdown();
+        }
+        if (retentionRewards != null) {
+            retentionRewards.shutdown(Duration.ofSeconds(5));
         }
         if (appLinkCommand != null) {
             appLinkCommand.shutdown(Duration.ofSeconds(5));

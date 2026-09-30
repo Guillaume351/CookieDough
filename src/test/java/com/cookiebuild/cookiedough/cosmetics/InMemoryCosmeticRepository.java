@@ -136,6 +136,33 @@ final class InMemoryCosmeticRepository implements CosmeticRepository {
         return revoked;
     }
 
+    private final Map<UUID, Integer> coins = new HashMap<>();
+
+    @Override
+    public synchronized PurchaseResult purchaseWithCoins(UUID playerId, String cosmeticId, CosmeticSlot slot,
+            int price, String source, Date purchasedAt) {
+        Integer balance = coins.get(playerId);
+        if (balance == null) return PurchaseResult.PLAYER_NOT_FOUND;
+        boolean owned = entitlements.getOrDefault(playerId, Map.of()).entrySet().stream()
+                .anyMatch(entry -> entry.getKey().cosmeticId().equals(cosmeticId)
+                        && entry.getValue().active(purchasedAt));
+        if (owned) return PurchaseResult.ALREADY_OWNED;
+        if (balance < price) return PurchaseResult.INSUFFICIENT_COINS;
+        coins.put(playerId, balance - price);
+        entitlements.computeIfAbsent(playerId, ignored -> new HashMap<>())
+                .put(new EntitlementKey(cosmeticId, source), new StoredEntitlement(purchasedAt, null, null));
+        selections.computeIfAbsent(playerId, ignored -> new EnumMap<>(CosmeticSlot.class)).put(slot, cosmeticId);
+        return PurchaseResult.PURCHASED;
+    }
+
+    synchronized void setCoins(UUID playerId, int balance) {
+        coins.put(playerId, balance);
+    }
+
+    synchronized int coins(UUID playerId) {
+        return coins.getOrDefault(playerId, 0);
+    }
+
     void injectSelection(UUID playerId, CosmeticSlot slot, String cosmeticId) {
         selections.computeIfAbsent(playerId, ignored -> new EnumMap<>(CosmeticSlot.class))
                 .put(slot, cosmeticId);

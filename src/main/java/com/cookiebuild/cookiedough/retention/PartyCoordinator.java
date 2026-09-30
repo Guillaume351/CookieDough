@@ -44,6 +44,10 @@ final class PartyCoordinator {
         return result;
     }
 
+    java.util.List<UUID> pendingInviteLeaders(UUID inviteeId) {
+        return repository.pendingInviteLeaders(inviteeId);
+    }
+
     PartyRepository.LeaveResult leave(UUID playerId) {
         PartyRepository.LeaveResult result = repository.leave(playerId);
         refresh();
