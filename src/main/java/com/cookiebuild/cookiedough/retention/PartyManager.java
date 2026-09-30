@@ -229,11 +229,19 @@ public final class PartyManager {
                                 : new PartyGameSelection(null,
                                         requestedGame.getPartyAdmissionProblem(members.size()) == null
                                                 ? message(requester, "party.queue.not_available")
-                                                : requestedGame.getPartyAdmissionProblem(members.size()));
+                                                : message(requester, "party.queue.incompatible",
+                                                        com.cookiebuild.cookiedough.lobby.GamePresentation.readableName(
+                                                                requestedGame.getGameName(), requester.locale()),
+                                                        members.size()));
         Game game = selection.game();
         if (game == null) {
             String reason = selection.rejectionReason();
-            return reason == null || reason.isBlank() ? message(requester, "party.queue.no_game") : reason;
+            if (reason == null || reason.isBlank()) {
+                return message(requester, "party.queue.no_game");
+            }
+            // A requested game's reason is already localized; automatic selection only
+            // reports the first raw rejection, so it is replaced by a localized summary.
+            return requestedGame != null ? reason : message(requester, "party.queue.no_compatible", members.size());
         }
         if (!GameManager.registerPartyQueueIntent(members, game, party.id())) {
             return LocaleManager.getMessage(

@@ -434,7 +434,9 @@ public final class CookieDough extends JavaPlugin {
                 return true;
             });
             getCommand("support").setExecutor((sender, command, label, args) -> {
-                sender.sendMessage("The Cookie Build support link service is temporarily unavailable.");
+                sender.sendMessage(sender instanceof org.bukkit.entity.Player player
+                        ? LocaleManager.getMessage("support.link.error", player.locale())
+                        : "The Cookie Build support link service is temporarily unavailable.");
                 return true;
             });
         }

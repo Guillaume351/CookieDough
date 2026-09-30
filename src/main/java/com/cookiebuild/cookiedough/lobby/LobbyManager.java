@@ -394,7 +394,7 @@ public class LobbyManager implements Listener {
                 CookieDough.getInstance().getPartyManager();
         if (!parties.isAvailable()) {
             player.sendMessage(ChatColor.YELLOW
-                    + "Party service is temporarily unavailable. Please try again.");
+                    + LocaleManager.getMessage("party.service.unavailable", player.locale()));
             return;
         }
         if (!parties.hasOnlinePartyCompanions(player.getUniqueId())) {

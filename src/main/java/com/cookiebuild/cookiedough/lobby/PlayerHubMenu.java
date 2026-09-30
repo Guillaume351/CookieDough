@@ -398,6 +398,10 @@ public final class PlayerHubMenu implements Listener {
                 message(player, "hub.app.lore")));
         inventory.setItem(25, item(Material.BOOK, message(player, "hub.help.name"), "help",
                 message(player, "hub.help.lore")));
+        inventory.setItem(4, item(Material.SUNFLOWER, message(player, "hub.calendar.name"), "calendar",
+                message(player, "hub.calendar.lore")));
+        inventory.setItem(22, item(Material.EMERALD, message(player, "hub.shop.name"), "shop",
+                message(player, "hub.shop.lore")));
         return inventory;
     }
 
@@ -640,9 +644,20 @@ public final class PlayerHubMenu implements Listener {
             case "goals" -> openPage(player, MenuPage.GOALS);
             case "friends" -> {
                 player.closeInventory();
-                friends.describe(player, message -> player.sendMessage(ChatColor.YELLOW + message));
+                CookieDough.getInstance().getSocialMenu().open(player);
             }
-            case "party" -> run(player, "party list");
+            case "party" -> {
+                player.closeInventory();
+                CookieDough.getInstance().getSocialMenu().openParty(player);
+            }
+            case "calendar" -> {
+                player.closeInventory();
+                CookieDough.getInstance().getRetentionRewards().showCalendar(player);
+            }
+            case "shop" -> {
+                player.closeInventory();
+                CookieDough.getInstance().getCosmeticsMenu().openShop(player);
+            }
             case "events" -> run(player, "events");
             case "app" -> run(player, "app status");
             case "community" -> showCommunityLinks(player);
@@ -839,8 +854,12 @@ public final class PlayerHubMenu implements Listener {
                             message(player, "hub.games.lore")), "games");
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.goals.name"),
                             message(player, "hub.goals.lore")), "goals");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.calendar.name"),
+                            message(player, "hub.calendar.lore")), "calendar");
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.friends.name"),
                             message(player, "hub.friends.lore")), "friends");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.shop.name"),
+                            message(player, "hub.shop.lore")), "shop");
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.party.name"),
                             message(player, "hub.party.lore")), "party");
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.events.name"),
