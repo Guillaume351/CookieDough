@@ -11,7 +11,12 @@ import com.cookiebuild.cookiedough.game.GameState;
 
 /** One source of truth for population and availability across matches and persistent activities. */
 public final class ModePopulationService {
-    public record Snapshot(int players, GameState state, boolean available, boolean persistent) {
+    public record Snapshot(int players, GameState state, boolean available, boolean persistent,
+            int minimumPlayers) {
+        public Snapshot(int players, GameState state, boolean available, boolean persistent) {
+            this(players, state, available, persistent, persistent ? 1 : 2);
+        }
+
         public String stateKey() {
             if (!available) return "hub.games.state.offline";
             if (persistent) return "hub.games.state.open";
@@ -31,7 +36,7 @@ public final class ModePopulationService {
         PersistentActivity activity = ActivityRegistry.find(modeName);
         if (activity != null) {
             return new Snapshot(LobbyModePlayerCounter.forPersistentActivity(modeName), GameState.OPEN,
-                    activity.isAvailable(), true);
+                    activity.isAvailable(), true, 1);
         }
         List<Game> arenas = GameManager.getGames().stream()
                 .filter(game -> game.getGameName().equalsIgnoreCase(modeName))
@@ -40,7 +45,10 @@ public final class ModePopulationService {
                 .min(Comparator.comparingInt(ModePopulationService::statePriority))
                 .orElse(GameState.LOADING);
         boolean available = arenas.stream().anyMatch(ModePopulationService::canAdmitOne);
-        return new Snapshot(GameManager.getOnlineGamePlayerCount(modeName), state, available, false);
+        int minimumPlayers = arenas.stream().mapToInt(Game::getMinimumPlayers).filter(value -> value > 0)
+                .min().orElse(2);
+        return new Snapshot(GameManager.getOnlineGamePlayerCount(modeName), state, available, false,
+                minimumPlayers);
     }
 
     public static int totalActivePlayers() {

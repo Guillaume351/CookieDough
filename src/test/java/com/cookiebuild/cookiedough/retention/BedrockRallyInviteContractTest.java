@@ -18,6 +18,8 @@ class BedrockRallyInviteContractTest {
         assertTrue(source.contains("\"actions/join\""));
         assertTrue(source.contains("acceptInGameNotice(recipient, notice.id())"));
         assertTrue(source.contains("BedrockFormSupport.send(recipient, builder.build())"));
-        assertTrue(source.contains("builder.closedOrInvalidResultHandler"));
+        // The post-match replay continuation no longer rides on this invite
+        // form: "What next?" opens from the lobby-arrival hook instead.
+        assertTrue(!source.contains("notifyAvailableAfterMatch"));
     }
 }

@@ -12,7 +12,8 @@ class OnboardingCompletionPolicyTest {
         assertTrue(OnboardingCompletionPolicy.completes("activity:Skyblock"));
         assertTrue(OnboardingCompletionPolicy.completes("quick"));
         assertTrue(OnboardingCompletionPolicy.completes("games"));
-        assertTrue(OnboardingCompletionPolicy.completes("community"));
+        // "Playing alone?" sends the player to Discord/the app: not a completion.
+        assertFalse(OnboardingCompletionPolicy.completes("community"));
         assertTrue(OnboardingCompletionPolicy.completes("back"));
         assertFalse(OnboardingCompletionPolicy.completes("noop"));
         assertFalse(OnboardingCompletionPolicy.completes("close"));

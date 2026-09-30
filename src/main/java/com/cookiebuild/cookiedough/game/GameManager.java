@@ -421,7 +421,7 @@ public class GameManager {
         if (PlayerWrapperListener.rejectPersistentRecoveryTransfer(player)) return false;
         if (game.canAdmitPlayer(player)) return true;
         player.sendMessage(org.bukkit.ChatColor.RED + com.cookiebuild.cookiedough.utils.LocaleManager
-                .getMessage("lobby.game.access_denied", player.locale(), game.getGameName()));
+                .getMessage("lobby.game.access_denied", player.locale(), readable(game.getGameName(), player)));
         return false;
     }
 
@@ -440,7 +440,7 @@ public class GameManager {
                 org.bukkit.entity.Player online = players.apply(member.playerId());
                 if (online != null && online.isOnline()) {
                     online.sendMessage(org.bukkit.ChatColor.RED + com.cookiebuild.cookiedough.utils.LocaleManager
-                            .getMessage("lobby.queue.access_revoked", online.locale(), game.getGameName()));
+                            .getMessage("lobby.queue.access_revoked", online.locale(), readable(game.getGameName(), online)));
                 }
             }
         }
@@ -470,13 +470,15 @@ public class GameManager {
             if (replacement == null) {
                 if (online != null && online.isOnline()) {
                     online.sendMessage(org.bukkit.ChatColor.YELLOW + com.cookiebuild.cookiedough.utils.LocaleManager
-                            .getMessage("lobby.queue.intent_game_closed", online.locale(), closed.getGameName()));
+                            .getMessage("lobby.queue.intent_game_closed", online.locale(),
+                                    readable(closed.getGameName(), online)));
                 }
                 return intent;
             }
             if (online != null && online.isOnline()) {
                 online.sendMessage(org.bukkit.ChatColor.YELLOW + com.cookiebuild.cookiedough.utils.LocaleManager
-                        .getMessage("lobby.queue.intent_reassigned", online.locale(), replacement.getGameName()));
+                        .getMessage("lobby.queue.intent_reassigned", online.locale(),
+                                readable(replacement.getGameName(), online)));
             }
             return new QueueIntent(playerId, replacement.getGameId(), replacement.getGameName(),
                     intent.createdAtMillis(), intent.cohortId(), intent.cohortSize());
@@ -510,7 +512,8 @@ public class GameManager {
             org.bukkit.entity.Player online = Bukkit.getPlayer(entry.getKey());
             if (online != null && online.isOnline()) {
                 online.sendMessage(org.bukkit.ChatColor.YELLOW + com.cookiebuild.cookiedough.utils.LocaleManager
-                        .getMessage("lobby.queue.intent_expired", online.locale(), intent.gameName()));
+                        .getMessage("lobby.queue.intent_expired", online.locale(),
+                                readable(intent.gameName(), online)));
             }
             return true;
         });
@@ -593,14 +596,20 @@ public class GameManager {
                 .orElse(null);
     }
 
-    /** Concentrates low population in the game that is closest to starting. */
+    /** Ready match first, then the busiest queue, then the fixed featured mode. */
     public static Game getBestOpenGame() {
         return selectBestOpenGame(games);
     }
 
-    /** Uses the shared fair-selection history for a pre-filtered set of games. */
+    /** Applies the shared concentrate-then-featured Quick Play rule to a pre-filtered set of games. */
     public static Game selectBestOpenGame(List<? extends Game> candidates) {
-        return quickPlaySelection.select(candidates);
+        return quickPlaySelection.select(candidates, GameManager::getAdmittableQueueIntentCount);
+    }
+
+    /** Busiest other open queue a lone waiting player could switch to, or null. */
+    public static Game findBusiestOtherQueue(Game current) {
+        return GameSelectionPolicy.busiestOtherQueue(games, current == null ? null : current.getGameName(),
+                GameManager::getAdmittableQueueIntentCount);
     }
 
     public static int getAvailablePlayerCount() {
@@ -625,6 +634,10 @@ public class GameManager {
         }
         return countDistinctOnlinePlayers(games.stream()
                 .filter(game -> game.getGameName().equalsIgnoreCase(gameName)));
+    }
+
+    private static String readable(String gameName, org.bukkit.entity.Player viewer) {
+        return com.cookiebuild.cookiedough.lobby.GamePresentation.readableName(gameName, viewer.locale());
     }
 
     private static int countDistinctOnlinePlayers(java.util.stream.Stream<Game> selectedGames) {

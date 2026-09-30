@@ -43,15 +43,22 @@ public final class QuickPlayCommand implements CommandExecutor {
                             player.locale()));
             return true;
         }
+        if (args.length == 1 && args[0].equalsIgnoreCase("autoreplay")) {
+            CookieDough.getInstance().getPlayerHubMenu().toggleAutoReplay(player);
+            return true;
+        }
         if (args.length > 0 && args[0].equalsIgnoreCase("replay")) {
-            FunnelTelemetry.record(player, FunnelTelemetry.Event.REMATCH_CLICKED, "");
+            FunnelTelemetry.record(player, FunnelTelemetry.Event.REMATCH_CLICKED, "choice=command");
             CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
             if (cookiePlayer != null && (cookiePlayer.getState() != PlayerState.LOBBY
                     || GameManager.getGameOfPlayer(cookiePlayer) != null)) {
                 if (!LobbyManager.teleportPlayerToLobby(cookiePlayer)) return true;
             }
+            // Re-queues the mode just played (this session), else falls back to Quick Play.
+            CookieDough.getInstance().getPlayerHubMenu().replayLast(player);
+            return true;
         }
-        if (args.length > 0 && !args[0].equalsIgnoreCase("replay")) {
+        if (args.length > 0) {
             lobbyManager.requestSelectedActivity(player, args[0]);
             return true;
         }

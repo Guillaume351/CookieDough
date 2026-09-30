@@ -67,12 +67,13 @@ public final class PracticeManager implements Listener {
         ItemMeta meta = target.getItemMeta();
         meta.displayName(Component.text(LocaleManager.getMessage(
                 "practice.item.name", player.locale()), NamedTextColor.AQUA));
-        meta.lore(java.util.List.of(Component.text(LocaleManager.getMessage(
-                "practice.item.lore", player.locale()), NamedTextColor.GRAY)));
+        meta.lore(java.util.List.of(Component.text(com.cookiebuild.cookiedough.ui.PlatformText.message(
+                player, "practice.item.lore"), NamedTextColor.GRAY)));
         meta.getPersistentDataContainer().set(practiceKey, PersistentDataType.BYTE, (byte) 1);
         target.setItemMeta(meta);
         player.getInventory().setItem(PRACTICE_SLOT, target);
-        player.sendMessage(ChatColor.AQUA + LocaleManager.getMessage("practice.started", player.locale()));
+        player.sendMessage(ChatColor.AQUA + com.cookiebuild.cookiedough.ui.PlatformText.message(
+                player, "practice.started"));
         FunnelTelemetry.record(player, FunnelTelemetry.Event.TUTORIAL_STARTED, "tutorial=reaction");
         scheduleRound(player, session);
         return true;

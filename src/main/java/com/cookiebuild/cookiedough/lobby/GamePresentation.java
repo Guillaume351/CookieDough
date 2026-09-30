@@ -37,9 +37,12 @@ public record GamePresentation(
                     "game.description.bedwars", ReleaseStage.BETA),
             new GamePresentation("Skyblock", Material.GRASS_BLOCK, "modes/skyblock", EntityType.BEE,
                     "game.description.skyblock", ReleaseStage.BETA),
-            new GamePresentation("NomadWars", Material.COMPASS, "actions/preview", EntityType.CAMEL,
+            // No dedicated pack art exists yet for these two modes: use existing
+            // generic icons whose meaning fits (controller / crown-like stars)
+            // instead of misleading shop/preview placeholders.
+            new GamePresentation("NomadWars", Material.COMPASS, "actions/games", EntityType.CAMEL,
                     "game.description.nomadwars", ReleaseStage.BETA),
-            new GamePresentation("FatKing", Material.GOLDEN_HELMET, "actions/shop", EntityType.PIGLIN,
+            new GamePresentation("FatKing", Material.GOLDEN_HELMET, "actions/progress", EntityType.PIGLIN,
                     "game.description.fatking", ReleaseStage.BETA));
 
     public static List<GamePresentation> games() {
@@ -63,13 +66,37 @@ public record GamePresentation(
         return LocaleManager.getMessage(descriptionKey, locale);
     }
 
+    /** Readable localized mode name (e.g. "Build Battle"), never the internal id. */
+    public String readableName(Locale locale) {
+        String key = nameKey();
+        String value = LocaleManager.getMessage(key, locale);
+        return value.equals(key) ? gameName : value;
+    }
+
     public String displayName(Locale locale) {
+        String name = readableName(locale);
         return switch (releaseStage) {
-            case BETA -> gameName + " [" + LocaleManager.getMessage("game.stage.beta", locale) + "]";
-            case COMING_SOON -> gameName + " ["
+            case BETA -> name + " [" + LocaleManager.getMessage("game.stage.beta", locale) + "]";
+            case COMING_SOON -> name + " ["
                     + LocaleManager.getMessage("game.stage.coming_soon", locale) + "]";
-            case STABLE -> gameName;
+            case STABLE -> name;
         };
+    }
+
+    /** Readable name for any internal game id, falling back to the id for unknown modes. */
+    public static String readableName(String gameName, Locale locale) {
+        if (gameName == null || gameName.isBlank()) return "";
+        return find(gameName).map(game -> game.readableName(locale)).orElse(gameName);
+    }
+
+    /** Localization key of the readable mode name. */
+    public String nameKey() {
+        return "game.name." + gameName.toLowerCase(Locale.ROOT);
+    }
+
+    /** The fixed featured mode shown first in every selector. */
+    public boolean featured() {
+        return com.cookiebuild.cookiedough.game.GameSelectionPolicy.isFeatured(gameName);
     }
 
     public String statusHint(Locale locale) {

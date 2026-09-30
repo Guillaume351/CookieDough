@@ -7,7 +7,12 @@ import java.util.UUID;
 
 /** Stateful but clock-driven cadence kept separate from Bukkit for deterministic tests. */
 final class SkyblockGuidanceCadence {
-    static final long INITIAL_DELAY_MILLIS = 10_000L;
+    /**
+     * Skyblock is a secondary, "while you wait" suggestion: the trail only
+     * appears after a solo player has lingered a full minute without taking
+     * the primary Quick Play / featured-queue path.
+     */
+    static final long INITIAL_DELAY_MILLIS = 60_000L;
     static final long DISPLAY_DURATION_MILLIS = 15_000L;
     static final long COOLDOWN_MILLIS = 120_000L;
 

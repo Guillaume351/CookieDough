@@ -96,6 +96,17 @@ public class LobbyManager implements Listener {
         return instance;
     }
 
+    /**
+     * Locale of shared lobby nameplates. Entity names are identical for every
+     * viewer, so they follow the community's main language (config
+     * {@code lobby.display-locale}, French by default).
+     */
+    static java.util.Locale displayLocale() {
+        CookieDough plugin = CookieDough.getInstance();
+        String tag = plugin == null ? "fr" : plugin.getConfig().getString("lobby.display-locale", "fr");
+        return java.util.Locale.forLanguageTag((tag == null || tag.isBlank() ? "fr" : tag).replace('_', '-'));
+    }
+
     public void shutdown() {
         if (skyblockGuide != null) {
             skyblockGuide.shutdown();
@@ -241,6 +252,10 @@ public class LobbyManager implements Listener {
         CookieDough.getInstance().getPracticeManager().stop(player, false);
         // Remove active players and eliminated spectators from their roster.
         Game currentGame = GameManager.getGameOfPlayer(cookiePlayer);
+        // A participant leaving a finished arena is a completed match even for
+        // modules that record completion themselves instead of offerReplay().
+        String finishedGameName = currentGame != null && currentGame.getState() == GameState.FINISHED
+                && !currentGame.isExternalSpectator(player.getUniqueId()) ? currentGame.getGameName() : null;
         if (currentGame != null) {
             currentGame.removePlayer(cookiePlayer, "returned_lobby");
         } else if (cookiePlayer.getState() == PlayerState.QUEUED
@@ -257,6 +272,12 @@ public class LobbyManager implements Listener {
         player.saveData();
         PlayerWrapperListener.showLobbyScoreboard(player);
         FunnelTelemetry.record(player, FunnelTelemetry.Event.LOBBY_READY, "world=lobby");
+        PlayerHubMenu hub = CookieDough.getInstance().getPlayerHubMenu();
+        if (hub != null) {
+            // The "What next?" choice is scheduled from here, i.e. only once the
+            // player is really back in the lobby, never during the transfer.
+            hub.onLobbyArrival(player, finishedGameName);
+        }
         return true;
     }
 
@@ -268,33 +289,82 @@ public class LobbyManager implements Listener {
             if (GameManager.registerQueueIntent(player, game)) {
                 player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                         replacing ? "lobby.queue.intent_replaced" : "lobby.queue.intent_registered",
-                        player.getPlayer().locale(), game.getGameName()));
+                        player.getPlayer().locale(),
+                        GamePresentation.readableName(game.getGameName(), player.getPlayer().locale())));
                 return;
             }
         }
-        boolean partyMember = CookieDough.getInstance().getPartyManager().hasOnlinePartyCompanions(
-                player.getPlayer().getUniqueId());
-        if (shouldSuggestSolo(player.getState(),
-                ModePopulationService.isPersistentActivityAvailable("Skyblock"), partyMember,
-                ModePopulationService.hasReadyMatchForOneMorePlayer())) {
-            CookieDough.getInstance().getPlayerHubMenu().openSoloSuggestion(player.getPlayer());
-            return;
-        }
+        // Quick Play never sends a lone player away to a solo mode: it joins the
+        // ready match, else the busiest queue, else the featured mode, so the
+        // next arrival starts the match. Solo activities are offered afterwards
+        // as a way to wait, keeping the queue intent.
         if (game != null && player.getState() == PlayerState.LOBBY && game.addPlayerToAvailableTeam(player)) {
             GameManager.cancelQueueIntent(player.getPlayer().getUniqueId());
+            // A mode may admit a late joiner straight into a running match:
+            // report the arena that actually owns the player.
+            Game joined = admittedGame(player, game);
             player.getPlayer().sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                     "lobby.join.quick_success", player.getPlayer().locale(),
-                    GamePresentation.forGame(game.getGameName()).displayName(player.getPlayer().locale()),
-                    game.getPlayerCount(), game.getCapacity()));
+                    GamePresentation.forGame(joined.getGameName()).displayName(player.getPlayer().locale()),
+                    joined.getPlayerCount(), joined.getCapacity()));
+            boolean partyMember = CookieDough.getInstance().getPartyManager().hasOnlinePartyCompanions(
+                    player.getPlayer().getUniqueId());
+            if (joined.getState() == GameState.OPEN && player.getState() == PlayerState.QUEUED
+                    && shouldOfferWhileWaiting(joined.getPlayerCount(), joined.getMinimumPlayers(), partyMember,
+                            joined.supportsSoloStart())) {
+                CookieDough.getInstance().getPlayerHubMenu().offerWhileWaiting(player.getPlayer(),
+                        joined.getGameName());
+            }
             return;
         }
         player.getPlayer().sendMessage(ChatColor.RED + LocaleManager.getMessage(
                 "lobby.join.no_available", player.getPlayer().locale()));
     }
 
-    static boolean shouldSuggestSolo(PlayerState state, boolean skyblockAvailable,
-            boolean partyMember, boolean readyMatch) {
-        return state == PlayerState.LOBBY && skyblockAvailable && !partyMember && !readyMatch;
+    private static Game admittedGame(CookiePlayer player, Game requested) {
+        Game owner = GameManager.getGameOfPlayer(player);
+        return owner == null ? requested : owner;
+    }
+
+    /**
+     * Secondary "play while you wait" choice after Quick Play, only when the
+     * queue still needs players. A mode that starts a lone player's match by
+     * itself (solo start) is not interrupted with an offer to leave.
+     */
+    static boolean shouldOfferWhileWaiting(int queuedPlayers, int minimumPlayers, boolean partyMember,
+            boolean soloStart) {
+        return !partyMember && !soloStart && queuedPlayers >= 1 && queuedPlayers < minimumPlayers;
+    }
+
+    /**
+     * Leaves a waiting queue for a persistent activity (Skyblock) while keeping
+     * a passive queue intent for the same mode: the next arrival still starts
+     * the match and pulls this player back through the normal admission path.
+     */
+    public void playActivityWhileQueued(Player player, String activityName, String gameName) {
+        CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
+        if (cookiePlayer == null || !PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())) {
+            player.sendMessage(ChatColor.YELLOW + LocaleManager.getMessage("player.data_loading", player.locale()));
+            return;
+        }
+        Game queued = GameManager.getGameOfPlayer(cookiePlayer);
+        if (queued == null || cookiePlayer.getState() != PlayerState.QUEUED
+                || !queued.getGameName().equalsIgnoreCase(gameName)
+                || ActivityRegistry.find(activityName) == null) {
+            requestActivity(player, activityName);
+            return;
+        }
+        if (!teleportPlayerToLobby(cookiePlayer)) return;
+        requestActivity(player, activityName);
+        if (cookiePlayer.getState() != PlayerState.PERSISTENT_MODE) return;
+        Game target = GameManager.getOpenGameByName(gameName);
+        if (target != null && GameManager.registerQueueIntent(cookiePlayer, target)) {
+            FunnelTelemetry.record(player, FunnelTelemetry.Event.SELECTOR_OPENED,
+                    "selector=play_while_waiting activity=" + activityName.replaceAll("[^A-Za-z0-9_-]", "")
+                            + " game=" + gameName.replaceAll("[^A-Za-z0-9_-]", ""));
+            player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("lobby.queue.intent_registered",
+                    player.locale(), GamePresentation.readableName(gameName, player.locale())));
+        }
     }
 
     public void requestQuickPlay(Player player) {
@@ -373,7 +443,8 @@ public class LobbyManager implements Listener {
         }
         if (!game.canAdmitPlayer(player)) {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
-                    "lobby.game.access_denied", player.locale(), game.getGameName()));
+                    "lobby.game.access_denied", player.locale(),
+                    GamePresentation.readableName(game.getGameName(), player.locale())));
             return;
         }
         if (cookiePlayer.getState() == PlayerState.PERSISTENT_MODE
@@ -382,18 +453,20 @@ public class LobbyManager implements Listener {
             if (GameManager.registerQueueIntent(cookiePlayer, game)) {
                 player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage(
                         replacing ? "lobby.queue.intent_replaced" : "lobby.queue.intent_registered",
-                        player.locale(), game.getGameName()));
+                        player.locale(), GamePresentation.readableName(game.getGameName(), player.locale())));
             } else {
                 player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
-                        "lobby.game.unavailable", player.locale(), gameName));
+                        "lobby.game.unavailable", player.locale(),
+                        GamePresentation.readableName(gameName, player.locale())));
             }
             return;
         }
         if (game.addPlayerToAvailableTeam(cookiePlayer)) {
             GameManager.cancelQueueIntent(player.getUniqueId());
+            Game joined = admittedGame(cookiePlayer, game);
             player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("lobby.game.joined", player.locale(),
-                    GamePresentation.forGame(game.getGameName()).displayName(player.locale()),
-                    game.getPlayerCount(), game.getCapacity()));
+                    GamePresentation.forGame(joined.getGameName()).displayName(player.locale()),
+                    joined.getPlayerCount(), joined.getCapacity()));
         } else {
             player.sendMessage(ChatColor.RED + LocaleManager.getMessage("lobby.game.unavailable", player.locale(),
                     GamePresentation.forGame(game.getGameName()).displayName(player.locale())));
@@ -401,10 +474,12 @@ public class LobbyManager implements Listener {
     }
 
     private void sendNoOpenGame(Player player, String gameName) {
-        String available = GameManager.getGames().stream().map(Game::getGameName).distinct().sorted().toList()
-                .toString();
+        String available = String.join(", ", GameManager.getGames().stream().map(Game::getGameName).distinct()
+                .map(name -> GamePresentation.readableName(name, player.locale()))
+                .sorted(String.CASE_INSENSITIVE_ORDER).toList());
         player.sendMessage(ChatColor.RED + LocaleManager.getMessage(
-                "lobby.game.no_open", player.locale(), gameName, available));
+                "lobby.game.no_open", player.locale(), GamePresentation.readableName(gameName, player.locale()),
+                available));
     }
 
     /** Opens a running arena as a viewer from either lobby, Skyblock or another spectator session. */
@@ -588,8 +663,8 @@ public class LobbyManager implements Listener {
                 net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
                                 "lobby.menu.item_lore", player.locale()),
                         net.kyori.adventure.text.format.NamedTextColor.GRAY),
-                net.kyori.adventure.text.Component.text(LocaleManager.getMessage(
-                                "lobby.menu.item_action", player.locale()),
+                net.kyori.adventure.text.Component.text(com.cookiebuild.cookiedough.ui.PlatformText.message(
+                                player, "lobby.menu.item_action"),
                         net.kyori.adventure.text.format.NamedTextColor.YELLOW)));
         meta.getPersistentDataContainer().set(new NamespacedKey(CookieDough.getInstance(), "quick_play"),
                 PersistentDataType.BYTE, (byte) 1);

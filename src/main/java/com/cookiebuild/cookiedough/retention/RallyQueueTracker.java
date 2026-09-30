@@ -13,6 +13,10 @@ import java.util.UUID;
 final class RallyQueueTracker {
     static final Duration AUTOMATIC_WAIT = Duration.ofSeconds(8);
     static final Duration RETRY_DELAY = Duration.ofMinutes(1);
+    /** Sustained underfill after which opted-in app users get an automatic push. */
+    static final Duration AUTOMATIC_PUSH_WAIT = Duration.ofSeconds(30);
+    /** Local retry spacing; the durable per-gamemode cooldowns stay authoritative. */
+    static final Duration AUTOMATIC_PUSH_RETRY = Duration.ofMinutes(5);
 
     record QueueState(UUID gameId, boolean open, int queuedCount, int minimumPlayers) {
         boolean underfilled() {
@@ -27,12 +31,17 @@ final class RallyQueueTracker {
     record Pending(UUID gameId, UUID outboxId, long releaseAtMillis, boolean cancelWhenFilled) {
     }
 
-    record Observation(List<UUID> automaticCandidates, List<Pending> cancellations) {
+    record Observation(List<UUID> automaticCandidates, List<Pending> cancellations,
+            List<UUID> automaticPushCandidates) {
+        Observation(List<UUID> automaticCandidates, List<Pending> cancellations) {
+            this(automaticCandidates, cancellations, List.of());
+        }
     }
 
     private final Map<UUID, Long> underfilledSince = new HashMap<>();
     private final Map<UUID, Long> nextAutomaticAttempt = new HashMap<>();
     private final Map<UUID, Pending> pendingByGame = new HashMap<>();
+    private final Map<UUID, Long> nextAutomaticPush = new HashMap<>();
 
     Observation observe(List<QueueState> states, long nowMillis) {
         Map<UUID, QueueState> current = new HashMap<>();
@@ -53,10 +62,12 @@ final class RallyQueueTracker {
             if (state == null || !state.automaticCandidateEligible()) {
                 underfilledSince.remove(gameId);
                 nextAutomaticAttempt.remove(gameId);
+                nextAutomaticPush.remove(gameId);
             }
         }
 
         List<UUID> candidates = new ArrayList<>();
+        List<UUID> pushCandidates = new ArrayList<>();
         for (QueueState state : states) {
             if (!state.automaticCandidateEligible()) {
                 continue;
@@ -68,8 +79,15 @@ final class RallyQueueTracker {
                 candidates.add(state.gameId());
                 nextAutomaticAttempt.put(state.gameId(), nowMillis + RETRY_DELAY.toMillis());
             }
+            boolean pushWaitElapsed = nowMillis - since >= AUTOMATIC_PUSH_WAIT.toMillis();
+            boolean pushRetryReady = nowMillis >= nextAutomaticPush.getOrDefault(state.gameId(), 0L);
+            if (state.underfilled() && pushWaitElapsed && pushRetryReady
+                    && !pendingByGame.containsKey(state.gameId())) {
+                pushCandidates.add(state.gameId());
+                nextAutomaticPush.put(state.gameId(), nowMillis + AUTOMATIC_PUSH_RETRY.toMillis());
+            }
         }
-        return new Observation(List.copyOf(candidates), List.copyOf(cancellations));
+        return new Observation(List.copyOf(candidates), List.copyOf(cancellations), List.copyOf(pushCandidates));
     }
 
     boolean hasPending(UUID gameId) {
@@ -80,6 +98,11 @@ final class RallyQueueTracker {
             boolean cancelWhenFilled) {
         pendingByGame.put(gameId, new Pending(gameId, outboxId, releaseAtMillis, cancelWhenFilled));
         nextAutomaticAttempt.put(gameId, nextAutomaticAtMillis);
+    }
+
+    /** Tracks an automatic app push without delaying the next in-game notice. */
+    void markPushScheduled(UUID gameId, UUID outboxId, long releaseAtMillis) {
+        pendingByGame.put(gameId, new Pending(gameId, outboxId, releaseAtMillis, false));
     }
 
     void suppressAutomaticUntil(UUID gameId, long timestampMillis) {

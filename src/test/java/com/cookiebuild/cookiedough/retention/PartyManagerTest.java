@@ -2,7 +2,6 @@ package com.cookiebuild.cookiedough.retention;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.util.List;
@@ -61,18 +60,22 @@ class PartyManagerTest {
     }
 
     @Test
-    void rotatesCompatibleEmptyPartyQueuesInsteadOfAlwaysChoosingTurfWars() {
+    void concentratesCompatibleEmptyPartyQueuesOnOneStableModeInsteadOfRotating() {
+        // Rotation spread a tiny population across empty queues; parties now use
+        // the same featured/stable order as solo Quick Play (audit 2026-09-30).
         StubGame skyWars = new StubGame("SkyWars", 8, 8, 0);
         StubGame turfWars = new StubGame("TurfWars", 8, 8, 0);
+        StubGame buildBattles = new StubGame("BuildBattles", 8, 8, 0);
 
         PartyManager.PartyGameSelection first = PartyManager.selectPartyGame(
                 List.of(turfWars, skyWars), 2);
         PartyManager.PartyGameSelection second = PartyManager.selectPartyGame(
                 List.of(turfWars, skyWars), 2);
 
-        assertNotSame(first.game(), second.game());
-        assertEquals(java.util.Set.of("SkyWars", "TurfWars"), java.util.Set.of(
-                first.game().getGameName(), second.game().getGameName()));
+        assertSame(skyWars, first.game());
+        assertSame(skyWars, second.game());
+        assertSame(buildBattles, PartyManager.selectPartyGame(
+                List.of(turfWars, skyWars, buildBattles), 2).game());
     }
 
     private static final class StubGame extends Game {
