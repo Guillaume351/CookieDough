@@ -136,4 +136,21 @@ class MinigameProgressionServiceTest {
     private interface EntityLookup {
         Object find(Class<?> entityType, LockModeType lockMode);
     }
+
+    @org.junit.jupiter.api.Test
+    void soireeBonusDoublesMatchCoinsWithinBounds() {
+        assertEquals(0, MinigameProgressionService.eventBonusCoins(20, 1));
+        assertEquals(20, MinigameProgressionService.eventBonusCoins(20, 2));
+        assertEquals(0, MinigameProgressionService.eventBonusCoins(0, 2));
+        assertEquals(80, MinigameProgressionService.eventBonusCoins(20, 99));
+        assertEquals("event-bonus:match:1:bb", MinigameProgressionService.eventBonusSource("match:1:bb"));
+        assertEquals(180, MinigameProgressionService.eventBonusSource("x".repeat(400)).length());
+    }
+
+    @org.junit.jupiter.api.Test
+    void fatKingAndNomadWarsGoalsArePaid() {
+        assertEquals(MinigameProgressionService.FATKING, MinigameProgressionService.supportedMinigameKey("FatKing"));
+        assertEquals(MinigameProgressionService.NOMADWARS,
+                MinigameProgressionService.supportedMinigameKey("NomadWars"));
+    }
 }

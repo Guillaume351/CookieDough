@@ -9,7 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.cookiebuild.cookiedough.model.CoinTransaction;
 import com.cookiebuild.cookiedough.model.CosmeticEntitlement;
+import com.cookiebuild.cookiedough.model.PlayerData;
 import com.cookiebuild.cookiedough.model.CosmeticSelection;
 import com.cookiebuild.cookiedough.model.CosmeticSelectionId;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
@@ -271,6 +273,68 @@ public final class JpaCosmeticRepository implements CosmeticRepository {
             active.forEach(entitlement -> entitlement.revoke(revokedAt));
             tx.commit();
             return true;
+        } catch (RuntimeException error) {
+            rollback(tx);
+            throw error;
+        } finally {
+            em.close();
+        }
+    }
+
+    @Override
+    public PurchaseResult purchaseWithCoins(UUID playerId, String cosmeticId, CosmeticSlot slot, int price,
+            String source, Date purchasedAt) {
+        EntityManager em = HibernateUtil.createEntityManager();
+        EntityTransaction tx = em.getTransaction();
+        try {
+            tx.begin();
+            // Player row first: the same lock order as every coin mutation.
+            PlayerData player = em.find(PlayerData.class, playerId, LockModeType.PESSIMISTIC_WRITE);
+            if (player == null) {
+                tx.rollback();
+                return PurchaseResult.PLAYER_NOT_FOUND;
+            }
+            Long owned = em.createQuery(
+                            "select count(e) from CosmeticEntitlement e where e.playerId = :playerId "
+                                    + "and e.cosmeticId = :cosmeticId and e.revokedAt is null "
+                                    + "and (e.expiresAt is null or e.expiresAt > :at)", Long.class)
+                    .setParameter("playerId", playerId)
+                    .setParameter("cosmeticId", cosmeticId)
+                    .setParameter("at", purchasedAt)
+                    .getSingleResult();
+            if (owned > 0) {
+                tx.rollback();
+                return PurchaseResult.ALREADY_OWNED;
+            }
+            if (!player.removeCoins(price)) {
+                tx.rollback();
+                return PurchaseResult.INSUFFICIENT_COINS;
+            }
+            em.persist(new CoinTransaction(player, -price, "cosmetic:" + cosmeticId, purchasedAt));
+            em.createNativeQuery("""
+                    insert into cosmetic_entitlements
+                      (player_id, cosmetic_id, source, granted_at, revoked_at, expires_at)
+                    values (:playerId, :cosmeticId, :source, :grantedAt, null, null)
+                    """)
+                    .setParameter("playerId", playerId)
+                    .setParameter("cosmeticId", cosmeticId)
+                    .setParameter("source", source)
+                    .setParameter("grantedAt", purchasedAt, TemporalType.TIMESTAMP)
+                    .executeUpdate();
+            em.createNativeQuery("""
+                    insert into cosmetic_selections (player_id, slot, cosmetic_id, selected_at)
+                    values (:playerId, :slot, :cosmeticId, :selectedAt)
+                    on conflict (player_id, slot) do update set
+                      cosmetic_id = excluded.cosmetic_id,
+                      selected_at = excluded.selected_at
+                    """)
+                    .setParameter("playerId", playerId)
+                    .setParameter("slot", slot.name())
+                    .setParameter("cosmeticId", cosmeticId)
+                    .setParameter("selectedAt", purchasedAt, TemporalType.TIMESTAMP)
+                    .executeUpdate();
+            tx.commit();
+            return PurchaseResult.PURCHASED;
         } catch (RuntimeException error) {
             rollback(tx);
             throw error;

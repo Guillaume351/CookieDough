@@ -22,9 +22,12 @@ import com.cookiebuild.cookiedough.CookieDough;
 import com.cookiebuild.cookiedough.listener.PlayerWrapperListener;
 import com.cookiebuild.cookiedough.service.MobileLinkService;
 import com.cookiebuild.cookiedough.service.MobileLinkService.LinkChallenge;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 /** Handles the secure in-game side of mobile account linking. */
 public final class AppLinkCommand implements CommandExecutor {
+    /** Mirrors the website's one-time app_link grant (150 coins + app_companion_badge). */
+    public static final int APP_LINK_REWARD_COINS = 150;
     private static final long LINK_COOLDOWN_MS = 30_000;
     private final CookieDough plugin;
     private final MobileLinkService linkService;
@@ -55,17 +58,16 @@ public final class AppLinkCommand implements CommandExecutor {
             case "link" -> createLink(player);
             case "status" -> runAsync(player, () -> linkService.hasActiveLink(player.getUniqueId()), linked ->
                     player.sendMessage((linked ? ChatColor.GREEN : ChatColor.YELLOW)
-                            + (linked ? "Your account is linked to the Cookie Build app."
-                                    : "Your account is not linked. Use /app link to begin.")));
+                            + message(player, linked ? "app.status.linked" : "app.status.not_linked")));
             case "revoke", "unlink" -> runAsync(player, () -> linkService.revoke(player.getUniqueId()), revoked ->
                     player.sendMessage((revoked ? ChatColor.GREEN : ChatColor.YELLOW)
-                            + (revoked ? "Your app link was revoked on every device."
-                                    : "No active app link was found.")));
+                            + message(player, revoked ? "app.revoke.done" : "app.revoke.none")));
             default -> {
-                player.sendMessage(ChatColor.GOLD + "Cookie Build app");
-                player.sendMessage(ChatColor.YELLOW + "/app link" + ChatColor.GRAY + " - create a one-time code");
-                player.sendMessage(ChatColor.YELLOW + "/app status" + ChatColor.GRAY + " - check your link");
-                player.sendMessage(ChatColor.YELLOW + "/app revoke" + ChatColor.GRAY + " - unlink every device");
+                player.sendMessage(ChatColor.GOLD + message(player, "app.help.title"));
+                player.sendMessage(ChatColor.YELLOW + message(player, "app.help.link"));
+                player.sendMessage(ChatColor.YELLOW + message(player, "app.help.status"));
+                player.sendMessage(ChatColor.YELLOW + message(player, "app.help.revoke"));
+                player.sendMessage(ChatColor.LIGHT_PURPLE + message(player, "app.link.reward", APP_LINK_REWARD_COINS));
             }
         }
         return true;
@@ -73,37 +75,37 @@ public final class AppLinkCommand implements CommandExecutor {
 
     private void createLink(Player player) {
         if (!PlayerWrapperListener.isPlayerDataReady(player.getUniqueId())) {
-            player.sendMessage(ChatColor.YELLOW
-                    + "Your player profile is still loading. Please try /app link again in a moment.");
+            player.sendMessage(ChatColor.YELLOW + message(player, "app.link.loading"));
             return;
         }
         if (inFlight.contains(player.getUniqueId())) {
-            player.sendMessage(ChatColor.YELLOW + "Your previous app request is still being processed.");
+            player.sendMessage(ChatColor.YELLOW + message(player, "app.link.busy"));
             return;
         }
         long now = System.currentTimeMillis();
         if (now - lastChallengeAt.getOrDefault(player.getUniqueId(), 0L) < LINK_COOLDOWN_MS) {
-            player.sendMessage(ChatColor.YELLOW + "Please wait before creating another app code.");
+            player.sendMessage(ChatColor.YELLOW + message(player, "app.link.cooldown"));
             return;
         }
         lastChallengeAt.put(player.getUniqueId(), now);
         String edition = detectEdition(player.getUniqueId());
-        player.sendMessage(ChatColor.YELLOW + "Creating a secure one-time app code…");
+        player.sendMessage(ChatColor.YELLOW + message(player, "app.link.creating"));
         runAsync(player,
                 () -> linkService.createChallenge(player.getUniqueId(), edition),
                 challenge -> showChallenge(player, challenge));
     }
 
     private void showChallenge(Player player, LinkChallenge challenge) {
-        player.sendMessage(ChatColor.GOLD + "Your Cookie Build app code is:");
+        player.sendMessage(ChatColor.GOLD + message(player, "app.link.code_header"));
         player.sendMessage(ChatColor.AQUA.toString() + ChatColor.BOLD + challenge.code());
-        player.sendMessage(ChatColor.GRAY + "Enter it in the app within 10 minutes. Never share this code.");
+        player.sendMessage(ChatColor.GRAY + message(player, "app.link.code_hint"));
+        player.sendMessage(ChatColor.LIGHT_PURPLE + message(player, "app.link.reward", APP_LINK_REWARD_COINS));
     }
 
     private <T> void runAsync(Player player, Supplier<T> work, java.util.function.Consumer<T> success) {
         UUID playerId = player.getUniqueId();
         if (!inFlight.add(playerId)) {
-            player.sendMessage(ChatColor.YELLOW + "Your previous app request is still being processed.");
+            player.sendMessage(ChatColor.YELLOW + message(player, "app.link.busy"));
             return;
         }
         try {
@@ -128,8 +130,7 @@ public final class AppLinkCommand implements CommandExecutor {
                     if (completedError != null) {
                         plugin.getLogger().warning("Mobile link action failed for " + player.getName()
                                 + ": " + completedError.getMessage());
-                        player.sendMessage(ChatColor.RED
-                                + "The app link service is temporarily unavailable. Please try again later.");
+                        player.sendMessage(ChatColor.RED + message(player, "app.error.unavailable"));
                         return;
                     }
                     success.accept(completedResult);
@@ -137,7 +138,7 @@ public final class AppLinkCommand implements CommandExecutor {
             });
         } catch (RejectedExecutionException exception) {
             inFlight.remove(playerId);
-            player.sendMessage(ChatColor.RED + "The app link service is shutting down. Please try again later.");
+            player.sendMessage(ChatColor.RED + message(player, "app.error.shutting_down"));
         }
     }
 
@@ -159,6 +160,10 @@ public final class AppLinkCommand implements CommandExecutor {
         } catch (RuntimeException exception) {
             plugin.getLogger().warning("Could not prune mobile link challenges: " + exception.getMessage());
         }
+    }
+
+    private static String message(Player player, String key, Object... args) {
+        return LocaleManager.getMessage(key, player.locale(), args);
     }
 
     /** Uses Floodgate when present without making it a hard plugin dependency. */

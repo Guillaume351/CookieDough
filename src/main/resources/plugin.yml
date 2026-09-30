@@ -47,10 +47,16 @@ commands:
     description: Open the official Cookie Build server rules
     usage: /<command>
   events:
-    description: Show the next community session or toggle reminders
+    aliases: [evenements, soiree]
+    description: Show the next Soirée Cookie / community event or toggle reminders
     usage: /<command> [remind]
   goals:
-    description: Show weekly objectives and achievements
+    aliases: [objectifs]
+    description: Show daily and weekly objectives and achievements
+    usage: /<command>
+  calendrier:
+    aliases: [calendar, streak]
+    description: Show your 7-day login calendar and streak
     usage: /<command>
   friend:
     description: Open the friends & party menu, or manage friends by command

@@ -23,6 +23,13 @@ public interface CosmeticRepository {
         NOT_ENTITLED
     }
 
+    enum PurchaseResult {
+        PURCHASED,
+        ALREADY_OWNED,
+        INSUFFICIENT_COINS,
+        PLAYER_NOT_FOUND
+    }
+
     Snapshot load(UUID playerId, Date activeAt);
 
     PersistenceResult selectIfEntitled(UUID playerId, CosmeticSlot slot, String cosmeticId, Date selectedAt);
@@ -47,4 +54,12 @@ public interface CosmeticRepository {
     int revokeSource(UUID playerId, String source, Date revokedAt);
 
     boolean revoke(UUID playerId, String cosmeticId, Date revokedAt);
+
+    /**
+     * Atomically debits {@code price} coins (ledger row {@code cosmetic:<id>}),
+     * grants a permanent entitlement and equips it in {@code slot}. Never
+     * charges a player who already owns the cosmetic.
+     */
+    PurchaseResult purchaseWithCoins(UUID playerId, String cosmeticId, CosmeticSlot slot, int price,
+            String source, Date purchasedAt);
 }

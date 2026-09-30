@@ -19,7 +19,10 @@ import jakarta.persistence.LockModeType;
 
 /** Transaction-scoped progression operations safe to call from different tasks. */
 public class MinigameProgressionService {
-    private record RewardApplication(MinigameProgression progression, boolean applied) {
+    private record RewardApplication(MinigameProgression progression, boolean applied, int bonus) {
+        RewardApplication(MinigameProgression progression, boolean applied) {
+            this(progression, applied, 0);
+        }
     }
     public static final String MICROBATTLES = "microbattles";
     public static final String PITCHOUT = "pitchout";
@@ -30,7 +33,39 @@ public class MinigameProgressionService {
     public static final String FATKING = "fatking";
     public static final String NOMADWARS = "nomadwars";
 
+    /** Live coin multiplier for match rewards (for example x2 during a Soirée Cookie). */
+    @FunctionalInterface
+    public interface MatchCoinBonus {
+        int multiplier();
+    }
+
+    /** Called after commit when a match reward received an event bonus. */
+    @FunctionalInterface
+    public interface MatchCoinBonusListener {
+        void onBonus(UUID playerId, int bonusCoins);
+    }
+
+    private static volatile MatchCoinBonus matchCoinBonus = () -> 1;
+    private static volatile MatchCoinBonusListener matchCoinBonusListener = (playerId, bonus) -> { };
+
     private final EntityManager legacyEntityManager;
+
+    public static void setMatchCoinBonus(MatchCoinBonus bonus, MatchCoinBonusListener listener) {
+        matchCoinBonus = bonus == null ? () -> 1 : bonus;
+        matchCoinBonusListener = listener == null ? (playerId, extra) -> { } : listener;
+    }
+
+    /** Extra coins granted on top of a base match reward; never negative. */
+    public static int eventBonusCoins(int baseCoins, int multiplier) {
+        if (baseCoins <= 0 || multiplier <= 1) return 0;
+        long bonus = (long) baseCoins * (Math.min(multiplier, 5) - 1);
+        return (int) Math.min(bonus, 10_000L);
+    }
+
+    static String eventBonusSource(String source) {
+        String bonusSource = "event-bonus:" + source;
+        return bonusSource.length() <= 180 ? bonusSource : bonusSource.substring(0, 180);
+    }
 
     public MinigameProgressionService(EntityManager entityManager) {
         this.legacyEntityManager = entityManager;
@@ -140,16 +175,29 @@ public class MinigameProgressionService {
             }
             MinigameProgression stats = findOrCreate(em, playerId, minigame);
             if (coinTransactionExists(em, playerId, source)) {
-                return new RewardApplication(stats, false);
+                return new RewardApplication(stats, false, 0);
             }
             stats.addExperience(experience);
             playerData.addCoins(coins);
             appendCoinTransaction(em, playerData, coins, source);
-            return new RewardApplication(stats, true);
+            int bonus = eventBonusCoins(coins, safeMultiplier());
+            if (bonus > 0) {
+                playerData.addCoins(bonus);
+                appendCoinTransaction(em, playerData, bonus, eventBonusSource(source));
+            }
+            return new RewardApplication(stats, true, bonus);
         });
         if (result.applied()) {
             FunnelTelemetry.record(playerId, FunnelTelemetry.Event.REWARD_CLAIMED,
-                    "source=" + source + " game=" + minigame + " xp=" + experience + " coins=" + coins);
+                    "source=" + source + " game=" + minigame + " xp=" + experience + " coins=" + coins
+                            + " event_bonus=" + result.bonus());
+            if (result.bonus() > 0) {
+                try {
+                    matchCoinBonusListener.onBonus(playerId, result.bonus());
+                } catch (RuntimeException ignored) {
+                    // The bonus is committed; the notice is best effort.
+                }
+            }
         }
         return result.progression();
     }
@@ -174,7 +222,7 @@ public class MinigameProgressionService {
         return result.applied();
     }
 
-    static String supportedMinigameKey(String minigame) {
+    public static String supportedMinigameKey(String minigame) {
         return switch (minigame == null ? "" : minigame.toLowerCase(java.util.Locale.ROOT)) {
             case "microbattles" -> MICROBATTLES;
             case "pitchout" -> PITCHOUT;
@@ -274,6 +322,14 @@ public class MinigameProgressionService {
     @Deprecated(forRemoval = true)
     public void save(MinigameProgression stats) {
         saveStats(stats);
+    }
+
+    private static int safeMultiplier() {
+        try {
+            return Math.max(1, matchCoinBonus.multiplier());
+        } catch (RuntimeException error) {
+            return 1;
+        }
     }
 
     MinigameProgression findOrCreate(EntityManager em, UUID playerId, String minigame) {

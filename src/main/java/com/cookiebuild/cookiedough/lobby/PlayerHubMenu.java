@@ -309,7 +309,7 @@ public final class PlayerHubMenu implements Listener {
                 message(player, "hub.goals.weekly"), "noop",
                 progress(message(player, "hub.goals.play_matches"), view.weeklyMatches(), 3),
                 progress(message(player, "hub.goals.win_matches"), view.weeklyWins(), 1),
-                progress(message(player, "hub.goals.eliminations"), view.weeklyEliminations(), 10),
+                progress(message(player, "hub.goals.finish_matches"), view.weeklyFinished(), 5),
                 message(player, "hub.goals.weekly_reset")));
         inventory.setItem(15, item(Material.ENCHANTED_BOOK, message(player, "hub.goals.achievements"), "noop",
                 message(player, "hub.goals.unlocked", view.achievements()),
@@ -613,7 +613,7 @@ public final class PlayerHubMenu implements Listener {
                                     + message(player, "hub.goals.bedrock_daily", view.dailyMatches(), view.dailyWins())
                                     + "\n\n§b" + message(player, "hub.goals.weekly") + "\n§f"
                                     + message(player, "hub.goals.bedrock_weekly", view.weeklyMatches(),
-                                            view.weeklyWins(), view.weeklyEliminations())
+                                            view.weeklyWins(), view.weeklyFinished())
                                     + "\n\n§d" + message(player, "hub.goals.bedrock_achievements", view.achievements()));
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.back")), "back");
                 }
