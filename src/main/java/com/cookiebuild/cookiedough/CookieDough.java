@@ -82,6 +82,7 @@ public final class CookieDough extends JavaPlugin {
     private CosmeticService cosmeticService;
     private CosmeticEffects cosmeticEffects;
     private CosmeticsMenu cosmeticsMenu;
+    private com.cookiebuild.cookiedough.social.SocialMenu socialMenu;
 
     public static CookieDough getInstance() {
         return instance;
@@ -97,6 +98,7 @@ public final class CookieDough extends JavaPlugin {
         getServer().getPluginManager().registerEvents(playerHubMenu, this);
         getServer().getPluginManager().registerEvents(practiceManager, this);
         getServer().getPluginManager().registerEvents(cosmeticsMenu, this);
+        getServer().getPluginManager().registerEvents(socialMenu, this);
         getServer().getPluginManager().registerEvents(cosmeticEffects, this);
     }
 
@@ -145,6 +147,11 @@ public final class CookieDough extends JavaPlugin {
 
     public FriendManager getFriendManager() {
         return friendManager;
+    }
+
+    /** "Friends & party" menu (Java inventory / Bedrock form); call {@code open(player)} on the main thread. */
+    public com.cookiebuild.cookiedough.social.SocialMenu getSocialMenu() {
+        return socialMenu;
     }
 
     public PlayerHubMenu getPlayerHubMenu() {
@@ -210,6 +217,7 @@ public final class CookieDough extends JavaPlugin {
         rallyManager = new RallyManager(this);
         goalTracker = new PlayerGoalTracker(this);
         friendManager = new FriendManager(this);
+        socialMenu = new com.cookiebuild.cookiedough.social.SocialMenu(this, friendManager, partyManager);
         practiceManager = new PracticeManager(this);
         communityEventManager = new CommunityEventManager(this);
         cosmeticService = new CosmeticService(new JpaCosmeticRepository());
@@ -352,13 +360,13 @@ public final class CookieDough extends JavaPlugin {
         getCommand("mute").setExecutor(socialSafety);
         getCommand("block").setExecutor(socialSafety);
         getCommand("report").setExecutor(socialSafety);
-        getCommand("party").setExecutor(new PartyCommand(partyManager));
+        getCommand("party").setExecutor(new PartyCommand(partyManager, socialMenu));
         getCommand("rally").setExecutor(new RallyCommand(rallyManager));
         getCommand("rules").setExecutor(new RulesCommand());
         getCommand("practice").setExecutor(new PracticeCommand(practiceManager));
         getCommand("events").setExecutor(new EventsCommand(communityEventManager));
         getCommand("goals").setExecutor(new GoalsCommand(goalTracker));
-        FriendCommand friendCommand = new FriendCommand(friendManager);
+        FriendCommand friendCommand = new FriendCommand(friendManager, socialMenu);
         getCommand("friend").setExecutor(friendCommand);
         getCommand("friend").setTabCompleter(friendCommand);
         getCommand("menu").setExecutor((sender, command, label, args) -> {

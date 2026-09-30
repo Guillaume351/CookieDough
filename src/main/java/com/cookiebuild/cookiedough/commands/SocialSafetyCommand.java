@@ -16,6 +16,7 @@ import com.cookiebuild.cookiedough.chat.ChatManager;
 import com.cookiebuild.cookiedough.retention.FriendManager;
 import com.cookiebuild.cookiedough.retention.FriendRepository;
 import com.cookiebuild.cookiedough.utils.DiscordUtils;
+import com.cookiebuild.cookiedough.utils.LocaleManager;
 
 public final class SocialSafetyCommand implements CommandExecutor {
     private static final long REPORT_COOLDOWN_MS = 60_000;
@@ -35,38 +36,40 @@ public final class SocialSafetyCommand implements CommandExecutor {
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage(ChatColor.YELLOW + "/" + label + " <player>" +
-                    (command.getName().equalsIgnoreCase("report") ? " <reason>" : ""));
+            player.sendMessage(ChatColor.YELLOW + (command.getName().equalsIgnoreCase("report")
+                    ? message(player, "social.report.usage")
+                    : message(player, "social.safety.usage", label)));
             return true;
         }
         Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null || target.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage(ChatColor.RED + "That player is not available.");
+            player.sendMessage(ChatColor.RED + message(player, "social.safety.not_available"));
             return true;
         }
         if (command.getName().equalsIgnoreCase("mute")) {
             boolean blocked = chatManager.toggleBlock(player.getUniqueId(), target.getUniqueId());
-            player.sendMessage((blocked ? ChatColor.GREEN + "Muted " : ChatColor.YELLOW + "Unmuted ")
-                    + target.getName() + ".");
+            player.sendMessage(blocked
+                    ? ChatColor.GREEN + message(player, "social.safety.muted", target.getName())
+                    : ChatColor.YELLOW + message(player, "social.safety.unmuted", target.getName()));
             return true;
         }
         if (command.getName().equalsIgnoreCase("block")) {
             friends.toggleBlock(player, target, result -> {
                 boolean blocked = result == FriendRepository.BlockResult.BLOCKED;
                 chatManager.setBlocked(player.getUniqueId(), target.getUniqueId(), blocked);
-                player.sendMessage((blocked
-                        ? ChatColor.GREEN + "Blocked "
-                        : ChatColor.YELLOW + "Unblocked ") + target.getName() + ".");
+                player.sendMessage(blocked
+                        ? ChatColor.GREEN + message(player, "social.safety.blocked", target.getName())
+                        : ChatColor.YELLOW + message(player, "social.safety.unblocked", target.getName()));
             }, error -> player.sendMessage(ChatColor.RED + error));
             return true;
         }
         if (args.length < 2) {
-            player.sendMessage(ChatColor.YELLOW + "/report <player> <reason>");
+            player.sendMessage(ChatColor.YELLOW + message(player, "social.report.usage"));
             return true;
         }
         long now = System.currentTimeMillis();
         if (now - lastReport.getOrDefault(player.getUniqueId(), 0L) < REPORT_COOLDOWN_MS) {
-            player.sendMessage(ChatColor.RED + "Please wait before sending another report.");
+            player.sendMessage(ChatColor.RED + message(player, "social.report.cooldown"));
             return true;
         }
         lastReport.put(player.getUniqueId(), now);
@@ -78,16 +81,17 @@ public final class SocialSafetyCommand implements CommandExecutor {
                     String report = "REPORT: " + player.getName() + " reported " + target.getName() + ": " + details;
                     CookieDough.getInstance().getLogger().warning(report);
                     DiscordUtils.sendDiscordMessage(System.getenv("DISCORD_MODERATION_WEBHOOK_URL"), report);
-                    player.sendMessage(ChatColor.GREEN
-                            + "Report sent. Thank you for helping keep the server welcoming.");
+                    player.sendMessage(ChatColor.GREEN + message(player, "social.report.sent"));
                 }
-                case DUPLICATE -> player.sendMessage(ChatColor.YELLOW
-                        + "You already reported that issue recently.");
-                case TOO_MANY -> player.sendMessage(ChatColor.RED
-                        + "Too many reports were sent recently. Please contact the team if this is urgent.");
+                case DUPLICATE -> player.sendMessage(ChatColor.YELLOW + message(player, "social.report.duplicate"));
+                case TOO_MANY -> player.sendMessage(ChatColor.RED + message(player, "social.report.too_many"));
             }
         }, error -> player.sendMessage(ChatColor.RED + error));
         return true;
+    }
+
+    private static String message(Player player, String key, Object... args) {
+        return LocaleManager.getMessage(key, player.locale(), args);
     }
 
     static String reportCategory(String details) {

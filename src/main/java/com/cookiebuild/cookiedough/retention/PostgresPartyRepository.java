@@ -325,6 +325,33 @@ public final class PostgresPartyRepository implements PartyRepository {
         });
     }
 
+    @Override
+    public List<UUID> pendingInviteLeaders(UUID inviteeId) {
+        return transaction("list pending party invitations", connection -> {
+            List<UUID> leaders = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement("""
+                    SELECT p.leader_player_id, max(i.created_at) AS latest
+                      FROM player_party_invites i
+                      JOIN player_parties p ON p.id = i.party_id
+                     WHERE i.invitee_player_id = ?
+                       AND i.status = 'pending'
+                       AND i.expires_at > now()
+                       AND p.state = 'active'
+                     GROUP BY p.leader_player_id
+                     ORDER BY latest DESC
+                     LIMIT 5
+                    """)) {
+                statement.setObject(1, inviteeId);
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        leaders.add(rows.getObject(1, UUID.class));
+                    }
+                }
+            }
+            return List.copyOf(leaders);
+        });
+    }
+
     private static Membership activeMembership(Connection connection, UUID playerId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(ACTIVE_MEMBERSHIP)) {
             statement.setObject(1, playerId);

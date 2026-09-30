@@ -34,8 +34,9 @@ commands:
     description: Report a player to the moderation team
     usage: /<command> <player> <reason>
   party:
-    description: Create and manage a player party
+    description: Open the party menu, or manage your party by command
     usage: /<command> [create|invite|join|leave|list]
+    aliases: [groupe]
   rally:
     description: Call opted-in players to an underfilled queue
     usage: /<command> [MicroBattles|Pitchout|SkyWars|BuildBattles|TurfWars|BedWars]
@@ -52,9 +53,9 @@ commands:
     description: Show weekly objectives and achievements
     usage: /<command>
   friend:
-    description: Create and manage friend relationships
+    description: Open the friends & party menu, or manage friends by command
     usage: /<command> [list|add <player>|accept <player>|deny <player>|remove <player>]
-    aliases: [friends]
+    aliases: [friends, amis]
   menu:
     description: Open the Cookie Build player menu
     usage: /<command>
