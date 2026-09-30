@@ -27,6 +27,8 @@ public class MinigameProgressionService {
     public static final String BUILDBATTLES = "buildbattles";
     public static final String TURFWARS = "turfwars";
     public static final String BEDWARS = "bedwars";
+    public static final String FATKING = "fatking";
+    public static final String NOMADWARS = "nomadwars";
 
     private final EntityManager legacyEntityManager;
 
@@ -180,6 +182,8 @@ public class MinigameProgressionService {
             case "buildbattles" -> BUILDBATTLES;
             case "turfwars" -> TURFWARS;
             case "bedwars" -> BEDWARS;
+            case "fatking" -> FATKING;
+            case "nomadwars" -> NOMADWARS;
             default -> null;
         };
     }
