@@ -17,6 +17,8 @@ import com.cookiebuild.cookiedough.utils.LocaleManager;
 final class FunnelMenuModels {
     static final String DISCORD_INVITE = "discord.gg/ajmPnwh9g8";
     static final String APP_URL = "www.cookie-build.com";
+    /** Public Build Battle gallery, always shown as plain text (Bedrock cannot open links). */
+    static final String GALLERY_URL = "cookie-build.com/builds";
 
     /** Another queue a player could move to, with its current population. */
     record QueueChoice(String gameName, int players) { }
@@ -24,6 +26,15 @@ final class FunnelMenuModels {
     private FunnelMenuModels() { }
 
     static HubGameMenuModel replay(String gameName, Locale locale, QueueChoice otherQueue, boolean autoReplay) {
+        return replay(gameName, locale, otherQueue, autoReplay, null);
+    }
+
+    /**
+     * @param returnLine optional "come back tomorrow" line (login calendar),
+     *        shown under the status on both editions
+     */
+    static HubGameMenuModel replay(String gameName, Locale locale, QueueChoice otherQueue, boolean autoReplay,
+            String returnLine) {
         String name = GamePresentation.readableName(gameName, locale);
         List<HubGameMenuModel.Entry> entries = new ArrayList<>();
         entries.add(new HubGameMenuModel.Entry("replay:same", Material.LIME_DYE, "actions/join",
@@ -44,8 +55,20 @@ final class FunnelMenuModels {
         entries.add(new HubGameMenuModel.Entry("replay:lobby", Material.OAK_DOOR, "actions/home",
                 message("replay.menu.lobby", locale), message("replay.menu.lobby_hint", locale)));
         return new HubGameMenuModel(message("replay.menu.title", locale),
-                message("replay.menu.status", locale, name) + "\n" + message("replay.menu.status_hint", locale),
+                message("replay.menu.status", locale, name) + "\n" + message("replay.menu.status_hint", locale)
+                        + (returnLine == null || returnLine.isBlank() ? "" : "\n" + returnLine),
                 entries);
+    }
+
+    /** "Galerie Build Battle": the URL as plain text, with a way back. */
+    static HubGameMenuModel gallery(Locale locale) {
+        List<HubGameMenuModel.Entry> entries = List.of(
+                new HubGameMenuModel.Entry("back", Material.ARROW, "actions/back",
+                        message("hub.back", locale), message("hub.back_lore", locale)),
+                new HubGameMenuModel.Entry("close", Material.BARRIER, "actions/close",
+                        message("hub.game.detail.close", locale), message("hub.game.detail.close_lore", locale)));
+        return new HubGameMenuModel(message("hub.gallery.name", locale),
+                message("hub.gallery.content", locale, GALLERY_URL), entries);
     }
 
     static HubGameMenuModel waiting(String gameName, int minimumPlayers, Locale locale, QueueChoice otherQueue,

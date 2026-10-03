@@ -424,6 +424,7 @@ public final class CosmeticEffects implements Listener {
         return switch (trail) {
             case CosmeticCatalog.COOKIE_CRUMB_TRAIL -> Particle.FALLING_HONEY;
             case CosmeticCatalog.COOKIE_SPARKLE_TRAIL -> Particle.END_ROD;
+            case CosmeticCatalog.STARTER_SPARK_TRAIL -> Particle.CRIT;
             case CosmeticCatalog.NOTE_TRAIL -> Particle.NOTE;
             case CosmeticCatalog.HEART_TRAIL -> Particle.HEART;
             case CosmeticCatalog.STREAK_STAR_TRAIL -> Particle.FIREWORK;

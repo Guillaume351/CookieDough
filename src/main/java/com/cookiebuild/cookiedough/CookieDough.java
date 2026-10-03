@@ -103,6 +103,8 @@ public final class CookieDough extends JavaPlugin {
         getServer().getPluginManager().registerEvents(socialMenu, this);
         getServer().getPluginManager().registerEvents(cosmeticEffects, this);
         getServer().getPluginManager().registerEvents(retentionRewards, this);
+        getServer().getPluginManager().registerEvents(
+                new com.cookiebuild.cookiedough.retention.SoireeMotdListener(communityEventManager), this);
     }
 
     public LobbyManager getLobbyManager() {

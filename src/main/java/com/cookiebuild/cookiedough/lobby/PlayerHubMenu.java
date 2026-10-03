@@ -80,6 +80,8 @@ public final class PlayerHubMenu implements Listener {
     }
 
     static final int REPLAY_ITEM_SLOT = 4;
+    /** Centre of the main menu, between "Choose a game" and the quests. */
+    static final int GALLERY_SLOT = 13;
 
     public PlayerHubMenu(CookieDough plugin, LobbyManager lobby, PlayerGoalTracker goals, FriendManager friends) {
         this.plugin = plugin;
@@ -402,6 +404,8 @@ public final class PlayerHubMenu implements Listener {
                 message(player, "hub.calendar.lore")));
         inventory.setItem(22, item(Material.EMERALD, message(player, "hub.shop.name"), "shop",
                 message(player, "hub.shop.lore")));
+        inventory.setItem(GALLERY_SLOT, item(Material.PAINTING, message(player, "hub.gallery.name"), "gallery",
+                message(player, "hub.gallery.lore"), FunnelMenuModels.GALLERY_URL));
         return inventory;
     }
 
@@ -467,7 +471,7 @@ public final class PlayerHubMenu implements Listener {
         java.util.Locale locale = player.locale();
         return switch (page) {
             case REPLAY -> FunnelMenuModels.replay(context, locale, busiestQueueChoice(null, context),
-                    isAutoReplayEnabled(player));
+                    isAutoReplayEnabled(player), tomorrowLine(player));
             case WAITING -> {
                 CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
                 Game current = cookiePlayer == null ? null : GameManager.getGameOfPlayer(cookiePlayer);
@@ -484,8 +488,19 @@ public final class PlayerHubMenu implements Listener {
                         new FunnelMenuModels.QueueChoice(parts.length > 1 ? parts[1] : parts[0], players));
             }
             case COMMUNITY -> FunnelMenuModels.community(locale);
+            case GALLERY -> FunnelMenuModels.gallery(locale);
             default -> throw new IllegalArgumentException("Not a funnel page: " + page);
         };
+    }
+
+    /** Tomorrow's login-calendar reward, once known this session. */
+    private String tomorrowLine(Player player) {
+        com.cookiebuild.cookiedough.retention.RetentionRewardService rewards = plugin.getRetentionRewards();
+        if (rewards == null) return null;
+        return rewards.tomorrowReward(player.getUniqueId())
+                .map(reward -> com.cookiebuild.cookiedough.retention.RetentionRewardService.tomorrowText(
+                        player.locale(), reward))
+                .orElse(null);
     }
 
     private FunnelMenuModels.QueueChoice busiestQueueChoice(Game current, String excludedGameName) {
@@ -661,6 +676,7 @@ public final class PlayerHubMenu implements Listener {
             case "events" -> run(player, "events");
             case "app" -> run(player, "app status");
             case "community" -> showCommunityLinks(player);
+            case "gallery" -> showGallery(player);
             case "onboarding" -> openOnboarding(player);
             case "help" -> {
                 player.closeInventory();
@@ -793,6 +809,25 @@ public final class PlayerHubMenu implements Listener {
         }
     }
 
+    /**
+     * "Galerie Build Battle": the URL as readable text in chat for everyone
+     * (Java can also click it) and, on Bedrock, in a native form.
+     */
+    private void showGallery(Player player) {
+        player.closeInventory();
+        FunnelTelemetry.record(player, FunnelTelemetry.Event.SELECTOR_OPENED, "selector=bb_gallery");
+        Component url = Component.text(FunnelMenuModels.GALLERY_URL, NamedTextColor.AQUA);
+        if (!BedrockFormSupport.isBedrock(player)) {
+            url = url.clickEvent(ClickEvent.openUrl("https://" + FunnelMenuModels.GALLERY_URL));
+        }
+        player.sendMessage(Component.text(message(player, "hub.gallery.name") + " : ", NamedTextColor.GOLD)
+                .append(url));
+        player.sendMessage(Component.text(message(player, "hub.gallery.lore"), NamedTextColor.GRAY));
+        if (BedrockFormSupport.isBedrock(player)) {
+            openBedrock(player, MenuPage.GALLERY, null);
+        }
+    }
+
     private void openPage(Player player, MenuPage page) {
         openPage(player, page, null);
     }
@@ -805,7 +840,8 @@ public final class PlayerHubMenu implements Listener {
             case GAMES -> gamesInventory(player);
             case GAME_DETAIL -> gameDetailInventory(player, context);
             case GOALS -> goalsInventory(player);
-            case REPLAY, WAITING, SWITCH, COMMUNITY -> modelInventory(page, context, funnelModel(player, page, context));
+            case REPLAY, WAITING, SWITCH, COMMUNITY, GALLERY ->
+                    modelInventory(page, context, funnelModel(player, page, context));
             case QUEUE -> queueInventory(player, context);
         });
     }
@@ -860,6 +896,8 @@ public final class PlayerHubMenu implements Listener {
                             message(player, "hub.friends.lore")), "friends");
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.shop.name"),
                             message(player, "hub.shop.lore")), "shop");
+                    hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.gallery.name"),
+                            message(player, "hub.gallery.lore")), "gallery");
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.party.name"),
                             message(player, "hub.party.lore")), "party");
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "hub.events.name"),
@@ -914,7 +952,7 @@ public final class PlayerHubMenu implements Listener {
                                 "queue:activity:Skyblock", "modes/skyblock");
                     }
                 }
-                case REPLAY, WAITING, SWITCH, COMMUNITY -> {
+                case REPLAY, WAITING, SWITCH, COMMUNITY, GALLERY -> {
                     HubGameMenuModel model = funnelModel(player, page, context);
                     builder.title("§l§6" + model.title()).content(model.content());
                     for (HubGameMenuModel.Entry entry : model.entries()) {
@@ -1052,7 +1090,8 @@ public final class PlayerHubMenu implements Listener {
         REPLAY,
         WAITING,
         SWITCH,
-        COMMUNITY
+        COMMUNITY,
+        GALLERY
     }
 
     private static final class MenuHolder implements InventoryHolder {

@@ -14,6 +14,8 @@ public final class RewardGrantText {
         return switch (source == null ? "" : source) {
             case "app_link" -> "rewards.app.link";
             case "app_daily" -> "rewards.app.daily";
+            // Weekly Build Battle gallery best-of (website job, Monday 10:00 Paris).
+            case "bb_bestof" -> "rewards.bb.bestof";
             default -> "rewards.generic";
         };
     }

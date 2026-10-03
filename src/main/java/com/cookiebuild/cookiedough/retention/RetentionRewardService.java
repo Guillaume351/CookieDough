@@ -56,6 +56,7 @@ public final class RetentionRewardService implements Listener {
     private final ExecutorService worker;
     private final Map<UUID, Instant> sessionStarts = new ConcurrentHashMap<>();
     private final Map<UUID, LocalDate> claimedDays = new ConcurrentHashMap<>();
+    private final Map<UUID, LoginCalendarPolicy.TomorrowReward> tomorrowRewards = new ConcurrentHashMap<>();
     private final Set<UUID> claimsInFlight = ConcurrentHashMap.newKeySet();
     private final Set<String> warnings = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean grantPollRunning = new AtomicBoolean();
@@ -108,6 +109,20 @@ public final class RetentionRewardService implements Listener {
         UUID playerId = event.getPlayer().getUniqueId();
         sessionStarts.remove(playerId);
         claimedDays.remove(playerId);
+        tomorrowRewards.remove(playerId);
+    }
+
+    /**
+     * Tomorrow's login reward for the post-match menu, known once today's
+     * claim (or the already-claimed state) has been read this session.
+     */
+    public Optional<LoginCalendarPolicy.TomorrowReward> tomorrowReward(UUID playerId) {
+        return Optional.ofNullable(playerId == null ? null : tomorrowRewards.get(playerId));
+    }
+
+    /** "Reviens demain : +N pièces (jour X/7)", plain text for Java and Bedrock. */
+    public static String tomorrowText(Locale locale, LoginCalendarPolicy.TomorrowReward reward) {
+        return message(locale, "calendar.return_tomorrow", reward.coins(), reward.cycleDay());
     }
 
     /** Plain-text 7-day calendar for /calendrier; safe to call from the hub. */
@@ -159,6 +174,13 @@ public final class RetentionRewardService implements Listener {
                     unlockedCosmetic = true;
                 }
                 claimedDays.put(playerId, today);
+                if (outcome.isPresent()) {
+                    tomorrowRewards.put(playerId, LoginCalendarPolicy.tomorrowAfter(outcome.get().claim()));
+                } else {
+                    // Already claimed today (e.g. reconnect): read the state for the post-match menu.
+                    tomorrowRewards.put(playerId, LoginCalendarPolicy.tomorrow(
+                            calendar.load(playerId).orElse(null), today));
+                }
                 boolean cosmeticUnlocked = unlockedCosmetic;
                 outcome.ifPresent(result -> Bukkit.getScheduler().runTask(plugin,
                         () -> announceClaim(playerId, result, cosmeticUnlocked)));
@@ -202,9 +224,7 @@ public final class RetentionRewardService implements Listener {
             player.sendMessage(ChatColor.GREEN + message(locale, "calendar.claimed", claim.cycleDay(),
                     outcome.calendarCoins(), claim.streak()));
         }
-        int nextDay = LoginCalendarPolicy.cycleDay(claim.streak() + 1);
-        player.sendMessage(ChatColor.GRAY + message(locale, "calendar.tomorrow",
-                LoginCalendarPolicy.coinsForCycleDay(nextDay), nextDay));
+        player.sendMessage(ChatColor.YELLOW + tomorrowText(locale, LoginCalendarPolicy.tomorrowAfter(claim)));
         if (!claim.welcomeBack()) player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.6f, 1.3f);
     }
 

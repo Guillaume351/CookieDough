@@ -93,4 +93,26 @@ class FunnelMenuModelsTest {
             assertTrue(slots.stream().allMatch(slot -> slot >= 9 && slot <= 17));
         }
     }
+
+    @Test
+    void postMatchChoiceShowsTomorrowsLoginRewardWhenKnown() {
+        HubGameMenuModel model = FunnelMenuModels.replay("BuildBattles", Locale.FRENCH, null, false,
+                "Reviens demain : +40 pièces (jour 4/7)");
+        assertTrue(model.content().endsWith("\nReviens demain : +40 pièces (jour 4/7)"), model.content());
+        assertFalse(FunnelMenuModels.replay("BuildBattles", Locale.FRENCH, null, false, null)
+                .content().contains("Reviens demain"));
+    }
+
+    @Test
+    void galleryPageShowsThePlainUrlInEveryLocale() {
+        for (Locale locale : LOCALES) {
+            HubGameMenuModel model = FunnelMenuModels.gallery(locale);
+            assertTrue(model.content().contains("cookie-build.com/builds"), locale + ": " + model.content());
+            assertFalse(model.title().startsWith("hub."), locale.toString());
+            assertEquals(List.of("back", "close"),
+                    model.entries().stream().map(HubGameMenuModel.Entry::action).toList());
+        }
+        assertEquals("Galerie Build Battle", FunnelMenuModels.gallery(Locale.FRENCH).title());
+        assertEquals("actions/preview", HubActionImages.texture("gallery").orElseThrow());
+    }
 }

@@ -14,6 +14,7 @@ public final class HubActionImages {
             Map.entry("events", "actions/events"),
             Map.entry("app", "actions/app"),
             Map.entry("help", "actions/help"),
+            Map.entry("gallery", "actions/preview"),
             Map.entry("community", "actions/friends"),
             Map.entry("back", "actions/back"),
             Map.entry("queue:leave", "actions/close"),

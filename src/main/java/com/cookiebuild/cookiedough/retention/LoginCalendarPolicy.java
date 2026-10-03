@@ -65,6 +65,35 @@ public final class LoginCalendarPolicy {
                 absence));
     }
 
+    /** Reward of the next calendar day, shown as "come back tomorrow". */
+    public record TomorrowReward(int cycleDay, int coins) {
+    }
+
+    /**
+     * Reward the player gets by coming back tomorrow, assuming today is (or
+     * will be) claimed: the streak continues from today's claim.
+     */
+    public static TomorrowReward tomorrow(State state, LocalDate today) {
+        int todayStreak;
+        if (state == null || state.lastClaimDay() == null) {
+            todayStreak = 1;
+        } else if (!state.lastClaimDay().isBefore(today)) {
+            todayStreak = state.streak();
+        } else if (state.lastClaimDay().plusDays(1).equals(today)) {
+            todayStreak = state.streak() + 1;
+        } else {
+            todayStreak = 1;
+        }
+        int day = cycleDay(todayStreak + 1);
+        return new TomorrowReward(day, coinsForCycleDay(day));
+    }
+
+    /** Same as {@link #tomorrow(State, LocalDate)} right after a claim. */
+    public static TomorrowReward tomorrowAfter(Claim claim) {
+        int day = cycleDay(claim.streak() + 1);
+        return new TomorrowReward(day, coinsForCycleDay(day));
+    }
+
     public static int cycleDay(int streak) {
         return ((Math.max(1, streak) - 1) % CYCLE_LENGTH) + 1;
     }

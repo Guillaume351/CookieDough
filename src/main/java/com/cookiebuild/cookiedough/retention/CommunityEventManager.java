@@ -50,6 +50,11 @@ public final class CommunityEventManager {
         return current == null ? 1 : current.multiplierAt(Instant.now());
     }
 
+    /** Recurring schedule, or null when Soirées are not configured. Thread-safe. */
+    public WeeklyEventSchedule recurringSchedule() {
+        return schedule;
+    }
+
     /** The running or next recurring occurrence, for other surfaces (hub, scoreboard). */
     public Optional<WeeklyEventSchedule.Occurrence> currentOrNextRecurring() {
         WeeklyEventSchedule current = schedule;

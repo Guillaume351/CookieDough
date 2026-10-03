@@ -22,12 +22,15 @@ public final class CosmeticCatalog {
     public static final String SUPPORTER_JOIN_FLAIR = "supporter_join_flair";
     /** Coin shop (never sold for real money). */
     public static final String NOTE_TRAIL = "note_trail";
+    /** Cheap first coin purchase (release bb-gallery-20261003; website migration 0025). */
+    public static final String STARTER_SPARK_TRAIL = "starter_spark_trail";
     public static final String HEART_TRAIL = "heart_trail";
     /** Reward-only: day 7 of the in-game login calendar. */
     public static final String STREAK_STAR_TRAIL = "streak_star_trail";
     /** Reward-only: linking the mobile app (granted through player_reward_grants). */
     public static final String APP_COMPANION_BADGE = "app_companion_badge";
 
+    public static final int STARTER_SPARK_TRAIL_PRICE = 250;
     public static final int NOTE_TRAIL_PRICE = 1_000;
     public static final int HEART_TRAIL_PRICE = 2_500;
 
@@ -41,6 +44,7 @@ public final class CosmeticCatalog {
             definition(SUPPORTER_JOIN_FLAIR, CosmeticSlot.JOIN_FLAIR, Material.GLOW_BERRIES, false),
             new CosmeticDefinition(COOKIE_SPARKLE_TRAIL, CosmeticSlot.HUB_TRAIL, Material.GLOWSTONE_DUST,
                     "cosmetics.item.cookie_sparkle_trail.name", "cosmetics.item.cookie_sparkle_trail.description", true, true),
+            coins(STARTER_SPARK_TRAIL, CosmeticSlot.HUB_TRAIL, Material.FIREWORK_STAR, STARTER_SPARK_TRAIL_PRICE),
             coins(NOTE_TRAIL, CosmeticSlot.HUB_TRAIL, Material.NOTE_BLOCK, NOTE_TRAIL_PRICE),
             coins(HEART_TRAIL, CosmeticSlot.HUB_TRAIL, Material.POPPY, HEART_TRAIL_PRICE),
             reward(STREAK_STAR_TRAIL, CosmeticSlot.HUB_TRAIL, Material.NETHER_STAR, "cosmetics.unlock.streak"),

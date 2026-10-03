@@ -73,4 +73,24 @@ class LoginCalendarPolicyTest {
         assertEquals(1, LoginCalendarPolicy.upcomingCycleDay(
                 new LoginCalendarPolicy.State(TODAY, 7, 7, 7), TODAY));
     }
+
+    @Test
+    void tomorrowRewardFollowsTheStreakFromTodaysClaim() {
+        assertEquals(new LoginCalendarPolicy.TomorrowReward(2, 25), LoginCalendarPolicy.tomorrow(null, TODAY));
+        LoginCalendarPolicy.State claimedToday = new LoginCalendarPolicy.State(TODAY, 3, 3, 3);
+        assertEquals(new LoginCalendarPolicy.TomorrowReward(4, 40), LoginCalendarPolicy.tomorrow(claimedToday, TODAY));
+        LoginCalendarPolicy.State claimedYesterday = new LoginCalendarPolicy.State(TODAY.minusDays(1), 5, 5, 5);
+        assertEquals(new LoginCalendarPolicy.TomorrowReward(7, 100),
+                LoginCalendarPolicy.tomorrow(claimedYesterday, TODAY));
+        LoginCalendarPolicy.State broken = new LoginCalendarPolicy.State(TODAY.minusDays(3), 5, 5, 5);
+        assertEquals(new LoginCalendarPolicy.TomorrowReward(2, 25), LoginCalendarPolicy.tomorrow(broken, TODAY));
+        LoginCalendarPolicy.State daySeven = new LoginCalendarPolicy.State(TODAY, 7, 7, 7);
+        assertEquals(new LoginCalendarPolicy.TomorrowReward(1, 20), LoginCalendarPolicy.tomorrow(daySeven, TODAY));
+
+        LoginCalendarPolicy.Claim claim = LoginCalendarPolicy.evaluate(claimedYesterday, null, TODAY).orElseThrow();
+        assertEquals(LoginCalendarPolicy.tomorrow(claim.next(claimedYesterday), TODAY),
+                LoginCalendarPolicy.tomorrowAfter(claim));
+        assertEquals("Reviens demain : +40 pièces (jour 4/7)", RetentionRewardService.tomorrowText(
+                java.util.Locale.FRENCH, new LoginCalendarPolicy.TomorrowReward(4, 40)));
+    }
 }
