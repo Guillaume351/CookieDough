@@ -30,6 +30,10 @@ class HubGameMenuOrderingTest {
                 new ModePopulationService.Snapshot(0, GameState.OPEN, true, false, 2), Locale.FRENCH));
         assertEquals("Starts with 4 players", HubGameMenuModel.availability(
                 new ModePopulationService.Snapshot(0, GameState.OPEN, true, false, 4), Locale.ENGLISH));
+        assertEquals("Démarre même seul", HubGameMenuModel.availability(
+                new ModePopulationService.Snapshot(0, GameState.OPEN, true, false, 2, true), Locale.FRENCH));
+        assertEquals("Starts even solo", HubGameMenuModel.availability(
+                new ModePopulationService.Snapshot(0, GameState.OPEN, true, false, 2, true), Locale.ENGLISH));
         assertEquals("Jouable seul", HubGameMenuModel.availability(
                 new ModePopulationService.Snapshot(0, GameState.OPEN, true, true, 1), Locale.FRENCH));
         assertEquals("1 joueur", HubGameMenuModel.availability(

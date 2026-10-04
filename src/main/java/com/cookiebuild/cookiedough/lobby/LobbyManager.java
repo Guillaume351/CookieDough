@@ -296,8 +296,9 @@ public class LobbyManager implements Listener {
         }
         // Quick Play never sends a lone player away to a solo mode: it joins the
         // ready match, else the busiest queue, else the featured mode, so the
-        // next arrival starts the match. Solo activities are offered afterwards
-        // as a way to wait, keeping the queue intent.
+        // next arrival starts the match (a solo-start mode such as Build Battle
+        // also starts a lone player's match by itself). Solo activities are
+        // offered afterwards as a way to wait, keeping the queue intent.
         if (game != null && player.getState() == PlayerState.LOBBY && game.addPlayerToAvailableTeam(player)) {
             GameManager.cancelQueueIntent(player.getPlayer().getUniqueId());
             // A mode may admit a late joiner straight into a running match:

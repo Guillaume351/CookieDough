@@ -503,11 +503,18 @@ public final class RallyManager {
         if (target == null || !target.isOnline()) {
             return;
         }
-        String key = source == RallyRepository.Source.LOGIN
-                ? "rally.call.login.launched"
-                : "rally.call.game.launched";
+        String key = callLaunchedKey(source, game != null && game.supportsSoloStart());
         String gameName = game == null ? "Cookie Build" : readable(game, target.locale());
         target.sendMessage(ChatColor.LIGHT_PURPLE + LocaleManager.getMessage(key, target.locale(), gameName));
+    }
+
+    /**
+     * A solo-start queue (Build Battle) starts within seconds anyway: its
+     * caller must not be told to wait minutes for the responders.
+     */
+    static String callLaunchedKey(RallyRepository.Source source, boolean soloStartQueue) {
+        if (source == RallyRepository.Source.LOGIN) return "rally.call.login.launched";
+        return soloStartQueue ? "rally.call.game.launched_solo" : "rally.call.game.launched";
     }
 
     private static String readable(Game game, Locale locale) {

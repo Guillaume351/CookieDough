@@ -80,11 +80,15 @@ public record HubGameMenuModel(String title, String content, List<Entry> entries
         return sorted;
     }
 
-    /** Encouraging population text: never a bare "0 players". */
+    /**
+     * Encouraging population text: never a bare "0 players", and never "starts
+     * with 2 players" for a mode that starts a lone player's match by itself.
+     */
     static String availability(ModePopulationService.Snapshot snapshot, Locale locale) {
         if (snapshot.players() <= 0) {
-            return snapshot.persistent()
-                    ? message("hub.games.solo_ready", locale)
+            if (snapshot.persistent()) return message("hub.games.solo_ready", locale);
+            return snapshot.soloStart()
+                    ? message("hub.games.solo_start", locale)
                     : message("hub.games.starts_at", locale, Math.max(2, snapshot.minimumPlayers()));
         }
         return snapshot.players() == 1

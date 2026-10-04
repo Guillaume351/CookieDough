@@ -12,9 +12,13 @@ import com.cookiebuild.cookiedough.game.GameState;
 /** One source of truth for population and availability across matches and persistent activities. */
 public final class ModePopulationService {
     public record Snapshot(int players, GameState state, boolean available, boolean persistent,
-            int minimumPlayers) {
+            int minimumPlayers, boolean soloStart) {
         public Snapshot(int players, GameState state, boolean available, boolean persistent) {
             this(players, state, available, persistent, persistent ? 1 : 2);
+        }
+
+        public Snapshot(int players, GameState state, boolean available, boolean persistent, int minimumPlayers) {
+            this(players, state, available, persistent, minimumPlayers, false);
         }
 
         public String stateKey() {
@@ -48,7 +52,7 @@ public final class ModePopulationService {
         int minimumPlayers = arenas.stream().mapToInt(Game::getMinimumPlayers).filter(value -> value > 0)
                 .min().orElse(2);
         return new Snapshot(GameManager.getOnlineGamePlayerCount(modeName), state, available, false,
-                minimumPlayers);
+                minimumPlayers, arenas.stream().anyMatch(Game::supportsSoloStart));
     }
 
     public static int totalActivePlayers() {

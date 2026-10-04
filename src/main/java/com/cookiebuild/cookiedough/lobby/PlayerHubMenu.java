@@ -556,7 +556,7 @@ public final class PlayerHubMenu implements Listener {
         Inventory inventory = holder.inventory();
         inventory.setItem(4, item(Material.CLOCK, message(player, "queue.menu.status", readable(player, gameName)),
                 "noop", message(player, "queue.menu.status_hint")));
-        if (ModePopulationService.isPersistentActivityAvailable("Skyblock")) {
+        if (offerSkyblockWhileQueued(gameName)) {
             inventory.setItem(22, item(Material.GRASS_BLOCK, message(player, "queue.wait.skyblock"),
                     "queue:activity:Skyblock", message(player, "queue.wait.skyblock_hint",
                             readable(player, gameName))));
@@ -946,7 +946,7 @@ public final class PlayerHubMenu implements Listener {
                             message(player, "queue.menu.practice_hint")), "queue:practice");
                     hubButton(builder, actions, BedrockButtonText.format(message(player, "queue.menu.rally"),
                             message(player, "queue.menu.rally_hint")), "queue:rally");
-                    if (ModePopulationService.isPersistentActivityAvailable("Skyblock")) {
+                    if (offerSkyblockWhileQueued(context)) {
                         button(builder, actions, BedrockButtonText.format(message(player, "queue.wait.skyblock"),
                                 message(player, "queue.wait.skyblock_hint", readable(player, context))),
                                 "queue:activity:Skyblock", "modes/skyblock");
@@ -1051,15 +1051,22 @@ public final class PlayerHubMenu implements Listener {
 
     /**
      * The primary onboarding action is always Quick Play: it joins a ready
-     * match, else the featured Build Battle queue so the next arrival starts
-     * the match. Skyblock (beta, solo) is never the default for a new player.
+     * match, else the featured Build Battle queue, which starts even for a
+     * lone player after a short wait. Skyblock (beta, solo) is never the
+     * default for a new player.
      */
     static OnboardingPrimaryButton onboardingPrimaryButton(boolean matchReady) {
+        return onboardingPrimaryButton(matchReady, com.cookiebuild.cookiedough.game.GameManager.startsSolo(
+                com.cookiebuild.cookiedough.game.GameSelectionPolicy.FEATURED_GAME));
+    }
+
+    static OnboardingPrimaryButton onboardingPrimaryButton(boolean matchReady, boolean featuredStartsSolo) {
         return matchReady
                 ? new OnboardingPrimaryButton("quick", Material.NETHER_STAR,
                         "hub.quick.name", "hub.quick.lore", null)
                 : new OnboardingPrimaryButton("quick", Material.CRAFTING_TABLE,
-                        "hub.onboarding.featured_name", "hub.onboarding.featured_lore",
+                        "hub.onboarding.featured_name", featuredStartsSolo
+                                ? "hub.onboarding.featured_lore_solo" : "hub.onboarding.featured_lore",
                         GamePresentation.forGame(com.cookiebuild.cookiedough.game.GameSelectionPolicy.FEATURED_GAME)
                                 .bedrockTexture());
     }
@@ -1071,6 +1078,16 @@ public final class PlayerHubMenu implements Listener {
 
     private static String readable(Player player, String gameName) {
         return GamePresentation.readableName(gameName, player.locale());
+    }
+
+    /**
+     * "Play Skyblock while you wait" turns the queue spot into a passive intent
+     * that only comes back at the configured minimum, which would cancel a
+     * solo start (Build Battle starts a lone player's match by itself).
+     */
+    private static boolean offerSkyblockWhileQueued(String gameName) {
+        return ModePopulationService.isPersistentActivityAvailable("Skyblock")
+                && !com.cookiebuild.cookiedough.game.GameManager.startsSolo(gameName);
     }
 
     record OnboardingPrimaryButton(String action, Material material, String nameKey,

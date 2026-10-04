@@ -442,18 +442,22 @@ public class PlayerWrapperListener implements Listener {
     /**
      * Java players can click the hint; Bedrock players cannot click chat, so
      * they get plain wording that points at the compass instead. A quiet
-     * lobby promotes the featured queue, not a solo mode.
+     * lobby promotes the featured queue, not a solo mode. When the featured
+     * mode starts a lone player's match by itself (Build Battle), the hint
+     * says so instead of waiting for a second player.
      */
     private void showLobbyHint(Player player) {
         boolean bedrock = com.cookiebuild.cookiedough.ui.BedrockFormSupport.isBedrock(player);
         boolean quiet = Bukkit.getOnlinePlayers().size() <= 1;
+        String featuredGame = com.cookiebuild.cookiedough.game.GameSelectionPolicy.FEATURED_GAME;
         String featured = com.cookiebuild.cookiedough.lobby.GamePresentation.readableName(
-                com.cookiebuild.cookiedough.game.GameSelectionPolicy.FEATURED_GAME, player.locale());
+                featuredGame, player.locale());
+        String featuredKey = featuredHintKey(com.cookiebuild.cookiedough.game.GameManager.startsSolo(featuredGame));
         if (bedrock) {
             player.sendMessage(Component.text(LocaleManager.getMessage("lobby.menu.action.bedrock", player.locale()),
                     NamedTextColor.GOLD));
             if (quiet) {
-                player.sendMessage(Component.text(LocaleManager.getMessage("lobby.solo.featured.bedrock",
+                player.sendMessage(Component.text(LocaleManager.getMessage(featuredKey + ".bedrock",
                         player.locale(), featured), NamedTextColor.GRAY));
             }
             return;
@@ -467,11 +471,16 @@ public class PlayerWrapperListener implements Listener {
             hint = hint.append(Component.text("  •  ", NamedTextColor.DARK_GRAY))
                     .append(Component.text(LocaleManager.getMessage("lobby.solo.prompt", player.locale()),
                                     NamedTextColor.GRAY))
-                    .append(Component.text(" " + LocaleManager.getMessage("lobby.solo.featured", player.locale(),
+                    .append(Component.text(" " + LocaleManager.getMessage(featuredKey, player.locale(),
                                     featured), NamedTextColor.GREEN)
                             .clickEvent(ClickEvent.runCommand("/quickplay")));
         }
         player.sendMessage(hint);
+    }
+
+    /** Quiet-lobby hint for the featured mode; the Bedrock variant appends {@code .bedrock}. */
+    static String featuredHintKey(boolean featuredStartsSolo) {
+        return featuredStartsSolo ? "lobby.solo.featured_solo" : "lobby.solo.featured";
     }
 
     /**

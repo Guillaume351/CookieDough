@@ -26,6 +26,26 @@ class FeaturedQueueOrientationContractTest {
     }
 
     @Test
+    void aSoloStartFeaturedModeNeverPromisesASecondPlayer() {
+        assertEquals("hub.onboarding.featured_lore_solo",
+                PlayerHubMenu.onboardingPrimaryButton(false, true).loreKey());
+        assertEquals("hub.onboarding.featured_lore",
+                PlayerHubMenu.onboardingPrimaryButton(false, false).loreKey());
+        assertEquals("hub.quick.lore", PlayerHubMenu.onboardingPrimaryButton(true, true).loreKey());
+        for (java.util.Locale locale : java.util.List.of(java.util.Locale.ENGLISH, java.util.Locale.FRENCH,
+                java.util.Locale.GERMAN, java.util.Locale.ITALIAN, java.util.Locale.of("bg"),
+                java.util.Locale.of("es"), java.util.Locale.of("hi"), java.util.Locale.of("pt", "BR"))) {
+            for (String key : java.util.List.of("hub.onboarding.featured_lore_solo", "lobby.solo.featured_solo",
+                    "lobby.solo.featured_solo.bedrock", "hub.games.solo_start", "rally.call.game.launched_solo")) {
+                String text = com.cookiebuild.cookiedough.utils.LocaleManager.getMessage(key, locale, "Build Battle");
+                for (String secondPlayer : java.util.List.of("2e", "2nd", "2.", "2º", "2°", "2-ри", "दूसरा")) {
+                    assertFalse(text.contains(secondPlayer), key + " " + locale + ": " + text);
+                }
+            }
+        }
+    }
+
+    @Test
     void quickPlayQueuesFirstThenOffersWaitingActivities() throws Exception {
         String lobby = Files.readString(Path.of(
                 "src/main/java/com/cookiebuild/cookiedough/lobby/LobbyManager.java"));
