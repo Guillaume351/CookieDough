@@ -27,11 +27,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.cookiebuild.cookiedough.CookieDough;
+import com.cookiebuild.cookiedough.game.Game;
 import com.cookiebuild.cookiedough.game.GameManager;
-import com.cookiebuild.cookiedough.game.GameStatus;
 import com.cookiebuild.cookiedough.game.FunnelTelemetry;
 import com.cookiebuild.cookiedough.listener.NPCReloadListener;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
+
+import net.kyori.adventure.text.Component;
 
 public class GameNPC {
     private static final String NPC_MARKER_KEY = "game_npc";
@@ -43,6 +45,8 @@ public class GameNPC {
     private Mob npc;
     private BukkitTask nameRefreshTask;
     private long lastQueueSignalAtMillis = -1L;
+    /** Last nameplate sent to the current entity; reset whenever the entity is (re)configured. */
+    private Component shownName;
     private final Map<UUID, Long> lastInteraction = new ConcurrentHashMap<>();
 
     public GameNPC(String gameName, Location location, CookieDough plugin) {
@@ -108,6 +112,7 @@ public class GameNPC {
             villager.setProfession(Villager.Profession.MASON);
         }
         configureBetaSelector(mob, gameName);
+        shownName = null;
         updateNPCName();
     }
 
@@ -210,33 +215,43 @@ public class GameNPC {
         Locale locale = LobbyManager.displayLocale();
         String displayName = presentation.displayName(locale);
         if (presentation.persistent()) {
-            npc.customName(LobbyDisplayText.persistentActivityNpc(
+            showName(LobbyDisplayText.persistentActivityNpc(
                     displayName,
                     LobbyModePlayerCounter.forPersistentActivity(gameName), locale));
-            npc.setCustomNameVisible(true);
             return;
         }
-        GameStatus game = GameManager.getGameByName(gameName);
-        int totalPlayerCount = LobbyModePlayerCounter.forMinigame(gameName);
+        Game game = GameManager.getGameByName(gameName);
+        int playing = LobbyModePlayerCounter.playingMinigame(gameName);
         if (game != null) {
             boolean queueOpen = game.isAdmissionsOpen();
             int queuePlayerCount = game.getQueuePlayerCount();
-            npc.customName(LobbyDisplayText.gameNpc(
+            showName(LobbyDisplayText.gameNpc(
                     displayName,
                     presentation.featured(),
-                    totalPlayerCount,
-                    queuePlayerCount,
-                    game.getCapacity(),
-                    game instanceof com.cookiebuild.cookiedough.game.Game arena ? arena.getMinimumPlayers() : 2,
-                    queueOpen,
-                    game.getState(),
-                    queueOpen ? game.getCountdownSeconds() : 0,
+                    new LobbyDisplayText.QueueSnapshot(
+                            queuePlayerCount,
+                            game.getCapacity(),
+                            game.getMinimumPlayers(),
+                            queueOpen,
+                            game.getState(),
+                            queueOpen ? game.getCountdownSeconds() : 0,
+                            queueOpen ? game.getSoloStartEtaSeconds() : -1,
+                            playing),
                     locale));
-            npc.setCustomNameVisible(true);
             playLocalQueueSignal(queueOpen, queuePlayerCount);
         } else {
-            npc.customName(LobbyDisplayText.unavailableGameNpc(
-                    displayName, presentation.featured(), totalPlayerCount, locale));
+            showName(LobbyDisplayText.unavailableGameNpc(
+                    displayName, presentation.featured(), playing, locale));
+        }
+    }
+
+    /** Refreshed every second, but only re-sent to viewers when the text changed. */
+    private void showName(Component name) {
+        if (!name.equals(shownName)) {
+            npc.customName(name);
+            shownName = name;
+        }
+        if (!npc.isCustomNameVisible()) {
             npc.setCustomNameVisible(true);
         }
     }

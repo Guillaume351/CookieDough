@@ -14,8 +14,9 @@ final class LobbyModePlayerCounter {
     private LobbyModePlayerCounter() {
     }
 
-    static int forMinigame(String gameName) {
-        return GameManager.getOnlineGamePlayerCount(gameName);
+    /** Players inside live arenas of the mode (queues excluded, late joiners included). */
+    static int playingMinigame(String gameName) {
+        return GameManager.getPlayingGamePlayerCount(gameName);
     }
 
     static int forPersistentActivity(String activityName) {
