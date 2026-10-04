@@ -18,7 +18,7 @@ final class CosmeticEffectGuard {
 
     static boolean canUseVictoryEffect(
             String selectedId, PlayerState state, long nowMillis, long lastUseMillis, long cooldownMillis) {
-        return CosmeticCatalog.GOLDEN_COOKIE_BURST.equals(selectedId)
+        return CosmeticParticles.hasVictoryEffect(selectedId)
                 && state != null
                 && state != PlayerState.OFFLINE
                 && nowMillis - lastUseMillis >= cooldownMillis;

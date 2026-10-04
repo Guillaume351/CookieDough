@@ -30,6 +30,15 @@ public interface CosmeticRepository {
         PLAYER_NOT_FOUND
     }
 
+    enum WelcomeGiftResult {
+        /** First gift for this account; the cosmetic is now equipped. */
+        EQUIPPED,
+        /** First gift for this account, but the slot was already in use: nothing changed. */
+        SLOT_TAKEN,
+        /** The account already received its welcome gift (even if it removed it since). */
+        ALREADY_GIFTED
+    }
+
     Snapshot load(UUID playerId, Date activeAt);
 
     PersistenceResult selectIfEntitled(UUID playerId, CosmeticSlot slot, String cosmeticId, Date selectedAt);
@@ -62,4 +71,12 @@ public interface CosmeticRepository {
      */
     PurchaseResult purchaseWithCoins(UUID playerId, String cosmeticId, CosmeticSlot slot, int price,
             String source, Date purchasedAt);
+
+    /**
+     * Once per account (table {@code cosmetic_welcome_gifts}): records the
+     * gift and equips the free {@code cosmeticId} only if {@code slot} is empty.
+     * A player who later removes it is never re-equipped.
+     */
+    WelcomeGiftResult claimWelcomeGift(UUID playerId, String cosmeticId, CosmeticSlot slot, String edition,
+            Date giftedAt);
 }

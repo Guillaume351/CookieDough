@@ -8,8 +8,9 @@ import java.util.Optional;
 import org.bukkit.Material;
 
 /**
- * The first Cookie Build collection. IDs are persistence/API contracts and must
- * never be inferred from localized names or inventory titles.
+ * The Cookie Build cosmetic collection. IDs are persistence/API contracts and
+ * must never be inferred from localized names or inventory titles. Every id is
+ * mirrored in the website catalog and the database CHECK constraints.
  */
 public final class CosmeticCatalog {
     public static final String COOKIE_SPARKLE_TRAIL = "cookie_sparkle_trail";
@@ -29,10 +30,32 @@ public final class CosmeticCatalog {
     public static final String STREAK_STAR_TRAIL = "streak_star_trail";
     /** Reward-only: linking the mobile app (granted through player_reward_grants). */
     public static final String APP_COMPANION_BADGE = "app_companion_badge";
+    /* Release polish-20261004 (website migration 0026): coin items at every price point. */
+    public static final String CHOCOLATE_CHIP_TRAIL = "chocolate_chip_trail";
+    public static final String CHERRY_PETAL_TRAIL = "cherry_petal_trail";
+    public static final String SOUL_FLAME_TRAIL = "soul_flame_trail";
+    public static final String RAINBOW_TRAIL = "rainbow_trail";
+    public static final String COOKIE_RAIN_VICTORY = "cookie_rain_victory";
+    public static final String TOTEM_VICTORY = "totem_victory";
+    public static final String FIREWORK_VICTORY = "firework_victory";
+    /** Reward-only: the lifetime "ten matches" achievement. */
+    public static final String LUCKY_CLOVER_TRAIL = "lucky_clover_trail";
 
+    /*
+     * Prices follow measured earnings (Oct 2026): a median active day earns ~55
+     * coins, the 75th percentile ~200. 150 is a first-day impulse buy for an
+     * active player; 2 000 is a long-term goal.
+     */
+    public static final int CHOCOLATE_CHIP_TRAIL_PRICE = 150;
     public static final int STARTER_SPARK_TRAIL_PRICE = 250;
-    public static final int NOTE_TRAIL_PRICE = 1_000;
-    public static final int HEART_TRAIL_PRICE = 2_500;
+    public static final int CHERRY_PETAL_TRAIL_PRICE = 400;
+    public static final int COOKIE_RAIN_VICTORY_PRICE = 500;
+    public static final int SOUL_FLAME_TRAIL_PRICE = 600;
+    public static final int NOTE_TRAIL_PRICE = 750;
+    public static final int TOTEM_VICTORY_PRICE = 900;
+    public static final int HEART_TRAIL_PRICE = 1_200;
+    public static final int FIREWORK_VICTORY_PRICE = 1_500;
+    public static final int RAINBOW_TRAIL_PRICE = 2_000;
 
     private static final List<CosmeticDefinition> ITEMS = List.of(
             definition(SUPPORTER_BADGE, CosmeticSlot.BADGE, Material.NAME_TAG),
@@ -44,10 +67,18 @@ public final class CosmeticCatalog {
             definition(SUPPORTER_JOIN_FLAIR, CosmeticSlot.JOIN_FLAIR, Material.GLOW_BERRIES, false),
             new CosmeticDefinition(COOKIE_SPARKLE_TRAIL, CosmeticSlot.HUB_TRAIL, Material.GLOWSTONE_DUST,
                     "cosmetics.item.cookie_sparkle_trail.name", "cosmetics.item.cookie_sparkle_trail.description", true, true),
+            coins(CHOCOLATE_CHIP_TRAIL, CosmeticSlot.HUB_TRAIL, Material.COCOA_BEANS, CHOCOLATE_CHIP_TRAIL_PRICE),
             coins(STARTER_SPARK_TRAIL, CosmeticSlot.HUB_TRAIL, Material.FIREWORK_STAR, STARTER_SPARK_TRAIL_PRICE),
+            coins(CHERRY_PETAL_TRAIL, CosmeticSlot.HUB_TRAIL, Material.PINK_PETALS, CHERRY_PETAL_TRAIL_PRICE),
+            coins(COOKIE_RAIN_VICTORY, CosmeticSlot.VICTORY_EFFECT, Material.COOKIE, COOKIE_RAIN_VICTORY_PRICE),
+            coins(SOUL_FLAME_TRAIL, CosmeticSlot.HUB_TRAIL, Material.SOUL_TORCH, SOUL_FLAME_TRAIL_PRICE),
             coins(NOTE_TRAIL, CosmeticSlot.HUB_TRAIL, Material.NOTE_BLOCK, NOTE_TRAIL_PRICE),
+            coins(TOTEM_VICTORY, CosmeticSlot.VICTORY_EFFECT, Material.TOTEM_OF_UNDYING, TOTEM_VICTORY_PRICE),
             coins(HEART_TRAIL, CosmeticSlot.HUB_TRAIL, Material.POPPY, HEART_TRAIL_PRICE),
+            coins(FIREWORK_VICTORY, CosmeticSlot.VICTORY_EFFECT, Material.FIREWORK_ROCKET, FIREWORK_VICTORY_PRICE),
+            coins(RAINBOW_TRAIL, CosmeticSlot.HUB_TRAIL, Material.PRISMARINE_CRYSTALS, RAINBOW_TRAIL_PRICE),
             reward(STREAK_STAR_TRAIL, CosmeticSlot.HUB_TRAIL, Material.NETHER_STAR, "cosmetics.unlock.streak"),
+            reward(LUCKY_CLOVER_TRAIL, CosmeticSlot.HUB_TRAIL, Material.LILY_PAD, "cosmetics.unlock.ten_matches"),
             reward(APP_COMPANION_BADGE, CosmeticSlot.BADGE, Material.COMPASS, "cosmetics.unlock.app"));
     private static final Map<String, CosmeticDefinition> BY_ID;
 

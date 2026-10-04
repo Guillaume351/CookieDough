@@ -32,9 +32,10 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 /** Cross-edition cosmetic inventory. Player actions never grant entitlements. */
 public final class CosmeticsMenu implements Listener {
-    private static final int[] JAVA_SLOTS = { 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26 };
-    private static final int JAVA_SIZE = 36;
+    /** Rows 2 to 5 of a double chest: room for 36 cosmetics. */
+    static final int JAVA_FIRST_ITEM_SLOT = 9;
+    static final int JAVA_ITEM_SLOTS = 36;
+    static final int JAVA_SIZE = 54;
 
     private final CookieDough plugin;
     private final CosmeticService service;
@@ -50,6 +51,22 @@ public final class CosmeticsMenu implements Listener {
     }
 
     public void open(Player player) {
+        open(player, "command");
+    }
+
+    /**
+     * @param source where the player came from (command, hub, hotbar,
+     *        postmatch, gift), recorded as server-side funnel telemetry
+     */
+    public void open(Player player, String source) {
+        com.cookiebuild.cookiedough.game.FunnelTelemetry.record(player,
+                com.cookiebuild.cookiedough.game.FunnelTelemetry.Event.COSMETICS_OPENED,
+                "source=" + safeToken(source));
+        reopen(player);
+    }
+
+    /** Re-renders after an action without counting a new visit. */
+    private void reopen(Player player) {
         UUID playerId = player.getUniqueId();
         UUID viewId = UUID.randomUUID();
         views.put(playerId, viewId);
@@ -105,7 +122,11 @@ public final class CosmeticsMenu implements Listener {
 
     /** Public entry point for the hub/shop button: same as /cosmetics (/shop, /boutique). */
     public void openShop(Player player) {
-        open(player);
+        open(player, "hub");
+    }
+
+    public void openShop(Player player, String source) {
+        open(player, source);
     }
 
     @EventHandler
@@ -120,7 +141,7 @@ public final class CosmeticsMenu implements Listener {
         String encoded = clicked.getItemMeta().getPersistentDataContainer()
                 .get(actionKey, PersistentDataType.STRING);
         if ("back".equals(encoded)) {
-            open(player);
+            reopen(player);
             return;
         }
         CosmeticMenuAction.parse(encoded).ifPresent(action -> dispatch(player, action, false));
@@ -146,36 +167,49 @@ public final class CosmeticsMenu implements Listener {
             inventory.setItem(4, item(Material.GOLD_NUGGET, message(player, "cosmetics.balance", coins), "noop",
                     List.of(message(player, "cosmetics.balance_lore"))));
         }
-        List<CosmeticMenuView.Entry> entries = CosmeticMenuView.entries(cosmetics);
-        for (int index = 0; index < entries.size() && index < JAVA_SLOTS.length; index++) {
+        List<CosmeticMenuView.Entry> entries = CosmeticMenuView.entries(cosmetics, coins);
+        for (int index = 0; index < entries.size() && index < JAVA_ITEM_SLOTS; index++) {
             CosmeticMenuView.Entry entry = entries.get(index);
             CosmeticService.InventoryItem item = entry.item();
             List<String> lore = new ArrayList<>();
             lore.add(message(player, item.cosmetic().descriptionKey()));
-            lore.add(item.entitled()
-                    ? (!item.cosmetic().selectionRequired() ? message(player, "cosmetics.active")
-                            : item.selected() ? message(player, "cosmetics.selected")
-                            : message(player, item.cosmetic().free() ? "cosmetics.free" : "cosmetics.available"))
-                    : unlockText(key -> message(player, key), item.cosmetic()));
+            lore.add(message(player, "cosmetics.slot." + item.cosmetic().slot().name()));
+            lore.add(CosmeticMenuView.stateText(key -> message(player, key), item, coins));
             if (item.cosmetic().slot() == CosmeticSlot.PROFILE_FRAME) {
                 lore.add(message(player, "cosmetics.profile_frame.game_fallback"));
             }
-            inventory.setItem(JAVA_SLOTS[index], item(item.cosmetic().icon(),
-                    message(player, item.cosmetic().nameKey()), entry.action(), lore));
+            NamedTextColor color = item.entitled() && item.selected() ? NamedTextColor.GREEN
+                    : item.entitled() || CosmeticMenuView.affordable(item, coins) ? NamedTextColor.GOLD
+                    : NamedTextColor.GRAY;
+            ItemStack stack = item(item.cosmetic().icon(), message(player, item.cosmetic().nameKey()), entry.action(),
+                    lore, color);
+            if (item.entitled() && item.selected() && item.cosmetic().selectionRequired()) glint(stack);
+            inventory.setItem(JAVA_FIRST_ITEM_SLOT + index, stack);
         }
         if (cosmetics.selections().containsKey(CosmeticSlot.EMOTE)) {
-            inventory.setItem(30, item(Material.AMETHYST_SHARD,
+            inventory.setItem(48, item(Material.AMETHYST_SHARD,
                     message(player, "cosmetics.preview.emote"), "preview_emote",
                     List.of(message(player, "cosmetics.preview.hub_only"))));
         }
-        inventory.setItem(31, item(Material.WRITABLE_BOOK, message(player, "cosmetics.web_shop.name"), "noop",
+        inventory.setItem(49, item(Material.WRITABLE_BOOK, message(player, "cosmetics.web_shop.name"), "noop",
                 List.of(message(player, "cosmetics.unlock.shop"), message(player, "cosmetics.web_shop.lore"))));
-        if (cosmetics.selections().containsKey(CosmeticSlot.VICTORY_EFFECT)) {
-            inventory.setItem(32, item(Material.GLOWSTONE_DUST,
-                    message(player, "cosmetics.preview.victory"), "preview_victory",
+        String victory = cosmetics.selections().get(CosmeticSlot.VICTORY_EFFECT);
+        if (victory != null) {
+            inventory.setItem(50, item(Material.GLOWSTONE_DUST,
+                    message(player, "cosmetics.preview.victory", victoryName(player, victory)), "preview_victory",
                     List.of(message(player, "cosmetics.preview.no_damage"))));
         }
         return inventory;
+    }
+
+    private static String victoryName(Player player, String cosmeticId) {
+        return CosmeticCatalog.find(cosmeticId).map(item -> message(player, item.nameKey())).orElse(cosmeticId);
+    }
+
+    private static void glint(ItemStack stack) {
+        ItemMeta meta = stack.getItemMeta();
+        meta.setEnchantmentGlintOverride(true);
+        stack.setItemMeta(meta);
     }
 
     private Inventory javaConfirm(Player player, CosmeticDefinition cosmetic, UUID viewId) {
@@ -193,10 +227,14 @@ public final class CosmeticsMenu implements Listener {
         return inventory;
     }
 
-    /** Plain-text unlock hint ("1 000 pièces", "Boutique : cookie-build.com/shop", ...). */
+    /** Plain-text unlock hint ("750 pièces", "Boutique : cookie-build.com/shop", ...). */
     static String unlockText(java.util.function.Function<String, String> message, CosmeticDefinition cosmetic) {
         CosmeticMenuView.UnlockHint hint = CosmeticMenuView.unlockHint(cosmetic);
         return format(message, hint.key(), hint.args());
+    }
+
+    static String safeToken(String value) {
+        return value == null || value.isBlank() ? "unknown" : value.replaceAll("[^A-Za-z0-9_-]", "");
     }
 
     static String format(java.util.function.Function<String, String> message, String key, Object... args) {
@@ -235,9 +273,9 @@ public final class CosmeticsMenu implements Listener {
 
     private void dispatch(Player player, CosmeticMenuAction action, boolean bedrock) {
         switch (action.kind()) {
-            case SELECT -> mutate(player, bedrock, () -> service.select(
+            case SELECT -> mutate(player, bedrock, action, () -> service.select(
                     player.getUniqueId(), action.slot(), action.cosmeticId()));
-            case DESELECT -> mutate(player, bedrock, () -> service.deselect(
+            case DESELECT -> mutate(player, bedrock, action, () -> service.deselect(
                     player.getUniqueId(), action.slot()));
             case PREVIEW_EMOTE -> effects.playCelebration(player);
             case PREVIEW_VICTORY -> effects.previewVictoryEffect(player);
@@ -265,7 +303,7 @@ public final class CosmeticsMenu implements Listener {
                             }
                         }),
                         () -> Bukkit.getScheduler().runTask(plugin, () -> {
-                            if (player.isOnline() && viewId.equals(views.get(player.getUniqueId()))) open(player);
+                            if (player.isOnline() && viewId.equals(views.get(player.getUniqueId()))) reopen(player);
                         })))) {
                     return;
                 }
@@ -296,8 +334,12 @@ public final class CosmeticsMenu implements Listener {
                     }, name), success ? NamedTextColor.GREEN : NamedTextColor.RED));
                     if (success) {
                         player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.6f);
+                        CosmeticCatalog.find(cosmeticId).ifPresent(item -> com.cookiebuild.cookiedough.game
+                                .FunnelTelemetry.record(player, com.cookiebuild.cookiedough.game.FunnelTelemetry
+                                        .Event.COSMETIC_PURCHASED, "cosmetic=" + item.id() + " slot="
+                                        + item.slot().name() + " price=" + item.coinPrice()));
                     }
-                    open(player);
+                    reopen(player);
                 });
             } catch (RuntimeException error) {
                 plugin.getLogger().warning("Could not buy cosmetic " + cosmeticId + " for " + player.getName()
@@ -309,7 +351,7 @@ public final class CosmeticsMenu implements Listener {
         });
     }
 
-    private void mutate(Player player, boolean bedrock,
+    private void mutate(Player player, boolean bedrock, CosmeticMenuAction action,
             java.util.function.Supplier<CosmeticService.SelectionResult> operation) {
         views.remove(player.getUniqueId());
         if (!bedrock) player.closeInventory();
@@ -320,7 +362,12 @@ public final class CosmeticsMenu implements Listener {
                     if (!player.isOnline()) return;
                     effects.refresh(player);
                     player.sendMessage(resultMessage(player, result));
-                    open(player);
+                    if (result == CosmeticService.SelectionResult.SELECTED) {
+                        com.cookiebuild.cookiedough.game.FunnelTelemetry.record(player,
+                                com.cookiebuild.cookiedough.game.FunnelTelemetry.Event.COSMETIC_SELECTED,
+                                "cosmetic=" + action.cosmeticId() + " slot=" + action.slot().name());
+                    }
+                    reopen(player);
                 });
             } catch (RuntimeException error) {
                 plugin.getLogger().warning("Could not update cosmetics for " + player.getName()
@@ -346,9 +393,13 @@ public final class CosmeticsMenu implements Listener {
     }
 
     private ItemStack item(Material material, String name, String action, List<String> lore) {
+        return item(material, name, action, lore, NamedTextColor.GOLD);
+    }
+
+    private ItemStack item(Material material, String name, String action, List<String> lore, NamedTextColor color) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(name, NamedTextColor.GOLD));
+        meta.displayName(Component.text(name, color));
         meta.lore(lore.stream().map(line -> Component.text(line, NamedTextColor.GRAY)).toList());
         meta.getPersistentDataContainer().set(actionKey, PersistentDataType.STRING, action);
         item.setItemMeta(meta);

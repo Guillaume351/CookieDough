@@ -114,6 +114,9 @@ public final class CosmeticEffects implements Listener {
     private final Set<UUID> managedFlight = ConcurrentHashMap.newKeySet();
     private final Set<UUID> fallSafety = ConcurrentHashMap.newKeySet();
     private final Set<UUID> joinFlairPlayed = ConcurrentHashMap.newKeySet();
+    /** Players to greet the first time their trail is actually rendered (welcome gift). */
+    private final Set<UUID> pendingTrailIntroductions = ConcurrentHashMap.newKeySet();
+    private volatile java.util.function.Consumer<Player> trailIntroduction = ignored -> { };
     private final Map<UUID, UUID> refreshesInFlight = new ConcurrentHashMap<>();
     private final Set<UUID> pendingRefreshes = ConcurrentHashMap.newKeySet();
     private BukkitTask task;
@@ -157,8 +160,22 @@ public final class CosmeticEffects implements Listener {
         managedFlight.clear();
         fallSafety.clear();
         joinFlairPlayed.clear();
+        pendingTrailIntroductions.clear();
         refreshesInFlight.clear();
         pendingRefreshes.clear();
+    }
+
+    /**
+     * Calls {@code introduction} once, on the main thread, the first time a
+     * trail particle is spawned for this player in this session: the moment
+     * the player can actually see it (after closing a form and walking).
+     */
+    public void introduceTrailWhenVisible(UUID playerId) {
+        if (playerId != null) pendingTrailIntroductions.add(playerId);
+    }
+
+    public void onTrailIntroduction(java.util.function.Consumer<Player> introduction) {
+        trailIntroduction = java.util.Objects.requireNonNull(introduction, "introduction");
     }
 
     public void refresh(Player player) {
@@ -240,22 +257,48 @@ public final class CosmeticEffects implements Listener {
         playVictoryEffect(player, true);
     }
 
+    /** Plays whichever victory effect the player has equipped (revalidated from the database). */
     private void playVictoryEffect(Player player, boolean preview) {
-        validateThen(player, CosmeticSlot.VICTORY_EFFECT, CosmeticCatalog.GOLDEN_COOKIE_BURST, () -> {
+        validateSelectionThen(player, CosmeticSlot.VICTORY_EFFECT, selectedId -> {
             CookiePlayer wrapped = PlayerManager.getPlayer(player);
             PlayerState state = wrapped == null ? null : wrapped.getState();
             long now = System.currentTimeMillis();
             long last = lastVictoryEffects.getOrDefault(player.getUniqueId(), Long.MIN_VALUE / 2);
-            if (preview && !CosmeticEffectGuard.canUseHubEffect(CosmeticCatalog.GOLDEN_COOKIE_BURST,
-                    CosmeticCatalog.GOLDEN_COOKIE_BURST, state, isLobby(player), now, last,
+            if (preview && !CosmeticEffectGuard.canUseHubEffect(selectedId, selectedId, state, isLobby(player),
+                    now, last, VICTORY_COOLDOWN_MILLIS)) return;
+            if (!CosmeticEffectGuard.canUseVictoryEffect(selectedId, state, now, last,
                     VICTORY_COOLDOWN_MILLIS)) return;
-            if (!CosmeticEffectGuard.canUseVictoryEffect(CosmeticCatalog.GOLDEN_COOKIE_BURST,
-                    state, now, last, VICTORY_COOLDOWN_MILLIS)) return;
             lastVictoryEffects.put(player.getUniqueId(), now);
-            player.getWorld().spawnParticle(Particle.FIREWORK,
-                    player.getLocation().add(0, 1.0, 0), 18, 0.8, 0.8, 0.8, 0.04);
-            player.playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_BLAST, 0.7f, 1.2f);
+            playFrames(player, CosmeticParticles.victory(selectedId));
         });
+    }
+
+    private void playFrames(Player player, java.util.List<CosmeticParticles.Frame> frames) {
+        for (CosmeticParticles.Frame frame : frames) {
+            Runnable play = () -> {
+                if (!running || !player.isOnline()) return;
+                Location base = player.getLocation();
+                frame.bursts().forEach(burst -> spawn(base, burst));
+                if (frame.sound() != null) player.getWorld().playSound(base, frame.sound(),
+                        frame.volume(), frame.pitch());
+            };
+            if (frame.delayTicks() <= 0) play.run();
+            else Bukkit.getScheduler().runTaskLater(plugin, play, frame.delayTicks());
+        }
+    }
+
+    /** World particles, so other players see the cosmetic too. */
+    private static void spawn(Location base, CosmeticParticles.Burst burst) {
+        Location at = base.clone().add(burst.x(), burst.y(), burst.z());
+        Object data = burst.data() instanceof org.bukkit.Material material
+                ? new org.bukkit.inventory.ItemStack(material) : burst.data();
+        if (data == null) {
+            at.getWorld().spawnParticle(burst.particle(), at, burst.count(), burst.spreadXZ(), burst.spreadY(),
+                    burst.spreadXZ(), burst.speed());
+        } else {
+            at.getWorld().spawnParticle(burst.particle(), at, burst.count(), burst.spreadXZ(), burst.spreadY(),
+                    burst.spreadXZ(), burst.speed(), data);
+        }
     }
 
     /** Transport guards call this immediately before installing their own temporary permission. */
@@ -290,6 +333,7 @@ public final class CosmeticEffects implements Listener {
         managedFlight.remove(playerId);
         fallSafety.remove(playerId);
         joinFlairPlayed.remove(playerId);
+        pendingTrailIntroductions.remove(playerId);
         refreshesInFlight.remove(playerId);
         pendingRefreshes.remove(playerId);
     }
@@ -418,25 +462,16 @@ public final class CosmeticEffects implements Listener {
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.45f, 1.35f);
     }
 
-    /** Particle of each hub trail; all are native particles mapped by Geyser. */
+    /** Main particle of each hub trail; all are native particles mapped by Geyser. */
     static Particle trailParticle(String trail) {
-        if (trail == null) return null;
-        return switch (trail) {
-            case CosmeticCatalog.COOKIE_CRUMB_TRAIL -> Particle.FALLING_HONEY;
-            case CosmeticCatalog.COOKIE_SPARKLE_TRAIL -> Particle.END_ROD;
-            case CosmeticCatalog.STARTER_SPARK_TRAIL -> Particle.CRIT;
-            case CosmeticCatalog.NOTE_TRAIL -> Particle.NOTE;
-            case CosmeticCatalog.HEART_TRAIL -> Particle.HEART;
-            case CosmeticCatalog.STREAK_STAR_TRAIL -> Particle.FIREWORK;
-            default -> null;
-        };
+        return CosmeticParticles.primaryTrailParticle(trail);
     }
 
     private void tickTrail(Player player) {
         String trail = selected(player.getUniqueId(), CosmeticSlot.HUB_TRAIL);
-        Particle particle = trailParticle(trail);
+        java.util.List<CosmeticParticles.Burst> bursts = CosmeticParticles.trail(trail, ticks / 2);
         CookiePlayer wrapped = PlayerManager.getPlayer(player);
-        if (particle == null
+        if (bursts.isEmpty()
                 || wrapped == null || wrapped.getState() != PlayerState.LOBBY || !isLobby(player)) {
             lastTrailLocations.remove(player.getUniqueId());
             return;
@@ -445,8 +480,14 @@ public final class CosmeticEffects implements Listener {
         Location previous = lastTrailLocations.put(player.getUniqueId(), current.clone());
         if (previous == null || !previous.getWorld().equals(current.getWorld())
                 || previous.distanceSquared(current) < 0.04) return;
-        double height = particle == Particle.HEART || particle == Particle.NOTE ? 0.4 : 0.15;
-        player.getWorld().spawnParticle(particle, current.clone().add(0, height, 0), 1, 0.08, 0.03, 0.08, 0.0);
+        bursts.forEach(burst -> spawn(current, burst));
+        if (pendingTrailIntroductions.remove(player.getUniqueId())) {
+            try {
+                trailIntroduction.accept(player);
+            } catch (RuntimeException error) {
+                plugin.getLogger().warning("Could not introduce the cosmetic trail: " + rootMessage(error));
+            }
+        }
     }
 
     private String selected(UUID playerId, CosmeticSlot slot) {
@@ -454,6 +495,29 @@ public final class CosmeticEffects implements Listener {
         if (cosmetics == null) return null;
         String cosmeticId = cosmetics.selections().get(slot);
         return cosmeticId != null && cosmetics.selected(slot, cosmeticId, Instant.now()) ? cosmeticId : null;
+    }
+
+    /** Runs {@code effect} with the player's currently equipped id for {@code slot}, if any. */
+    private void validateSelectionThen(Player player, CosmeticSlot slot,
+            java.util.function.Consumer<String> effect) {
+        if (!running || player == null || !player.isOnline()) return;
+        UUID playerId = player.getUniqueId();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                CosmeticService.Inventory inventory = service.inventory(playerId);
+                if (!running) return;
+                String selectedId = inventory.selections().get(slot);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (!running || !player.isOnline() || selectedId == null) return;
+                    if (CosmeticEffectAuthorization.isSelected(inventory, slot, selectedId)) {
+                        effect.accept(selectedId);
+                    }
+                });
+            } catch (RuntimeException error) {
+                plugin.getLogger().warning("Could not authorize cosmetic effect for " + playerId
+                        + ": " + rootMessage(error));
+            }
+        });
     }
 
     private void validateThen(Player player, CosmeticSlot slot, String cosmeticId, Runnable effect) {

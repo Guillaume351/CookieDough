@@ -307,6 +307,7 @@ public final class PlayerHubMenu implements Listener {
         String gameName = replays.consumeArrival(player.getUniqueId(), finishedGameName,
                 System.currentTimeMillis()).orElse(null);
         if (gameName == null) return;
+        if (plugin.getCosmeticActivation() != null) plugin.getCosmeticActivation().prefetchOffer(player);
         Bukkit.getScheduler().runTaskLater(plugin, () -> presentPostMatch(player, gameName),
                 PostMatchReplayRegistry.OFFER_DELAY_TICKS);
     }
@@ -470,8 +471,8 @@ public final class PlayerHubMenu implements Listener {
     private HubGameMenuModel funnelModel(Player player, MenuPage page, String context) {
         java.util.Locale locale = player.locale();
         return switch (page) {
-            case REPLAY -> FunnelMenuModels.replay(context, locale, busiestQueueChoice(null, context),
-                    isAutoReplayEnabled(player), tomorrowLine(player));
+            case REPLAY -> withCosmeticOffer(player, FunnelMenuModels.replay(context, locale,
+                    busiestQueueChoice(null, context), isAutoReplayEnabled(player), tomorrowLine(player)));
             case WAITING -> {
                 CookiePlayer cookiePlayer = PlayerManager.getPlayer(player);
                 Game current = cookiePlayer == null ? null : GameManager.getGameOfPlayer(cookiePlayer);
@@ -491,6 +492,10 @@ public final class PlayerHubMenu implements Listener {
             case GALLERY -> FunnelMenuModels.gallery(locale);
             default -> throw new IllegalArgumentException("Not a funnel page: " + page);
         };
+    }
+
+    private HubGameMenuModel withCosmeticOffer(Player player, HubGameMenuModel model) {
+        return plugin.getCosmeticActivation() == null ? model : plugin.getCosmeticActivation().withOffer(player, model);
     }
 
     /** Tomorrow's login-calendar reward, once known this session. */
@@ -671,7 +676,8 @@ public final class PlayerHubMenu implements Listener {
             }
             case "shop" -> {
                 player.closeInventory();
-                CookieDough.getInstance().getCosmeticsMenu().openShop(player);
+                CookieDough.getInstance().getCosmeticsMenu().openShop(player,
+                        source == MenuPage.REPLAY ? "postmatch" : "hub");
             }
             case "events" -> run(player, "events");
             case "app" -> run(player, "app status");

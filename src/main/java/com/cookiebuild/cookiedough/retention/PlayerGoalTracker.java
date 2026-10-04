@@ -124,6 +124,12 @@ public final class PlayerGoalTracker {
         return true;
     }
 
+    /** True when the player has unlocked this achievement (never creates progress). */
+    public synchronized boolean hasAchievement(UUID playerId, String key) {
+        Progress progress = playerId == null ? null : progressByPlayer.get(playerId);
+        return progress != null && progress.achievements.contains(key);
+    }
+
     /** Localized one-line summary for the online player's locale (English fallback). */
     public String summary(UUID playerId) {
         Player online = plugin.getServer().getPlayer(playerId);
@@ -250,6 +256,8 @@ public final class PlayerGoalTracker {
                 FunnelTelemetry.record(playerId, FunnelTelemetry.Event.REWARD_CLAIMED,
                         "source=" + key + " coins=" + snapshot.get(key).coins());
             }
+            com.cookiebuild.cookiedough.cosmetics.CosmeticActivation cosmetics = plugin.getCosmeticActivation();
+            if (cosmetics != null) cosmetics.onRewardsClaimed(playerId, claimed);
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 Player online = plugin.getServer().getPlayer(playerId);
                 if (online == null) {
