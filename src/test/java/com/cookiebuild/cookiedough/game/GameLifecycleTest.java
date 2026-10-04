@@ -186,16 +186,17 @@ class GameLifecycleTest {
         // when nobody else is available in the lobby, normal (30 s) otherwise.
         int countdown = GameManager.getAvailablePlayerCount() == 0 ? 10 : 30;
         int eta = game.getSoloStartEtaSeconds();
-        assertTrue(eta >= 9 + countdown && eta <= 10 + countdown, "eta " + eta);
+        assertTrue(eta >= 8 + countdown && eta <= 9 + countdown, "eta " + eta);
         game.tick();
         assertEquals(0, game.getStartTimer());
 
         queueEnteredAt(game).put(lone.getPlayer().getUniqueId(), System.currentTimeMillis() - 15_000L);
-        assertEquals(countdown, game.getSoloStartEtaSeconds());
+        int lastEta = game.getSoloStartEtaSeconds();
+        assertEquals(countdown - 1, lastEta);
         game.tick();
         assertEquals(1, game.getStartTimer());
         assertEquals(-1, game.getSoloStartEtaSeconds(), "the countdown takes over once it runs");
-        assertEquals(countdown - 1, game.getCountdownSeconds(), "no second, unannounced countdown");
+        assertEquals(lastEta, game.getCountdownSeconds(), "no second, unannounced countdown");
 
         players(game).add(cookiePlayer(true));
         assertEquals(-1, game.getSoloStartEtaSeconds(), "two players never show a solo start");

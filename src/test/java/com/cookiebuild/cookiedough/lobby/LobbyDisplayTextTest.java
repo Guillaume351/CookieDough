@@ -27,12 +27,12 @@ class LobbyDisplayTextTest {
 
     @Test
     void aSoloStartModeShowsWhenTheLonePlayersMatchStartsInsteadOfAMissingPlayer() {
-        String plate = plain(LobbyDisplayText.gameNpc("Build Battle", true, open(1, 8, 2, 0, 25, 0),
+        String plate = plain(LobbyDisplayText.gameNpc("Build Battle", true, open(1, 8, 2, 0, 24, 0),
                 Locale.FRENCH));
-        assertEquals("Build Battle · Vedette\nLobby 1/8 · départ dans 25 s\n0 en jeu", plate);
+        assertEquals("Build Battle · Vedette\nLobby 1/8 · départ dans 24 s\n0 en jeu", plate);
         assertFalse(plate.contains("manque"), plate);
-        assertEquals("Build Battle · Featured\nLobby 1/8 · starts in 25s\n2 playing",
-                plain(LobbyDisplayText.gameNpc("Build Battle", true, open(1, 8, 2, 0, 25, 2), Locale.ENGLISH)));
+        assertEquals("Build Battle · Featured\nLobby 1/8 · starts in 24s\n2 playing",
+                plain(LobbyDisplayText.gameNpc("Build Battle", true, open(1, 8, 2, 0, 24, 2), Locale.ENGLISH)));
     }
 
     @Test

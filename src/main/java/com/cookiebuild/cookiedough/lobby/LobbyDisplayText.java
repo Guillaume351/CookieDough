@@ -20,7 +20,7 @@ import net.kyori.adventure.text.format.TextDecoration;
  * are readable at a glance, like the pre-2026-09-30 plates:
  * <pre>
  * Build Battle · Vedette
- * Lobby 1/8 · départ dans 25 s
+ * Lobby 1/8 · départ dans 24 s
  * 3 en jeu
  * </pre>
  */

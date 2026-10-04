@@ -34,9 +34,10 @@ class QueueStartPolicyTest {
 
     @Test
     void theSoloMatchEtaIncludesTheCountdownThatFollowsTheSoloDelay() {
-        assertEquals(25, QueueStartPolicy.secondsUntilSoloMatch(1, 0, 15, 10));
-        assertEquals(33, QueueStartPolicy.secondsUntilSoloMatch(1, 12, 15, 30));
-        assertEquals(10, QueueStartPolicy.secondsUntilSoloMatch(1, 40, 15, 10));
+        // 15 s solo delay, then a 10 s countdown whose first second elapses in the same tick.
+        assertEquals(24, QueueStartPolicy.secondsUntilSoloMatch(1, 0, 15, 10));
+        assertEquals(32, QueueStartPolicy.secondsUntilSoloMatch(1, 12, 15, 30));
+        assertEquals(9, QueueStartPolicy.secondsUntilSoloMatch(1, 40, 15, 10));
         assertEquals(-1, QueueStartPolicy.secondsUntilSoloMatch(2, 0, 15, 10));
         assertEquals(-1, QueueStartPolicy.secondsUntilSoloMatch(1, 0, QueueStartPolicy.SOLO_START_DISABLED, 10));
     }

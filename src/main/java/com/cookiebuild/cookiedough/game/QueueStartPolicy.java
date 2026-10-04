@@ -30,14 +30,17 @@ public final class QueueStartPolicy {
 
     /**
      * Seconds before a lone player's match really starts: the remaining solo
-     * delay plus the countdown that then runs. Returns -1 when solo start does
-     * not apply. Player-facing texts use this so "starts in N s" is never
-     * followed by a second, unannounced countdown.
+     * delay plus the countdown that then runs. The countdown's first second
+     * elapses in the same game tick that ends the solo delay, so it adds
+     * {@code countdownSeconds - 1}: the value shown one second before the
+     * countdown equals the countdown's first value plus one, never a jump.
+     * Returns -1 when solo start does not apply. Player-facing texts use this
+     * so "starts in N s" is never followed by a second, unannounced countdown.
      */
     public static int secondsUntilSoloMatch(int playerCount, long longestWaitSeconds, int soloStartAfterSeconds,
             int countdownSeconds) {
         long remaining = secondsUntilSoloStart(playerCount, longestWaitSeconds, soloStartAfterSeconds);
         if (remaining < 0L) return -1;
-        return (int) Math.min(Integer.MAX_VALUE, remaining + Math.max(0, countdownSeconds));
+        return (int) Math.min(Integer.MAX_VALUE, remaining + Math.max(0, countdownSeconds - 1));
     }
 }
