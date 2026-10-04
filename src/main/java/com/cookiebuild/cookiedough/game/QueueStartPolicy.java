@@ -27,4 +27,17 @@ public final class QueueStartPolicy {
         if (soloStartAfterSeconds < 0 || playerCount != 1) return -1L;
         return Math.max(0L, soloStartAfterSeconds - Math.max(0L, longestWaitSeconds));
     }
+
+    /**
+     * Seconds before a lone player's match really starts: the remaining solo
+     * delay plus the countdown that then runs. Returns -1 when solo start does
+     * not apply. Player-facing texts use this so "starts in N s" is never
+     * followed by a second, unannounced countdown.
+     */
+    public static int secondsUntilSoloMatch(int playerCount, long longestWaitSeconds, int soloStartAfterSeconds,
+            int countdownSeconds) {
+        long remaining = secondsUntilSoloStart(playerCount, longestWaitSeconds, soloStartAfterSeconds);
+        if (remaining < 0L) return -1;
+        return (int) Math.min(Integer.MAX_VALUE, remaining + Math.max(0, countdownSeconds));
+    }
 }

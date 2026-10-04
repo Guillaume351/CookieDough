@@ -119,6 +119,98 @@ class GameLifecycleTest {
     }
 
     @Test
+    void playingCountExcludesQueuesAndIncludesEveryLiveArenaOfTheMode() throws Exception {
+        TestGame queue = new TestGame("BuildBattles");
+        TestGame soloBuild = new TestGame("BuildBattles");
+        TestGame endScreen = new TestGame("buildbattles");
+        TestGame otherMode = new TestGame("SkyWars");
+        CookiePlayer waiting = cookiePlayer(true);
+        CookiePlayer builder = cookiePlayer(true);
+        CookiePlayer lateJoiner = cookiePlayer(true);
+        CookiePlayer finished = cookiePlayer(true);
+        CookiePlayer offlineReservation = cookiePlayer(false);
+        players(queue).add(waiting);
+        players(soloBuild).add(builder);
+        players(soloBuild).add(lateJoiner);
+        players(soloBuild).add(offlineReservation);
+        players(endScreen).add(finished);
+        players(otherMode).add(cookiePlayer(true));
+        soloBuild.setState(GameState.RUNNING);
+        endScreen.setState(GameState.FINISHED);
+        otherMode.setState(GameState.RUNNING);
+        GameManager.addGame(queue);
+        GameManager.addGame(soloBuild);
+        GameManager.addGame(endScreen);
+        GameManager.addGame(otherMode);
+        try {
+            assertEquals(3, GameManager.getPlayingGamePlayerCount("BuildBattles"));
+            assertEquals(4, GameManager.getOnlineGamePlayerCount("BuildBattles"));
+            assertEquals(1, GameManager.getPlayingGamePlayerCount("skywars"));
+            assertEquals(0, GameManager.getPlayingGamePlayerCount("Pitchout"));
+            assertEquals(0, GameManager.getPlayingGamePlayerCount(null));
+        } finally {
+            GameManager.removeGame(queue);
+            GameManager.removeGame(soloBuild);
+            GameManager.removeGame(endScreen);
+            GameManager.removeGame(otherMode);
+        }
+    }
+
+    @Test
+    void soloStartModesAreRecognisedPerMode() {
+        TestGame solo = new TestGame("BuildBattles");
+        solo.setSoloStartAfterSeconds(15);
+        TestGame regular = new TestGame("SkyWars");
+        GameManager.addGame(solo);
+        GameManager.addGame(regular);
+        try {
+            assertTrue(GameManager.startsSolo("buildbattles"));
+            assertFalse(GameManager.startsSolo("SkyWars"));
+            assertFalse(GameManager.startsSolo("Pitchout"));
+            assertFalse(GameManager.startsSolo(null));
+        } finally {
+            GameManager.removeGame(solo);
+            GameManager.removeGame(regular);
+        }
+    }
+
+    @Test
+    void aLonePlayersSoloEtaIncludesTheCountdownAndHandsOverToIt() throws Exception {
+        TestGame game = new TestGame("BuildBattles");
+        game.setSoloStartAfterSeconds(15);
+        CookiePlayer lone = cookiePlayer(true);
+        players(game).add(lone);
+        queueEnteredAt(game).put(lone.getPlayer().getUniqueId(), System.currentTimeMillis() - 5_000L);
+
+        // 10 s solo delay left, then the countdown Game#tick will run: quick (10 s)
+        // when nobody else is available in the lobby, normal (30 s) otherwise.
+        int countdown = GameManager.getAvailablePlayerCount() == 0 ? 10 : 30;
+        int eta = game.getSoloStartEtaSeconds();
+        assertTrue(eta >= 9 + countdown && eta <= 10 + countdown, "eta " + eta);
+        game.tick();
+        assertEquals(0, game.getStartTimer());
+
+        queueEnteredAt(game).put(lone.getPlayer().getUniqueId(), System.currentTimeMillis() - 15_000L);
+        assertEquals(countdown, game.getSoloStartEtaSeconds());
+        game.tick();
+        assertEquals(1, game.getStartTimer());
+        assertEquals(-1, game.getSoloStartEtaSeconds(), "the countdown takes over once it runs");
+        assertEquals(countdown - 1, game.getCountdownSeconds(), "no second, unannounced countdown");
+
+        players(game).add(cookiePlayer(true));
+        assertEquals(-1, game.getSoloStartEtaSeconds(), "two players never show a solo start");
+    }
+
+    @Test
+    void regularModesNeverReportASoloEta() throws Exception {
+        TestGame game = new TestGame("SkyWars");
+        CookiePlayer lone = cookiePlayer(true);
+        players(game).add(lone);
+        queueEnteredAt(game).put(lone.getPlayer().getUniqueId(), System.currentTimeMillis() - 60_000L);
+        assertEquals(-1, game.getSoloStartEtaSeconds());
+    }
+
+    @Test
     void defaultAdministrativeShutdownClosesAndUnregistersTheGame() {
         TestGame game = new TestGame("BuildBattles");
         GameManager.addGame(game);
@@ -191,6 +283,13 @@ class GameLifecycleTest {
     }
 
     @SuppressWarnings("unchecked")
+    private static java.util.Map<UUID, Long> queueEnteredAt(Game game) throws Exception {
+        Field queueEnteredAt = Game.class.getDeclaredField("queueEnteredAt");
+        queueEnteredAt.setAccessible(true);
+        return (java.util.Map<UUID, Long>) queueEnteredAt.get(game);
+    }
+
+    @SuppressWarnings("unchecked")
     private static List<CookiePlayer> players(Game game) throws Exception {
         Field players = Game.class.getDeclaredField("players");
         players.setAccessible(true);
@@ -238,6 +337,7 @@ class GameLifecycleTest {
     private static final class TestGame extends Game {
         private boolean countdownEligible = true;
         private boolean ejectionAllowed = true;
+        private int soloStartAfterSeconds = QueueStartPolicy.SOLO_START_DISABLED;
         private int startCalls;
 
         private TestGame(String name) {
@@ -254,6 +354,14 @@ class GameLifecycleTest {
 
         private void setEjectionAllowed(boolean ejectionAllowed) {
             this.ejectionAllowed = ejectionAllowed;
+        }
+
+        private void setSoloStartAfterSeconds(int seconds) {
+            this.soloStartAfterSeconds = seconds;
+        }
+
+        @Override protected int soloStartAfterSeconds() {
+            return soloStartAfterSeconds;
         }
 
         @Override public boolean ejectOwnedPlayersToLobby() {

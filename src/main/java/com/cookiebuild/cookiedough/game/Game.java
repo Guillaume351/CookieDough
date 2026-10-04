@@ -346,12 +346,25 @@ public abstract class Game implements GameStatus {
         return Math.max(0L, (now - oldest) / 1000L);
     }
 
+    /**
+     * Seconds before a lone waiting player's solo match really starts (the
+     * remaining solo delay plus the countdown it will then run, short when
+     * nobody else is available in the lobby), or -1 when no solo start is
+     * pending: solo start disabled, not exactly one player, or a countdown is
+     * already running ({@link #getCountdownSeconds()} applies then).
+     */
+    public synchronized int getSoloStartEtaSeconds() {
+        if (state != GameState.OPEN || startTimer > 0 || !supportsSoloStart() || players.size() != 1) return -1;
+        boolean quickStart = GameManager.getAvailablePlayerCount() == 0 || players.size() >= capacity;
+        return QueueStartPolicy.secondsUntilSoloMatch(players.size(), getLongestQueueWaitSeconds(),
+                soloStartAfterSeconds(), quickStart ? QUICK_START_DELAY_SECONDS : START_DELAY_SECONDS);
+    }
+
     /** Creates the continuously refreshed status shown while a lobby cannot count down. */
     protected net.kyori.adventure.text.Component createWaitingActionBar(
             CookiePlayer waiting, long waitingSeconds) {
         java.util.Locale locale = waiting.getPlayer().locale();
-        long soloStartIn = QueueStartPolicy.secondsUntilSoloStart(players.size(),
-                getLongestQueueWaitSeconds(), soloStartAfterSeconds());
+        int soloStartIn = getSoloStartEtaSeconds();
         String text = soloStartIn >= 0
                 ? LocaleManager.getMessage("game.waiting.solo_start", locale, soloStartIn)
                 : LocaleManager.getMessage("game.waiting.status", locale,

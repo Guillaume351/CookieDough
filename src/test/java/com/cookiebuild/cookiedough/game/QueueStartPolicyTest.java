@@ -31,4 +31,13 @@ class QueueStartPolicyTest {
     void neverRaisesAnAlreadySoloMinimum() {
         assertEquals(1, QueueStartPolicy.effectiveMinimumPlayers(1, 1, 60, 15));
     }
+
+    @Test
+    void theSoloMatchEtaIncludesTheCountdownThatFollowsTheSoloDelay() {
+        assertEquals(25, QueueStartPolicy.secondsUntilSoloMatch(1, 0, 15, 10));
+        assertEquals(33, QueueStartPolicy.secondsUntilSoloMatch(1, 12, 15, 30));
+        assertEquals(10, QueueStartPolicy.secondsUntilSoloMatch(1, 40, 15, 10));
+        assertEquals(-1, QueueStartPolicy.secondsUntilSoloMatch(2, 0, 15, 10));
+        assertEquals(-1, QueueStartPolicy.secondsUntilSoloMatch(1, 0, QueueStartPolicy.SOLO_START_DISABLED, 10));
+    }
 }

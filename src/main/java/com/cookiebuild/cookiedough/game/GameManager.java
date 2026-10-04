@@ -636,6 +636,33 @@ public class GameManager {
                 .filter(game -> game.getGameName().equalsIgnoreCase(gameName)));
     }
 
+    /**
+     * Whether the mode starts a lone player's match by itself (e.g. Build
+     * Battle after 15 s), so player-facing texts must not ask for a second
+     * player. False while no arena of the mode is registered.
+     */
+    public static boolean startsSolo(String gameName) {
+        return gameName != null && games.stream()
+                .filter(game -> game.getGameName().equalsIgnoreCase(gameName))
+                .anyMatch(Game::supportsSoloStart);
+    }
+
+    /**
+     * Distinct online players inside live arenas of one mode: every arena past
+     * its OPEN queue (starting, running, or on the end screen), including late
+     * joiners admitted into a running build. Queued players and spectators are
+     * excluded, so lobby selectors can show "Lobby x/y" and "N playing" side by
+     * side without counting anyone twice.
+     */
+    public static int getPlayingGamePlayerCount(String gameName) {
+        if (gameName == null || gameName.isBlank()) {
+            return 0;
+        }
+        return countDistinctOnlinePlayers(games.stream()
+                .filter(game -> game.getGameName().equalsIgnoreCase(gameName))
+                .filter(game -> game.getState() != GameState.OPEN));
+    }
+
     private static String readable(String gameName, org.bukkit.entity.Player viewer) {
         return com.cookiebuild.cookiedough.lobby.GamePresentation.readableName(gameName, viewer.locale());
     }
