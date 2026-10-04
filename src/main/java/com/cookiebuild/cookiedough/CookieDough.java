@@ -56,6 +56,7 @@ import com.cookiebuild.cookiedough.service.MobileLinkService;
 import com.cookiebuild.cookiedough.listener.PlayerTransitionFlightGuard;
 import com.cookiebuild.cookiedough.utils.HibernateUtil;
 import com.cookiebuild.cookiedough.utils.LocaleManager;
+import com.cookiebuild.cookiedough.cosmetics.CosmeticActivation;
 import com.cookiebuild.cookiedough.cosmetics.CosmeticEffects;
 import com.cookiebuild.cookiedough.cosmetics.CosmeticService;
 import com.cookiebuild.cookiedough.cosmetics.CosmeticsMenu;
@@ -83,6 +84,7 @@ public final class CookieDough extends JavaPlugin {
     private CosmeticService cosmeticService;
     private CosmeticEffects cosmeticEffects;
     private CosmeticsMenu cosmeticsMenu;
+    private CosmeticActivation cosmeticActivation;
     private RetentionRewardService retentionRewards;
     private com.cookiebuild.cookiedough.social.SocialMenu socialMenu;
 
@@ -102,6 +104,7 @@ public final class CookieDough extends JavaPlugin {
         getServer().getPluginManager().registerEvents(cosmeticsMenu, this);
         getServer().getPluginManager().registerEvents(socialMenu, this);
         getServer().getPluginManager().registerEvents(cosmeticEffects, this);
+        getServer().getPluginManager().registerEvents(cosmeticActivation, this);
         getServer().getPluginManager().registerEvents(retentionRewards, this);
         getServer().getPluginManager().registerEvents(
                 new com.cookiebuild.cookiedough.retention.SoireeMotdListener(communityEventManager), this);
@@ -176,6 +179,11 @@ public final class CookieDough extends JavaPlugin {
         return cosmeticsMenu;
     }
 
+    /** Welcome trail, lobby hotbar entry and post-match cosmetic offer; null before enable. */
+    public CosmeticActivation getCosmeticActivation() {
+        return cosmeticActivation;
+    }
+
     /** Login calendar, returning-player welcome and website reward grants. */
     public RetentionRewardService getRetentionRewards() {
         return retentionRewards;
@@ -242,6 +250,7 @@ public final class CookieDough extends JavaPlugin {
         cosmeticService = new CosmeticService(new JpaCosmeticRepository());
         cosmeticEffects = new CosmeticEffects(this, cosmeticService);
         cosmeticsMenu = new CosmeticsMenu(this, cosmeticService, cosmeticEffects);
+        cosmeticActivation = new CosmeticActivation(this, cosmeticService, cosmeticEffects, cosmeticsMenu);
         retentionRewards = new RetentionRewardService(this);
         String mobileLinkPepper = System.getenv("MOBILE_LINK_PEPPER");
         if (MobileLinkService.isValidPepper(mobileLinkPepper)) {

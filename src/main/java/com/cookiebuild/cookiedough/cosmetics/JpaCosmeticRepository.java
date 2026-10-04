@@ -147,6 +147,7 @@ public final class JpaCosmeticRepository implements CosmeticRepository {
         EntityTransaction tx = em.getTransaction();
         try {
             tx.begin();
+            if (!selectIfEmpty.isEmpty()) markSelectionSource(em, "grant");
             for (String cosmeticId : cosmeticIds) {
                 // The stable source is part of the key. Replays extend the same
                 // grant monotonically, while a revoked/refunded source can never
@@ -311,6 +312,7 @@ public final class JpaCosmeticRepository implements CosmeticRepository {
                 return PurchaseResult.INSUFFICIENT_COINS;
             }
             em.persist(new CoinTransaction(player, -price, "cosmetic:" + cosmeticId, purchasedAt));
+            markSelectionSource(em, "purchase");
             em.createNativeQuery("""
                     insert into cosmetic_entitlements
                       (player_id, cosmetic_id, source, granted_at, revoked_at, expires_at)
@@ -341,6 +343,64 @@ public final class JpaCosmeticRepository implements CosmeticRepository {
         } finally {
             em.close();
         }
+    }
+
+    @Override
+    public WelcomeGiftResult claimWelcomeGift(UUID playerId, String cosmeticId, CosmeticSlot slot, String edition,
+            Date giftedAt) {
+        EntityManager em = HibernateUtil.createEntityManager();
+        EntityTransaction tx = em.getTransaction();
+        try {
+            tx.begin();
+            markSelectionSource(em, "gift");
+            int recorded = em.createNativeQuery("""
+                    insert into cosmetic_welcome_gifts (player_id, cosmetic_id, equipped, edition, granted_at)
+                    values (:playerId, :cosmeticId, false, :edition, :grantedAt)
+                    on conflict (player_id) do nothing
+                    """)
+                    .setParameter("playerId", playerId)
+                    .setParameter("cosmeticId", cosmeticId)
+                    .setParameter("edition", edition)
+                    .setParameter("grantedAt", giftedAt, TemporalType.TIMESTAMP)
+                    .executeUpdate();
+            if (recorded == 0) {
+                tx.commit();
+                return WelcomeGiftResult.ALREADY_GIFTED;
+            }
+            int equipped = em.createNativeQuery("""
+                    insert into cosmetic_selections (player_id, slot, cosmetic_id, selected_at)
+                    values (:playerId, :slot, :cosmeticId, :selectedAt)
+                    on conflict (player_id, slot) do nothing
+                    """)
+                    .setParameter("playerId", playerId)
+                    .setParameter("slot", slot.name())
+                    .setParameter("cosmeticId", cosmeticId)
+                    .setParameter("selectedAt", giftedAt, TemporalType.TIMESTAMP)
+                    .executeUpdate();
+            if (equipped > 0) {
+                em.createNativeQuery("update cosmetic_welcome_gifts set equipped = true where player_id = :playerId")
+                        .setParameter("playerId", playerId)
+                        .executeUpdate();
+            }
+            tx.commit();
+            return equipped > 0 ? WelcomeGiftResult.EQUIPPED : WelcomeGiftResult.SLOT_TAKEN;
+        } catch (RuntimeException error) {
+            rollback(tx);
+            throw error;
+        } finally {
+            em.close();
+        }
+    }
+
+    /**
+     * Tells the first-activation trigger (website migration 0026) how the
+     * selections of this transaction happened: gift, purchase or grant. Player
+     * choices leave it unset and are recorded as 'selection'.
+     */
+    private static void markSelectionSource(EntityManager em, String source) {
+        em.createNativeQuery("select set_config('cookiebuild.cosmetic_source', :source, true)")
+                .setParameter("source", source)
+                .getSingleResult();
     }
 
     private static void rollback(EntityTransaction tx) {

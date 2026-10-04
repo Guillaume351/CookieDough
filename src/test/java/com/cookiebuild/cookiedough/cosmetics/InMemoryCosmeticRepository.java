@@ -155,6 +155,23 @@ final class InMemoryCosmeticRepository implements CosmeticRepository {
         return PurchaseResult.PURCHASED;
     }
 
+    private final Map<UUID, String> welcomeGifts = new HashMap<>();
+
+    @Override
+    public synchronized WelcomeGiftResult claimWelcomeGift(UUID playerId, String cosmeticId, CosmeticSlot slot,
+            String edition, Date giftedAt) {
+        if (welcomeGifts.putIfAbsent(playerId, edition) != null) return WelcomeGiftResult.ALREADY_GIFTED;
+        EnumMap<CosmeticSlot, String> equipped = selections.computeIfAbsent(playerId,
+                ignored -> new EnumMap<>(CosmeticSlot.class));
+        if (equipped.containsKey(slot)) return WelcomeGiftResult.SLOT_TAKEN;
+        equipped.put(slot, cosmeticId);
+        return WelcomeGiftResult.EQUIPPED;
+    }
+
+    synchronized String welcomeGiftEdition(UUID playerId) {
+        return welcomeGifts.get(playerId);
+    }
+
     synchronized void setCoins(UUID playerId, int balance) {
         coins.put(playerId, balance);
     }

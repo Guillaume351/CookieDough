@@ -269,6 +269,9 @@ public class LobbyManager implements Listener {
         CookieDough.getInstance().getLogger().info(player.getName() + " has been teleported to the lobby.");
 
         giveQuickPlayItem(player);
+        com.cookiebuild.cookiedough.cosmetics.CosmeticActivation cosmetics =
+                CookieDough.getInstance().getCosmeticActivation();
+        if (cosmetics != null) cosmetics.giveHotbarItem(player);
         player.saveData();
         PlayerWrapperListener.showLobbyScoreboard(player);
         FunnelTelemetry.record(player, FunnelTelemetry.Event.LOBBY_READY, "world=lobby");

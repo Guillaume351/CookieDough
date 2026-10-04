@@ -37,6 +37,15 @@ public final class CosmeticService {
         PLAYER_NOT_FOUND
     }
 
+    public enum WelcomeGiftResult {
+        EQUIPPED,
+        SLOT_TAKEN,
+        ALREADY_GIFTED
+    }
+
+    /** The free trail every account receives, equipped once on its first lobby arrival. */
+    public static final String WELCOME_GIFT = CosmeticCatalog.COOKIE_SPARKLE_TRAIL;
+
     public record InventoryItem(CosmeticDefinition cosmetic, boolean entitled, boolean selected) {
     }
 
@@ -185,6 +194,27 @@ public final class CosmeticService {
         repository.grantAll(playerId, List.of(cosmeticId), source, Date.from(clock.instant()), null, select);
         notifyChange(playerId);
         return GrantResult.GRANTED;
+    }
+
+    /**
+     * Equips the free welcome trail once per account, only into an empty trail
+     * slot, so nobody has to find a menu to get their first cosmetic. Removing
+     * it later is respected: the gift is never applied twice.
+     *
+     * @param edition "java", "bedrock" or anything else for "unknown"
+     */
+    public WelcomeGiftResult claimWelcomeGift(UUID playerId, String edition) {
+        Objects.requireNonNull(playerId, "playerId");
+        CosmeticDefinition gift = CosmeticCatalog.find(WELCOME_GIFT).orElseThrow();
+        String normalizedEdition = "java".equals(edition) || "bedrock".equals(edition) ? edition : "unknown";
+        WelcomeGiftResult result = switch (repository.claimWelcomeGift(playerId, gift.id(), gift.slot(),
+                normalizedEdition, Date.from(clock.instant()))) {
+            case EQUIPPED -> WelcomeGiftResult.EQUIPPED;
+            case SLOT_TAKEN -> WelcomeGiftResult.SLOT_TAKEN;
+            case ALREADY_GIFTED -> WelcomeGiftResult.ALREADY_GIFTED;
+        };
+        if (result == WelcomeGiftResult.EQUIPPED) notifyChange(playerId);
+        return result;
     }
 
     /**
