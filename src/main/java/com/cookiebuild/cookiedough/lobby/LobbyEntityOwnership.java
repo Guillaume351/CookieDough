@@ -7,13 +7,13 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /** Durable ownership marker used to reconcile only Cookie Build lobby entities. */
-final class LobbyEntityOwnership {
+public final class LobbyEntityOwnership {
     private static final String OWNER_KEY = "managed_lobby_entity";
     private static final String OWNER_VALUE = "cookiebuild";
 
     private LobbyEntityOwnership() { }
 
-    static void mark(JavaPlugin plugin, Entity entity, String kind) {
+    public static void mark(JavaPlugin plugin, Entity entity, String kind) {
         entity.getPersistentDataContainer().set(new NamespacedKey(plugin, OWNER_KEY),
                 PersistentDataType.STRING, OWNER_VALUE + ":" + kind);
     }

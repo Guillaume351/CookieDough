@@ -1,0 +1,12 @@
+# Sonate au clair de lune, 1er mouvement (introduction) — Ludwig van Beethoven
+# (1801), domaine public. Arrangement Cookie Build. Une unite = un triolet.
+title: "Sonate au clair de lune"
+composer: "Ludwig van Beethoven (1801)"
+phrases:
+  a: "G#3 C#4 E4 G#3 C#4 E4 G#3 C#4 E4 G#3 C#4 E4 | G#3 C#4 E4 G#3 C#4 E4 G#3 C#4 E4 G#3 C#4 E4 | A3 C#4 E4 A3 C#4 E4 A3 D4 F#4 A3 D4 F#4 | G#3 C4 F#4 G#3 C#4 E4 G#3 C#4 D#4 F#3 C4 D#4"
+  b: "C#2+C#3:12 | B1+B2:12 | A1+A2:6 F#1+F#2:6 | G#1+G#2:12"
+voices:
+  - instrument: harp
+    play: "@6 $a $a C#4+E4+G#4:12"
+  - instrument: bass
+    play: "@6 $b $b C#2+C#3:12"

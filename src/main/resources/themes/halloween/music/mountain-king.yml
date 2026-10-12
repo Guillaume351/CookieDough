@@ -1,0 +1,19 @@
+# Dans l'antre du roi de la montagne — Edvard Grieg (1875), domaine public.
+# Arrangement Cookie Build pour blocs musicaux. Une unite = une croche.
+title: "Dans l'antre du roi de la montagne"
+composer: "Edvard Grieg (1875)"
+phrases:
+  mA: "B3 C#4 D4 E4 F#4 D4 F#4:2 | F4 C#4 F4:2 E4 C4 E4:2 | B3 C#4 D4 E4 F#4 D4 F#4 B4 | A4 F#4 D4 F#4 A4:4"
+  mB: "F#4 G#4 A4 B4 C#5 A4 C#5:2 | C5 G#4 C5:2 B4 G4 B4:2 | F#4 G#4 A4 B4 C#5 A4 C#5 F#5 | E5 C#5 A4 C#5 E5:4"
+  bA: "B2 r F#2 r B2 r F#2 r | B2 r F#2 r B2 r F#2 r | B2 r F#2 r B2 r F#2 r | B2 r F#2 r B2 r F#2 r"
+  bB: "F#2 r C#3 r F#2 r C#3 r | F#2 r C#3 r F#2 r C#3 r | F#2 r C#3 r F#2 r C#3 r | F#2 r C#3 r F#2 r C#3 r"
+  rest: "r:32"
+voices:
+  - instrument: harp
+    play: "@4 $mA $mA $mB $mA @3 $mA $mA $mB $mA @2 $mA $mA $mB $mA B3+D4+F#4:8"
+  - instrument: xylophone
+    transpose: 24
+    volume: 0.55
+    play: "@4 $rest $rest $rest $rest @3 $rest $rest $mB $mA @2 $mA $mA $mB $mA B3+F#4:8"
+  - instrument: bass
+    play: "@4 $bA $bA $bB $bA @3 $bA $bA $bB $bA @2 $bA $bA $bB $bA B2:8"

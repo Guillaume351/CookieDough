@@ -1,0 +1,18 @@
+# Dies irae — plain-chant gregorien (XIIIe siecle), domaine public.
+# Courte apparition entre deux morceaux. Une unite = une noire.
+title: "Dies irae"
+composer: "Plain-chant (XIIIe siecle)"
+phrases:
+  c: "F4 E4 F4 D4 E4 C4 D4:2 D4:2 r:2"
+  r: "r:12"
+voices:
+  - instrument: bass
+    transpose: -12
+    play: "@6 $c $r $c D4:6"
+  - instrument: bell
+    transpose: 24
+    volume: 0.6
+    play: "@6 $r $c $r D4+A4:6"
+  - instrument: harp
+    volume: 0.7
+    play: "@6 $r $r $c D4+F4+A4:6"

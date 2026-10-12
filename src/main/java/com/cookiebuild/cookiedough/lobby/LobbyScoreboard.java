@@ -60,6 +60,10 @@ public class LobbyScoreboard {
             .color(NamedTextColor.GOLD)
             .decorate(TextDecoration.BOLD);
 
+    /** Seasonal theme overrides; null when no theme is active. */
+    private static volatile Component themeTitle;
+    private static volatile java.util.function.Function<Player, Component> themeLine;
+
     // Cache system
     private static final Map<java.util.UUID, PlayerStats> statsCache = new ConcurrentHashMap<>();
     private static final Map<java.util.UUID, Long> lastCacheUpdate = new ConcurrentHashMap<>();
@@ -120,12 +124,41 @@ public class LobbyScoreboard {
         }, 100L, 200L); // Check every 10 ticks (0.5 seconds) but only update every 10 seconds
     }
 
+    /** Replaces the sidebar title while a seasonal theme is active (null restores it). */
+    public static void setThemeTitle(Component title) {
+        themeTitle = title;
+    }
+
+    /** Adds one seasonal line above the website line (null removes it; the function may return null). */
+    public static void setThemeLine(java.util.function.Function<Player, Component> line) {
+        themeLine = line;
+    }
+
+    private Component currentTitle() {
+        Component title = themeTitle;
+        return title == null ? SCOREBOARD_TITLE : title;
+    }
+
+    private int themeLine(int line) {
+        java.util.function.Function<Player, Component> provider = themeLine;
+        if (provider == null) return line;
+        Component text;
+        try {
+            text = provider.apply(player);
+        } catch (RuntimeException error) {
+            return line;
+        }
+        if (text == null) return line;
+        setScore(text, line);
+        return line - 1;
+    }
+
     private void setupScoreboard() {
         if (this.scoreboard == null)
             return;
         objective = scoreboard.getObjective("lobbyStats");
         if (objective == null) {
-            objective = scoreboard.registerNewObjective("lobbyStats", Criteria.DUMMY, SCOREBOARD_TITLE);
+            objective = scoreboard.registerNewObjective("lobbyStats", Criteria.DUMMY, currentTitle());
         }
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
         update();
@@ -190,6 +223,9 @@ public class LobbyScoreboard {
             return;
         }
 
+        Component title = currentTitle();
+        if (!title.equals(objective.displayName())) objective.displayName(title);
+
         // Get cached stats
         PlayerStats stats = getCachedStats();
         List<PlayerMatchPerformance> allPerformances = stats.allPerformances;
@@ -212,6 +248,7 @@ public class LobbyScoreboard {
             setScore(Component.text("3. " + LocaleManager.getMessage(
                     "beginner.scoreboard.practice", player.locale())).color(NamedTextColor.WHITE), line--);
             setScore(Component.text(" "), line--);
+            line = themeLine(line);
             setScore(Component.text(websiteUrl).color(NamedTextColor.GRAY)
                     .decorate(TextDecoration.ITALIC), line);
             clearScoresBelow(line - 1);
@@ -255,6 +292,7 @@ public class LobbyScoreboard {
                             .color(performances.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.WHITE)), line--);
         }
 
+        line = themeLine(line);
         // Website
         setScore(Component.text(websiteUrl).color(NamedTextColor.GRAY).decorate(TextDecoration.ITALIC), line--);
         clearScoresBelow(line);

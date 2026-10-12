@@ -4,6 +4,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.bukkit.entity.Player;
+
+import com.cookiebuild.cookiedough.utils.LocaleManager;
+
 /**
  * Seasonal theme switchboard (Halloween, Christmas...). A theme only ever lives
  * in players' clients and in memory: it never edits a world, an archive or a
@@ -24,6 +28,10 @@ public final class ThemeService {
         return current == null ? Optional.empty() : Optional.of(current.id());
     }
 
+    public Optional<ThemeDefinition> active() {
+        return Optional.ofNullable(active);
+    }
+
     public boolean isActive(String themeId) {
         ThemeDefinition current = active;
         return current != null && current.id().equalsIgnoreCase(themeId);
@@ -42,6 +50,15 @@ public final class ThemeService {
     public List<String> buildBattleThemes() {
         ThemeDefinition current = active;
         return current == null ? List.of() : current.buildBattleThemes();
+    }
+
+    /** Seasonal subtitle of the arrival title, when the theme has one. */
+    public Optional<String> joinSubtitle(Player player) {
+        ThemeDefinition current = active;
+        if (current == null) return Optional.empty();
+        String key = current.messagePrefix() + ".join.subtitle";
+        String text = LocaleManager.getMessage(key, player == null ? null : player.locale());
+        return text.equals(key) ? Optional.empty() : Optional.of(text);
     }
 
     void setActive(ThemeDefinition theme) {

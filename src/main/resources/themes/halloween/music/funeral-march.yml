@@ -1,0 +1,15 @@
+# Marche funebre (Sonate n° 2, 3e mouvement) — Frederic Chopin (1837),
+# domaine public. Arrangement Cookie Build. Une unite = une double croche.
+title: "Marche funebre"
+composer: "Frederic Chopin (1837)"
+phrases:
+  m: "A#3:4 A#3:3 A#3:1 A#3:8 | C#4:3 C4:1 C4:3 A#3:1 A#3:3 A3:1 A#3:4"
+  b: "A#1+F2:4 A#1+F#2:4 A#1+F2:4 A#1+F#2:4"
+voices:
+  - instrument: harp
+    play: "@4 $m $m $m $m A#3+C#4+F4:16"
+  - instrument: guitar
+    volume: 0.6
+    play: "@4 r:64 $m $m A#3+F4:16"
+  - instrument: bass
+    play: "@4 $b $b $b $b $b $b $b $b A#1+F2:16"

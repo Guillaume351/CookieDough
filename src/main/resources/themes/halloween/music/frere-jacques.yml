@@ -1,0 +1,20 @@
+# Frere Jacques en mineur, en canon — d'apres Gustav Mahler (Symphonie n° 1,
+# 3e mouvement, 1888) ; chanson traditionnelle. Domaine public. Une unite = une croche.
+title: "Frere Jacques en mineur (canon)"
+composer: "D'apres Gustav Mahler (1888)"
+phrases:
+  p: "D4:2 E4:2 F4:2 D4:2 | D4:2 E4:2 F4:2 D4:2 | F4:2 G4:2 A4:4 | F4:2 G4:2 A4:4 | A4 A#4 A4 G4 F4:2 D4:2 | A4 A#4 A4 G4 F4:2 D4:2 | D4:2 A3:2 D4:4 | D4:2 A3:2 D4:4"
+  o: "D2:4 A1:4"
+voices:
+  - instrument: harp
+    play: "@5 $p $p r:32 D4:8"
+  - instrument: flute
+    transpose: 12
+    volume: 0.7
+    play: "@5 r:16 $p $p r:16 r:8"
+  - instrument: bell
+    transpose: 24
+    volume: 0.5
+    play: "@5 r:32 $p $p D4+A4:8"
+  - instrument: bass
+    play: "@5 $o $o $o $o $o $o $o $o $o $o $o $o $o $o $o $o $o $o $o $o D2:8"

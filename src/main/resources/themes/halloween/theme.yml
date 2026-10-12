@@ -1,0 +1,110 @@
+# Halloween — everything below is shown to clients only (fake blocks, player
+# time, non-persistent entities, sounds). No world, map or archive is modified:
+# when the window ends (or /theme set off) the real lobby comes back at once.
+id: halloween
+messages: theme.halloween
+window:
+  zone: Europe/Paris
+  start: "2026-10-12T00:00"
+  end: "2026-11-03T00:00"
+
+texts:
+  scoreboard-title: "§6§lCookie §5§lBuild"
+  # Server list, second line. ASCII only (Bedrock and old clients).
+  motd-line: "§6Halloween §8- §eCitrouilles cachees, musique et cosmetiques limites !"
+  announce-minutes: 15
+
+lobby:
+  world: lobby
+  # Decorated square around the world spawn, and its height range.
+  radius: 48
+  min-y: 0
+  max-y: 40
+  # Client time: dusk, stars and a rising full moon, still readable on phones.
+  player-time: 13000
+  bats: 7
+  ambient:
+    min-seconds: 35
+    max-seconds: 80
+    sounds:
+      - ambient.cave
+      - entity.witch.ambient
+      - entity.phantom.ambient
+      - entity.bat.ambient
+      - block.bell.resonate
+  decor:
+    swaps:
+      - from: ["#leaves"]
+        to: "minecraft:pale_oak_leaves"
+      - from: [GREEN_CARPET]
+        to: {"minecraft:orange_carpet": 3, "minecraft:brown_carpet": 2, "minecraft:green_carpet": 1}
+      - from: [SHORT_GRASS, FERN]
+        to: {"minecraft:short_dry_grass": 3, "minecraft:dead_bush": 1}
+      - from: ["#small_flowers"]
+        to: "minecraft:wither_rose"
+      - from: ["#crops"]
+        keep-states: false
+        to: {"minecraft:pumpkin": 3, "minecraft:carved_pumpkin[facing=@random]": 1, "minecraft:pumpkin_stem[age=7]": 3}
+    toppers:
+      over: ["#fences"]
+      chance: 0.9
+      blocks: {"minecraft:jack_o_lantern[facing=@center]": 3, "minecraft:carved_pumpkin[facing=@center]": 2}
+    ground:
+      over: [GRASS_BLOCK, LIME_TERRACOTTA, GREEN_TERRACOTTA, MOSS_BLOCK]
+      chance: 0.18
+      blocks: {"minecraft:leaf_litter[segment_amount=4,facing=@random]": 6, "minecraft:firefly_bush": 1, "minecraft:dead_bush": 1}
+    hanging:
+      under: ["#leaves"]
+      chance: 0.5
+      blocks: {"minecraft:pale_hanging_moss[tip=true]": 1}
+    ceiling-corners:
+      chance: 0.45
+      blocks: {"minecraft:cobweb": 1}
+
+# The musician witch above the north gate of the plaza, facing the spawn.
+music:
+  world: lobby
+  x: 1.5
+  y: 13.0
+  z: -14.5
+  yaw: 0
+  radius: 44
+  max-gain: 0.45
+  gap-seconds: 10
+  playlist: [mountain-king, lullaby, toccata, greensleeves, frere-jacques, moonlight, funeral-march, dies-irae]
+
+# 13 pumpkins hidden in the lobby decor (each spot is a real block, checked at start).
+hunt:
+  id: halloween-2026
+  world: lobby
+  coins-per-find: 15
+  completion-coins: 100
+  reward-cosmetic: will_o_wisp_trail
+  spots:
+    - {id: p01, x: 11, y: 11, z: -10, real: LIME_TERRACOTTA, facing: west, block: "minecraft:jack_o_lantern"}
+    - {id: p02, x: -28, y: 14, z: 22, real: CYAN_TERRACOTTA, facing: east, block: "minecraft:carved_pumpkin"}
+    - {id: p03, x: -29, y: 14, z: -21, real: CYAN_TERRACOTTA, facing: east, block: "minecraft:jack_o_lantern"}
+    - {id: p04, x: 27, y: 14, z: 25, real: CYAN_TERRACOTTA, facing: west, block: "minecraft:carved_pumpkin"}
+    - {id: p05, x: 2, y: 13, z: 18, real: GRAVEL, facing: north, block: "minecraft:jack_o_lantern"}
+    - {id: p06, x: -18, y: 12, z: 4, real: OAK_LOG, facing: east, block: "minecraft:carved_pumpkin"}
+    - {id: p07, x: -10, y: 14, z: -34, real: CYAN_TERRACOTTA, facing: east, block: "minecraft:jack_o_lantern"}
+    - {id: p08, x: 32, y: 14, z: 7, real: GRAY_WOOL, facing: east, block: "minecraft:carved_pumpkin"}
+    - {id: p09, x: -7, y: 14, z: 34, real: CYAN_TERRACOTTA, facing: east, block: "minecraft:jack_o_lantern"}
+    - {id: p10, x: 15, y: 12, z: 8, real: OAK_LOG, facing: north, block: "minecraft:carved_pumpkin"}
+    - {id: p11, x: -2, y: 13, z: -19, real: GRAVEL, facing: south, block: "minecraft:jack_o_lantern"}
+    - {id: p12, x: -17, y: 14, z: -6, real: OAK_LOG, facing: east, block: "minecraft:carved_pumpkin"}
+    - {id: p13, x: -9, y: 13, z: 12, real: OAK_LOG, facing: east, block: "minecraft:jack_o_lantern"}
+
+# Match worlds are disposable copies; the theme still only changes what clients see.
+games:
+  # Sunset sky in every mode (client time, no gameplay effect).
+  namespaces: [bedwars, buildbattles, skywars, turfwars, microbattles, pitchout, fatking, nomadwars]
+  player-time: 12300
+  # Same-shape lamps shown as jack o'lanterns. Not in Build Battle: players build with these.
+  palette-namespaces: [bedwars, skywars, turfwars, microbattles, pitchout, fatking, nomadwars]
+  palette:
+    GLOWSTONE: "minecraft:jack_o_lantern"
+    SEA_LANTERN: "minecraft:jack_o_lantern"
+    SHROOMLIGHT: "minecraft:jack_o_lantern"
+
+build-battle-themes: [Haunted House, Witch Cauldron, Graveyard, Pumpkin, Ghost, Vampire, Giant Spider, Candy, Halloween, Skeleton]

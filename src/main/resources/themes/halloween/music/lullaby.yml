@@ -1,0 +1,14 @@
+# Berceuse (Wiegenlied, op. 49 n° 4) — Johannes Brahms (1868), domaine public.
+# Arrangement Cookie Build en ut mineur, facon boite a musique. Une unite = une croche.
+title: "Berceuse de Brahms (en mineur)"
+composer: "Johannes Brahms (1868)"
+phrases:
+  m: "D#4 D#4 | G4:4 D#4 D#4 | G4:4 D#4 G4 | C5:2 B4:3 G#4 | G#4:2 G4:2 D4 D#4 | F4:2 D4:2 D4 D#4 | F4:4 D4 F4 | B4 G#4 G4:2 B4:2 | C5:4 C4 C4 | C5:4 G#4 F4 | G4:4 D#4 C4 | F4:2 G4:2 G#4:2 | G4:4 C4 C4 | C5:4 G#4 F4 | G4:4 D#4 C4 | F4:2 D#4:2 D4:2 | C4:6"
+  b: "r:2 | C3:2 G2:2 G2:2 | C3:2 G2:2 G2:2 | F2:2 C3:2 C3:2 | G2:2 D3:2 D3:2 | G2:2 D3:2 D3:2 | G2:2 D3:2 D3:2 | G2:2 D3:2 D3:2 | C3:2 G2:2 G2:2 | F2:2 C3:2 C3:2 | C3:2 G2:2 G2:2 | G2:2 D3:2 D3:2 | C3:2 G2:2 G2:2 | F2:2 C3:2 C3:2 | C3:2 G2:2 G2:2 | G2:2 D3:2 D3:2 | C3:6"
+voices:
+  - instrument: bell
+    transpose: 24
+    play: "@5 $m"
+  - instrument: bass
+    volume: 0.7
+    play: "@5 $b"

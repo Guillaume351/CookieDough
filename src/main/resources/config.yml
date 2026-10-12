@@ -18,6 +18,13 @@ community-event:
     timezone: "Europe/Paris"
     coin-multiplier: 2
 
+# Seasonal themes (Halloween, Christmas...): client-side decor, music box,
+# collectible hunt, limited cosmetics. They never modify a world or a map.
+# auto: each theme follows its own dates (themes/<id>/theme.yml); off: none;
+# or a theme id to force it. /theme set <auto|off|id> changes it live.
+themes:
+  mode: auto
+
 # Generated automatically on first start; keep stable to compare cohorts without logging UUIDs.
 telemetry:
   salt: ""

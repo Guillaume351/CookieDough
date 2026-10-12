@@ -1,0 +1,4 @@
+# Seasonal themes bundled with CookieDough. Each id has themes/<id>/theme.yml.
+# An operator may override a file by copying it to plugins/CookieDough/themes/<id>/.
+themes:
+  - halloween

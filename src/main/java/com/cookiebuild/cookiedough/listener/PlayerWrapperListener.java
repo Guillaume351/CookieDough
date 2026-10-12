@@ -288,10 +288,13 @@ public class PlayerWrapperListener implements Listener {
 
         player.sendMessage(ChatColor.GREEN + LocaleManager.getMessage("welcome.message", player.locale(), player.getName()));
         if (resumeTarget == null) {
+            java.util.Optional<String> seasonal = com.cookiebuild.cookiedough.CookieDough.getInstance()
+                    .getThemeService().joinSubtitle(player);
             player.showTitle(net.kyori.adventure.title.Title.title(
                     Component.text("Cookie Build", NamedTextColor.GOLD),
-                    Component.text(com.cookiebuild.cookiedough.ui.PlatformText.message(player, "lobby.menu.subtitle"),
-                            NamedTextColor.YELLOW)));
+                    seasonal.map(text -> Component.text(text, NamedTextColor.GOLD)).orElseGet(() -> Component.text(
+                            com.cookiebuild.cookiedough.ui.PlatformText.message(player, "lobby.menu.subtitle"),
+                            NamedTextColor.YELLOW))));
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
         }
 

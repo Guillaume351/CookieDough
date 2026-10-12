@@ -82,6 +82,14 @@ commands:
   fly:
     description: Toggle entitled lobby-only flight
     usage: /<command>
+  musique:
+    aliases: [music, musica, musik]
+    description: Switch the lobby music box off or on
+    usage: /<command>
+  theme:
+    description: Show, force or switch off the seasonal theme
+    usage: /<command> [status|set <auto|off|id>|reload|music next]
+    permission: cookiedough.admin
 permissions:
   cookiedough.support.link:
     description: Create a private one-time Cookie Build web shop code

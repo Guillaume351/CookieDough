@@ -89,6 +89,7 @@ public final class CookieDough extends JavaPlugin {
     private com.cookiebuild.cookiedough.social.SocialMenu socialMenu;
     private final com.cookiebuild.cookiedough.theme.ThemeService themeService =
             new com.cookiebuild.cookiedough.theme.ThemeService();
+    private com.cookiebuild.cookiedough.theme.ThemeController themeController;
 
     public static CookieDough getInstance() {
         return instance;
@@ -287,6 +288,7 @@ public final class CookieDough extends JavaPlugin {
         // Register listeners
         registerListeners();
         cosmeticEffects.start();
+        startSeasonalThemes();
 
         // Persist a durable play-time checkpoint. After an unclean restart the
         // recovery path closes sessions at this checkpoint instead of counting
@@ -309,6 +311,32 @@ public final class CookieDough extends JavaPlugin {
         getLogger().info("MessageScheduler initialized and started");
 
         getLogger().info("CookieDough enabled!");
+    }
+
+    /**
+     * Seasonal themes only show things to clients (fake blocks, player time,
+     * non-persistent entities, sounds): no world or archive is ever modified.
+     */
+    private void startSeasonalThemes() {
+        com.cookiebuild.cookiedough.theme.hunt.HuntRewards rewards =
+                new com.cookiebuild.cookiedough.theme.hunt.HuntRewards() {
+                    @Override
+                    public boolean coins(java.util.UUID playerId, String key, int amount) {
+                        boolean paid = new MinigameProgressionService(null)
+                                .claimGlobalReward(playerId, "theme:" + key, amount);
+                        if (paid) com.cookiebuild.cookiedough.lobby.LobbyScoreboard.invalidatePlayerCache(playerId);
+                        return paid;
+                    }
+
+                    @Override
+                    public boolean cosmetic(java.util.UUID playerId, String cosmeticId, String source) {
+                        return cosmeticService.grantReward(playerId, cosmeticId, source)
+                                == CosmeticService.GrantResult.GRANTED;
+                    }
+                };
+        themeController = new com.cookiebuild.cookiedough.theme.ThemeController(this, themeService,
+                new com.cookiebuild.cookiedough.theme.hunt.PostgresCollectibleRepository(), rewards);
+        themeController.start();
     }
 
     private void setupLobbyNPCs() {
@@ -423,6 +451,12 @@ public final class CookieDough extends JavaPlugin {
             }
             return true;
         });
+        com.cookiebuild.cookiedough.theme.ThemeCommand themeCommand =
+                new com.cookiebuild.cookiedough.theme.ThemeCommand(themeController);
+        getCommand("theme").setExecutor(themeCommand);
+        getCommand("theme").setTabCompleter(themeCommand);
+        getCommand("musique").setExecutor(
+                new com.cookiebuild.cookiedough.theme.music.MusicCommand(themeController.music()));
         getCommand("cosmetics").setExecutor((sender, command, label, args) -> {
             if (sender instanceof org.bukkit.entity.Player player) {
                 cosmeticsMenu.open(player);
@@ -462,6 +496,9 @@ public final class CookieDough extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (themeController != null) {
+            themeController.stop();
+        }
         if (cosmeticEffects != null) {
             cosmeticEffects.stop();
         }
