@@ -256,6 +256,7 @@ public final class CookieDough extends JavaPlugin {
         practiceManager = new PracticeManager(this);
         communityEventManager = new CommunityEventManager(this);
         cosmeticService = new CosmeticService(new JpaCosmeticRepository());
+        cosmeticService.setActiveSeasons(themeService::activeSeasonIds);
         cosmeticEffects = new CosmeticEffects(this, cosmeticService);
         cosmeticsMenu = new CosmeticsMenu(this, cosmeticService, cosmeticEffects);
         cosmeticActivation = new CosmeticActivation(this, cosmeticService, cosmeticEffects, cosmeticsMenu);

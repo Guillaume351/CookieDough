@@ -220,7 +220,7 @@ public final class HuntLayer implements FakeBlockSource, Listener {
                         rewards.coins(playerId, current.id() + ":complete", current.completionCoins());
                     }
                     if (current.rewardCosmetic() != null && !current.rewardCosmetic().isBlank()) {
-                        rewards.cosmetic(playerId, current.rewardCosmetic(), "theme:" + current.id());
+                        rewards.cosmetic(playerId, current.rewardCosmetic(), current.id() + ":pumpkins");
                     }
                 }
             } catch (RuntimeException error) {

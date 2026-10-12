@@ -6,11 +6,14 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /** Server-authoritative entitlement and equipment rules. */
 public final class CosmeticService {
@@ -33,6 +36,8 @@ public final class CosmeticService {
         ALREADY_OWNED,
         INSUFFICIENT_COINS,
         NOT_FOR_SALE,
+        /** A seasonal coin cosmetic whose season is over (or not started): never debited. */
+        OUT_OF_SEASON,
         UNKNOWN_COSMETIC,
         PLAYER_NOT_FOUND
     }
@@ -46,19 +51,50 @@ public final class CosmeticService {
     /** The free trail every account receives, equipped once on its first lobby arrival. */
     public static final String WELCOME_GIFT = CosmeticCatalog.COOKIE_SPARKLE_TRAIL;
 
-    public record InventoryItem(CosmeticDefinition cosmetic, boolean entitled, boolean selected) {
+    /**
+     * @param inSeason true for a permanent cosmetic, or for a seasonal one
+     *        whose season was active when the inventory was read
+     */
+    public record InventoryItem(CosmeticDefinition cosmetic, boolean entitled, boolean selected, boolean inSeason) {
+        /** Season unknown: a seasonal cosmetic is treated as out of season (fail closed). */
+        public InventoryItem(CosmeticDefinition cosmetic, boolean entitled, boolean selected) {
+            this(cosmetic, entitled, selected, !cosmetic.seasonal());
+        }
+
+        /** Out of season, a seasonal cosmetic is shown only to players who own it. */
+        public boolean visible() {
+            return entitled || inSeason;
+        }
+
+        /** Not owned and purchasable with coins right now. */
+        public boolean onSale() {
+            return !entitled && inSeason && cosmetic.coinPurchasable();
+        }
+
+        /** Shows the "limited edition" label: a seasonal cosmetic while its season is active. */
+        public boolean limitedEdition() {
+            return cosmetic.seasonal() && inSeason;
+        }
     }
 
+    /** @param activeSeasons season ids active when the inventory was read (lowercase) */
     public record Inventory(
             List<InventoryItem> items,
             Map<CosmeticSlot, String> selections,
             Map<String, Instant> entitlementExpirations,
-            Map<CosmeticSlot, Instant> selectionExpirations) {
+            Map<CosmeticSlot, Instant> selectionExpirations,
+            Set<String> activeSeasons) {
         public Inventory {
             items = List.copyOf(items);
             selections = Map.copyOf(selections);
             entitlementExpirations = Map.copyOf(entitlementExpirations);
             selectionExpirations = Map.copyOf(selectionExpirations);
+            activeSeasons = activeSeasons == null ? Set.of() : Set.copyOf(activeSeasons);
+        }
+
+        public Inventory(List<InventoryItem> items, Map<CosmeticSlot, String> selections,
+                Map<String, Instant> entitlementExpirations, Map<CosmeticSlot, Instant> selectionExpirations) {
+            this(items, selections, entitlementExpirations, selectionExpirations, Set.of());
         }
 
         public boolean entitled(String cosmeticId) {
@@ -70,6 +106,7 @@ public final class CosmeticService {
     private final CosmeticRepository repository;
     private final Clock clock;
     private volatile Consumer<UUID> changeListener = ignored -> { };
+    private volatile Supplier<Set<String>> activeSeasons = Set::of;
 
     public CosmeticService(CosmeticRepository repository) {
         this(repository, Clock.systemUTC());
@@ -80,8 +117,38 @@ public final class CosmeticService {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    /**
+     * Wires the seasonal theme engine (e.g. {@code ThemeService::activeSeasonIds}).
+     * The supplier is read on any thread, once per inventory read or purchase;
+     * until it is set, no season is active and seasonal cosmetics are not sold.
+     */
+    public void setActiveSeasons(Supplier<Set<String>> activeSeasons) {
+        this.activeSeasons = Objects.requireNonNull(activeSeasons, "activeSeasons");
+    }
+
+    /** Lowercase ids of the seasons whose limited cosmetics are on sale; empty on any supplier failure. */
+    public Set<String> activeSeasons() {
+        try {
+            Set<String> seasons = activeSeasons.get();
+            if (seasons == null || seasons.isEmpty()) return Set.of();
+            Set<String> normalized = new java.util.HashSet<>();
+            for (String season : seasons) {
+                if (season != null && !season.isBlank()) normalized.add(season.trim().toLowerCase(Locale.ROOT));
+            }
+            return Set.copyOf(normalized);
+        } catch (RuntimeException error) {
+            return Set.of();
+        }
+    }
+
+    /** Whether {@code cosmetic} can be bought for coins right now (price and season). */
+    public boolean onSale(CosmeticDefinition cosmetic) {
+        return cosmetic != null && cosmetic.onSale(activeSeasons());
+    }
+
     public Inventory inventory(UUID playerId) {
         Objects.requireNonNull(playerId, "playerId");
+        Set<String> seasons = activeSeasons();
         CosmeticRepository.Snapshot snapshot = repository.load(playerId, Date.from(clock.instant()));
         EnumMap<CosmeticSlot, String> validSelections = new EnumMap<>(CosmeticSlot.class);
         EnumMap<CosmeticSlot, Instant> selectionExpirations = new EnumMap<>(CosmeticSlot.class);
@@ -99,13 +166,13 @@ public final class CosmeticService {
             boolean selected = entitled && (item.selectionRequired()
                     ? item.id().equals(validSelections.get(item.slot()))
                     : true);
-            items.add(new InventoryItem(item, entitled, selected));
+            items.add(new InventoryItem(item, entitled, selected, item.inSeason(seasons)));
         }
         Map<String, Instant> expirations = new java.util.HashMap<>();
         snapshot.entitlementExpirations().forEach((id, date) -> {
             if (!CosmeticCatalog.isFree(id)) expirations.put(id, date.toInstant());
         });
-        return new Inventory(items, validSelections, expirations, selectionExpirations);
+        return new Inventory(items, validSelections, expirations, selectionExpirations, seasons);
     }
 
     public SelectionResult select(UUID playerId, CosmeticSlot requestedSlot, String cosmeticId) {
@@ -159,13 +226,16 @@ public final class CosmeticService {
 
     /**
      * Buys a coin-shop cosmetic at the catalog price. The price is never taken
-     * from the client; premium web-shop items are never sold for coins.
+     * from the client; premium web-shop items are never sold for coins, and a
+     * seasonal item is sold only while its season is active (checked here, at
+     * purchase time, whatever menu the request came from).
      */
     public PurchaseResult purchaseWithCoins(UUID playerId, String cosmeticId) {
         Objects.requireNonNull(playerId, "playerId");
         Optional<CosmeticDefinition> definition = CosmeticCatalog.find(cosmeticId);
         if (definition.isEmpty()) return PurchaseResult.UNKNOWN_COSMETIC;
         if (!definition.get().coinPurchasable()) return PurchaseResult.NOT_FOR_SALE;
+        if (!definition.get().inSeason(activeSeasons())) return PurchaseResult.OUT_OF_SEASON;
         Instant now = clock.instant();
         CosmeticRepository.PurchaseResult persisted = repository.purchaseWithCoins(playerId, cosmeticId,
                 definition.get().slot(), definition.get().coinPrice(),

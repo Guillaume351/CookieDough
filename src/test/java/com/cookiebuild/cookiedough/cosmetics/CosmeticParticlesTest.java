@@ -95,6 +95,65 @@ class CosmeticParticlesTest {
         assertEquals(2, sparkle.getFirst().count());
     }
 
+    @Test
+    void halloweenParticlesAreTheTwoWithNativeGeyserMappings() {
+        // WITCH -> level event WITCH_SPELL, SOUL -> minecraft:soul_particle (Geyser mappings/particles.json).
+        assertTrue(CosmeticParticles.BEDROCK_MAPPED.containsAll(Set.of(Particle.WITCH, Particle.SOUL)));
+        assertEquals(14, CosmeticParticles.BEDROCK_MAPPED.size());
+        assertEquals(Void.class, Particle.WITCH.getDataType());
+        assertEquals(Void.class, Particle.SOUL.getDataType());
+    }
+
+    @Test
+    void everyTrailLooksDifferentFromEveryOtherTrail() {
+        java.util.Map<Set<String>, String> signatures = new java.util.HashMap<>();
+        for (String trail : CosmeticParticles.trailIds()) {
+            Set<String> signature = CosmeticParticles.trail(trail, 0).stream()
+                    .map(CosmeticParticlesTest::signature).collect(Collectors.toSet());
+            String previous = signatures.put(signature, trail);
+            assertTrue(previous == null, trail + " looks like " + previous);
+        }
+        Particle soulFlame = CosmeticParticles.primaryTrailParticle(CosmeticCatalog.SOUL_FLAME_TRAIL);
+        Particle wisp = CosmeticParticles.primaryTrailParticle(CosmeticCatalog.WILL_O_WISP_TRAIL);
+        assertEquals(Particle.SOUL, wisp);
+        assertNotEquals(soulFlame, wisp);
+        // Will-o'-the-wisps float around the body; Blue Flames stay at the feet.
+        assertTrue(CosmeticParticles.trail(CosmeticCatalog.WILL_O_WISP_TRAIL, 0).stream()
+                .allMatch(burst -> burst.y() >= 1.0));
+        assertTrue(CosmeticParticles.trail(CosmeticCatalog.SOUL_FLAME_TRAIL, 0).stream()
+                .allMatch(burst -> burst.y() < 0.5));
+        assertTrue(CosmeticParticles.trail(CosmeticCatalog.WILL_O_WISP_TRAIL, 0).stream()
+                .anyMatch(burst -> burst.data() instanceof Particle.DustOptions dust
+                        && dust.getColor().equals(org.bukkit.Color.fromRGB(120, 220, 255))));
+        List<CosmeticParticles.Burst> pumpkin = CosmeticParticles.trail(CosmeticCatalog.PUMPKIN_TRAIL, 0);
+        assertEquals(Particle.DUST, pumpkin.getFirst().particle());
+        assertTrue(pumpkin.stream().anyMatch(burst -> burst.particle() == Particle.ITEM
+                && burst.data() == Material.JACK_O_LANTERN));
+        assertEquals(2, pumpkin.stream().filter(burst -> burst.particle() == Particle.DUST).count());
+    }
+
+    @Test
+    void witchSpellVictoryIsAShortSwirlWithAWitchCackle() {
+        List<CosmeticParticles.Frame> frames = CosmeticParticles.victory(CosmeticCatalog.WITCH_SPELL_VICTORY);
+        assertTrue(frames.size() >= 4, "multi-frame animation");
+        assertEquals("entity.witch.celebrate", frames.getFirst().sound());
+        assertEquals(0, frames.getFirst().delayTicks());
+        assertTrue(frames.stream().anyMatch(frame -> "block.enchantment_table.use".equals(frame.sound())));
+        Set<Particle> particles = frames.stream().flatMap(frame -> frame.bursts().stream())
+                .map(CosmeticParticles.Burst::particle).collect(Collectors.toSet());
+        assertEquals(Set.of(Particle.WITCH, Particle.DUST, Particle.SOUL), particles);
+        Set<org.bukkit.Color> colours = frames.stream().flatMap(frame -> frame.bursts().stream())
+                .filter(burst -> burst.data() instanceof Particle.DustOptions)
+                .map(burst -> ((Particle.DustOptions) burst.data()).getColor()).collect(Collectors.toSet());
+        assertEquals(Set.of(org.bukkit.Color.fromRGB(130, 40, 200), org.bukkit.Color.fromRGB(60, 200, 60)), colours);
+        assertTrue(CosmeticParticles.hasVictoryEffect(CosmeticCatalog.WITCH_SPELL_VICTORY));
+    }
+
+    private static String signature(CosmeticParticles.Burst burst) {
+        Object data = burst.data() instanceof Particle.DustOptions dust ? dust.getColor() : burst.data();
+        return burst.particle() + ":" + data;
+    }
+
     private static void assertRenderable(String cosmetic, CosmeticParticles.Burst burst) {
         assertTrue(CosmeticParticles.BEDROCK_MAPPED.contains(burst.particle()),
                 cosmetic + " uses " + burst.particle() + " without a native Bedrock mapping");
@@ -103,7 +162,8 @@ class CosmeticParticlesTest {
             assertEquals(Void.class, expected, cosmetic + " " + burst.particle() + " needs data");
         } else if (burst.data() instanceof Material material) {
             assertEquals(ItemStack.class, expected, cosmetic);
-            assertEquals(Material.COOKIE, material, cosmetic);
+            // Each item shown as ITEM particles is reviewed on Bedrock (Geyser item fragments) before it joins this set.
+            assertTrue(Set.of(Material.COOKIE, Material.JACK_O_LANTERN).contains(material), cosmetic + " " + material);
         } else {
             assertTrue(expected.isInstance(burst.data()), cosmetic + " " + burst.particle() + " data type");
         }

@@ -1,6 +1,7 @@
 package com.cookiebuild.cookiedough.cosmetics;
 
 import java.util.Optional;
+import java.util.Set;
 
 /** Opaque action persisted in PDC or Bedrock button index maps. */
 public record CosmeticMenuAction(Kind kind, CosmeticSlot slot, String cosmeticId) {
@@ -35,7 +36,17 @@ public record CosmeticMenuAction(Kind kind, CosmeticSlot slot, String cosmeticId
         return "confirm_buy:" + item.id();
     }
 
+    /** Parses with no active season: seasonal items are never buyable (fail closed). */
     public static Optional<CosmeticMenuAction> parse(String encoded) {
+        return parse(encoded, Set.of());
+    }
+
+    /**
+     * @param activeSeasons seasons on sale right now; a buy action for a
+     *        seasonal item outside its season becomes LOCKED, so a stale menu
+     *        explains why instead of opening a purchase confirmation
+     */
+    public static Optional<CosmeticMenuAction> parse(String encoded, Set<String> activeSeasons) {
         if (encoded == null) return Optional.empty();
         String[] parts = encoded.split(":", -1);
         try {
@@ -57,7 +68,9 @@ public record CosmeticMenuAction(Kind kind, CosmeticSlot slot, String cosmeticId
                 Kind kind = "buy".equals(parts[0]) ? Kind.BUY : Kind.CONFIRM_BUY;
                 return CosmeticCatalog.find(parts[1])
                         .filter(CosmeticDefinition::coinPurchasable)
-                        .map(item -> new CosmeticMenuAction(kind, item.slot(), item.id()));
+                        .map(item -> item.onSale(activeSeasons)
+                                ? new CosmeticMenuAction(kind, item.slot(), item.id())
+                                : new CosmeticMenuAction(Kind.LOCKED, null, item.id()));
             }
             if (parts.length == 1 && "preview_emote".equals(parts[0])) {
                 return Optional.of(new CosmeticMenuAction(

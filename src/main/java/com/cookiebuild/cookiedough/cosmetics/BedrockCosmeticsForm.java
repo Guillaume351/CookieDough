@@ -37,7 +37,9 @@ final class BedrockCosmeticsForm {
             boolean equipped = item.entitled() && item.selected() && item.cosmetic().selectionRequired();
             String nameColor = equipped ? "§2" : item.entitled() || CosmeticMenuView.affordable(item, coins)
                     ? "§0" : "§8";
+            String season = CosmeticMenuView.seasonLabel(message, item);
             String label = nameColor + "§l" + message.apply(item.cosmetic().nameKey())
+                    + (season == null ? "" : " §r§6• " + season)
                     + "\n§r§8" + message.apply("cosmetics.slot." + item.cosmetic().slot().name())
                     + " • §r" + CosmeticMenuView.stateText(message, item, coins);
             button(builder, actions, label, entry.action(),
@@ -57,7 +59,7 @@ final class BedrockCosmeticsForm {
         builder.validResultHandler(response -> {
             int index = response.getClickedButtonId();
             if (index >= 0 && index < actions.size()) {
-                CosmeticMenuAction.parse(actions.get(index)).ifPresent(onAction);
+                CosmeticMenuAction.parse(actions.get(index), cosmetics.activeSeasons()).ifPresent(onAction);
             }
         });
         return builder.build();

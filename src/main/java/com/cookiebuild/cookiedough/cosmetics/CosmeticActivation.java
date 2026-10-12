@@ -248,20 +248,25 @@ public final class CosmeticActivation implements Listener {
         Offer offer = offers.get(player.getUniqueId());
         if (offer == null || System.currentTimeMillis() - offer.createdAtMillis() > OFFER_TTL_MILLIS) return model;
         Optional<CosmeticDefinition> cosmetic = CosmeticCatalog.find(offer.cosmeticId());
-        if (cosmetic.isEmpty()) return model;
+        // The offer may be two minutes old: never advertise an item whose season just ended.
+        if (cosmetic.isEmpty() || !service.onSale(cosmetic.get())) return model;
         HubGameMenuModel.Entry entry = new HubGameMenuModel.Entry("shop", cosmetic.get().icon(), "actions/shop",
                 message(player, "cosmetics.offer.label", message(player, cosmetic.get().nameKey())),
                 message(player, "cosmetics.offer.detail", cosmetic.get().coinPrice(), offer.coins()));
         return new HubGameMenuModel(model.title(), model.content(), insertOffer(model.entries(), entry));
     }
 
-    /** The most expensive coin cosmetic the player does not own and can pay for now. */
+    /**
+     * The most expensive coin cosmetic the player does not own and can pay for
+     * now; a seasonal item counts only while its season is active.
+     */
     static Optional<CosmeticDefinition> bestAffordable(CosmeticService.Inventory inventory, int coins) {
         return inventory.items().stream()
-                .filter(item -> !item.entitled() && item.cosmetic().coinPurchasable()
-                        && item.cosmetic().coinPrice() <= coins)
+                .filter(item -> item.onSale() && item.cosmetic().coinPrice() <= coins)
                 .map(CosmeticService.InventoryItem::cosmetic)
-                .max(Comparator.comparingInt(CosmeticDefinition::coinPrice));
+                // On a price tie the limited-edition item wins: it will not stay on sale.
+                .max(Comparator.comparingInt(CosmeticDefinition::coinPrice)
+                        .thenComparing(CosmeticDefinition::seasonal));
     }
 
     /** Keeps "play again" first: the offer goes just before the auto-replay toggle. */
