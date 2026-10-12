@@ -41,6 +41,7 @@ public final class FakeBlockRenderer implements Listener {
     /** Positions a player must see as real again (collected pumpkin, block under their feet). */
     private final Map<UUID, Set<Long>> suppressed = new HashMap<>();
     private final Set<UUID> pendingRefresh = new HashSet<>();
+    private final Map<UUID, Set<Long>> pendingChunks = new HashMap<>();
 
     public FakeBlockRenderer(Plugin plugin) {
         this.plugin = plugin;
@@ -146,15 +147,24 @@ public final class FakeBlockRenderer implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChunkSent(PlayerChunkLoadEvent event) {
+        if (sources.isEmpty()) return;
         Player player = event.getPlayer();
-        World world = event.getWorld();
-        int chunkX = event.getChunk().getX();
-        int chunkZ = event.getChunk().getZ();
-        // Next tick: the chunk packet itself must reach the client first.
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            if (player.isOnline() && player.getWorld().equals(world)
-                    && player.isChunkSent(FakeBlock.chunkKey(chunkX, chunkZ))) {
-                sendChunk(player, world, chunkX, chunkZ);
+        long key = FakeBlock.chunkKey(event.getChunk().getX(), event.getChunk().getZ());
+        // Next tick, in one batch per player: the chunk packet itself must reach the client first.
+        boolean first = pendingChunks.isEmpty();
+        pendingChunks.computeIfAbsent(player.getUniqueId(), id -> new java.util.LinkedHashSet<>()).add(key);
+        if (first) Bukkit.getScheduler().runTask(plugin, this::flushPendingChunks);
+    }
+
+    private void flushPendingChunks() {
+        Map<UUID, Set<Long>> batch = new HashMap<>(pendingChunks);
+        pendingChunks.clear();
+        batch.forEach((playerId, keys) -> {
+            Player player = Bukkit.getPlayer(playerId);
+            if (player == null) return;
+            World world = player.getWorld();
+            for (long key : keys) {
+                if (player.isChunkSent(key)) sendChunk(player, world, (int) key, (int) (key >> 32));
             }
         });
     }
@@ -206,9 +216,13 @@ public final class FakeBlockRenderer implements Listener {
                 int x = (int) Math.floor(to.getX() + dx);
                 int z = (int) Math.floor(to.getZ() + dz);
                 FakeBlock fake = at(player, world, x, y, z);
-                if (fake == null || !FakeBlock.AIR.equals(fake.expected())) continue;
+                if (fake == null) continue;
                 BlockData data = parse(fake.data());
-                if (data != null && data.getMaterial().isCollidable()) suppress(player, fake);
+                // Solid for the client but not for the server (air, crops...): never let it carry the player.
+                if (data != null && data.getMaterial().isCollidable()
+                        && !world.getBlockAt(x, y, z).isCollidable()) {
+                    suppress(player, fake);
+                }
             }
         }
     }
@@ -216,11 +230,13 @@ public final class FakeBlockRenderer implements Listener {
     @EventHandler
     public void onWorldChange(PlayerChangedWorldEvent event) {
         suppressed.remove(event.getPlayer().getUniqueId());
+        pendingChunks.remove(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         suppressed.remove(event.getPlayer().getUniqueId());
         pendingRefresh.remove(event.getPlayer().getUniqueId());
+        pendingChunks.remove(event.getPlayer().getUniqueId());
     }
 }
