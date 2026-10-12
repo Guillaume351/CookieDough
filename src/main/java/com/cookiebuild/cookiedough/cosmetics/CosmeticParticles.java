@@ -20,12 +20,14 @@ final class CosmeticParticles {
      * Particles whose Java id has a native Bedrock mapping in Geyser's
      * {@code mappings/particles.json} (a vanilla {@code bedrockId} or a level
      * event, never an optional {@code geyseropt:} resource-pack particle), so
-     * Bedrock players see the same cosmetic as Java players.
+     * Bedrock players see the same cosmetic as Java players. {@code WITCH}
+     * maps to the {@code WITCH_SPELL} level event and {@code SOUL} to
+     * {@code minecraft:soul_particle} (Halloween cosmetics).
      */
     static final Set<Particle> BEDROCK_MAPPED = EnumSet.of(
             Particle.END_ROD, Particle.FALLING_HONEY, Particle.CRIT, Particle.NOTE, Particle.HEART,
             Particle.FIREWORK, Particle.DUST, Particle.CHERRY_LEAVES, Particle.SOUL_FIRE_FLAME,
-            Particle.HAPPY_VILLAGER, Particle.ITEM, Particle.TOTEM_OF_UNDYING);
+            Particle.HAPPY_VILLAGER, Particle.ITEM, Particle.TOTEM_OF_UNDYING, Particle.WITCH, Particle.SOUL);
 
     /**
      * One {@code spawnParticle} call.
@@ -60,6 +62,11 @@ final class CosmeticParticles {
 
     private static final Color CHOCOLATE = Color.fromRGB(92, 51, 23);
     private static final Color CREAM = Color.fromRGB(243, 217, 164);
+    private static final Color PUMPKIN_ORANGE = Color.fromRGB(255, 117, 24);
+    private static final Color PUMPKIN_BLACK = Color.fromRGB(28, 20, 30);
+    private static final Color WISP_CYAN = Color.fromRGB(120, 220, 255);
+    private static final Color SPELL_PURPLE = Color.fromRGB(130, 40, 200);
+    private static final Color SPELL_GREEN = Color.fromRGB(60, 200, 60);
     private static final List<Color> RAINBOW = List.of(
             Color.fromRGB(255, 59, 48), Color.fromRGB(255, 149, 0), Color.fromRGB(255, 214, 10),
             Color.fromRGB(52, 199, 89), Color.fromRGB(10, 132, 255), Color.fromRGB(94, 92, 230),
@@ -88,19 +95,32 @@ final class CosmeticParticles {
             Map.entry(CosmeticCatalog.SOUL_FLAME_TRAIL,
                     List.of(Burst.at(Particle.SOUL_FIRE_FLAME, 2, 0.1, 0.12, 0.02, 0.005))),
             Map.entry(CosmeticCatalog.LUCKY_CLOVER_TRAIL,
-                    List.of(Burst.at(Particle.HAPPY_VILLAGER, 2, 0.25, 0.2, 0.05, 0.0))));
+                    List.of(Burst.at(Particle.HAPPY_VILLAGER, 2, 0.25, 0.2, 0.05, 0.0))),
+            // Halloween: orange and black embers at the ankles plus a jack o'lantern fragment.
+            Map.entry(CosmeticCatalog.PUMPKIN_TRAIL, List.of(
+                    Burst.at(Particle.DUST, 2, 0.2, 0.18, 0.05, 0.0)
+                            .with(new Particle.DustOptions(PUMPKIN_ORANGE, 1.2f)),
+                    Burst.at(Particle.DUST, 1, 0.2, 0.18, 0.05, 0.0)
+                            .with(new Particle.DustOptions(PUMPKIN_BLACK, 1.0f)),
+                    Burst.at(Particle.ITEM, 1, 0.35, 0.1, 0.05, 0.03).with(Material.JACK_O_LANTERN))),
+            // Floating pale souls around the body, unlike Blue Flames which stay at the feet.
+            Map.entry(CosmeticCatalog.WILL_O_WISP_TRAIL, List.of(
+                    Burst.at(Particle.SOUL, 1, 1.1, 0.4, 0.3, 0.01),
+                    Burst.at(Particle.DUST, 2, 1.2, 0.45, 0.35, 0.0)
+                            .with(new Particle.DustOptions(WISP_CYAN, 0.8f)))));
 
-    private static final Map<String, List<Frame>> VICTORIES = Map.of(
-            CosmeticCatalog.GOLDEN_COOKIE_BURST, List.of(new Frame(0,
+    private static final Map<String, List<Frame>> VICTORIES = Map.ofEntries(
+            Map.entry(CosmeticCatalog.GOLDEN_COOKIE_BURST, List.of(new Frame(0,
                     List.of(Burst.at(Particle.FIREWORK, 18, 1.0, 0.8, 0.8, 0.04)),
-                    "entity.firework_rocket.blast", 0.7f, 1.2f)),
-            CosmeticCatalog.COOKIE_RAIN_VICTORY, cookieRain(),
-            CosmeticCatalog.TOTEM_VICTORY, List.of(
+                    "entity.firework_rocket.blast", 0.7f, 1.2f))),
+            Map.entry(CosmeticCatalog.COOKIE_RAIN_VICTORY, cookieRain()),
+            Map.entry(CosmeticCatalog.TOTEM_VICTORY, List.of(
                     new Frame(0, List.of(Burst.at(Particle.TOTEM_OF_UNDYING, 40, 1.2, 0.6, 0.8, 0.5)),
                             "item.totem.use", 0.35f, 1.3f),
                     new Frame(8, List.of(Burst.at(Particle.TOTEM_OF_UNDYING, 24, 2.0, 0.4, 0.4, 0.35)),
-                            "entity.player.levelup", 0.5f, 1.8f)),
-            CosmeticCatalog.FIREWORK_VICTORY, fireworkSpiral());
+                            "entity.player.levelup", 0.5f, 1.8f))),
+            Map.entry(CosmeticCatalog.FIREWORK_VICTORY, fireworkSpiral()),
+            Map.entry(CosmeticCatalog.WITCH_SPELL_VICTORY, witchSpell()));
 
     private CosmeticParticles() {
     }
@@ -152,6 +172,40 @@ final class CosmeticParticles {
             frames.add(new Frame(step * 5, List.of(Burst.at(Particle.ITEM, 10, 2.6, 1.2, 0.3, 0.02)
                     .with(Material.COOKIE)), step == 2 ? "entity.item.pickup" : null, 0.5f, 0.8f));
         }
+        return List.copyOf(frames);
+    }
+
+    /**
+     * A witch's cackle and a spell cloud, then purple and green sparks spiralling
+     * up around the winner, and a burst of souls above the head.
+     */
+    private static List<Frame> witchSpell() {
+        List<Frame> frames = new ArrayList<>();
+        frames.add(new Frame(0, List.of(
+                Burst.at(Particle.WITCH, 16, 1.0, 0.6, 0.7, 0.1),
+                Burst.at(Particle.DUST, 4, 0.6, 0.6, 0.4, 0.0).with(new Particle.DustOptions(SPELL_PURPLE, 1.4f))),
+                "entity.witch.celebrate", 0.8f, 1.0f));
+        int points = 8;
+        for (int index = 0; index < points; index++) {
+            double angle = index * Math.PI / 3.0;
+            double y = 0.3 + index * 0.25;
+            double x = Math.cos(angle) * 0.9;
+            double z = Math.sin(angle) * 0.9;
+            frames.add(new Frame(3 + index * 2, List.of(
+                    new Burst(Particle.DUST, 1, x, y, z, 0.05, 0.05, 0.0,
+                            new Particle.DustOptions(SPELL_PURPLE, 1.3f)),
+                    new Burst(Particle.DUST, 1, -x, y, -z, 0.05, 0.05, 0.0,
+                            new Particle.DustOptions(SPELL_GREEN, 1.3f)),
+                    new Burst(Particle.WITCH, 1, x, y, z, 0.05, 0.05, 0.0, null)),
+                    null, 0.0f, 1.0f));
+        }
+        frames.add(new Frame(3 + points * 2 + 2, List.of(
+                Burst.at(Particle.SOUL, 14, 2.4, 0.5, 0.3, 0.06),
+                Burst.at(Particle.DUST, 6, 2.4, 0.6, 0.3, 0.0).with(new Particle.DustOptions(SPELL_PURPLE, 1.5f)),
+                Burst.at(Particle.DUST, 6, 2.4, 0.6, 0.3, 0.0).with(new Particle.DustOptions(SPELL_GREEN, 1.5f))),
+                "block.enchantment_table.use", 0.8f, 0.8f));
+        frames.add(new Frame(3 + points * 2 + 8, List.of(Burst.at(Particle.WITCH, 10, 2.8, 0.5, 0.3, 0.1)),
+                null, 0.0f, 1.0f));
         return List.copyOf(frames);
     }
 

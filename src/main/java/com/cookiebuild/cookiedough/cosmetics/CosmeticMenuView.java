@@ -17,17 +17,25 @@ final class CosmeticMenuView {
     record UnlockHint(String key, Object[] args) {
     }
 
+    /** Hint with no active season: a seasonal coin item reads "no longer on sale". */
     static UnlockHint unlockHint(CosmeticDefinition item) {
         return unlockHint(item, null);
+    }
+
+    static UnlockHint unlockHint(CosmeticDefinition item, Integer coins) {
+        return unlockHint(item, coins, item.onSale(java.util.Set.of()));
     }
 
     /**
      * @param coins the player's balance when known; coin items then say whether
      *        they can be bought now or how many coins are still missing
+     * @param onSale whether a coin item can be bought right now (its season is active)
      */
-    static UnlockHint unlockHint(CosmeticDefinition item, Integer coins) {
+    static UnlockHint unlockHint(CosmeticDefinition item, Integer coins, boolean onSale) {
         return switch (item.acquisition()) {
-            case COINS -> coins == null
+            case COINS -> !onSale
+                    ? new UnlockHint("cosmetics.unlock.out_of_season", new Object[0])
+                    : coins == null
                     ? new UnlockHint("cosmetics.unlock.coins", new Object[] { item.coinPrice() })
                     : coins >= item.coinPrice()
                             ? new UnlockHint("cosmetics.unlock.coins_affordable", new Object[] { item.coinPrice() })
@@ -43,7 +51,7 @@ final class CosmeticMenuView {
     static String stateText(Function<String, String> message, CosmeticService.InventoryItem item, Integer coins) {
         CosmeticDefinition cosmetic = item.cosmetic();
         if (!item.entitled()) {
-            UnlockHint hint = unlockHint(cosmetic, coins);
+            UnlockHint hint = unlockHint(cosmetic, coins, item.onSale());
             return CosmeticsMenu.format(message, hint.key(), hint.args());
         }
         if (!cosmetic.selectionRequired()) return message.apply("cosmetics.active");
@@ -52,8 +60,12 @@ final class CosmeticMenuView {
     }
 
     static boolean affordable(CosmeticService.InventoryItem item, Integer coins) {
-        return !item.entitled() && item.cosmetic().coinPurchasable() && coins != null
-                && coins >= item.cosmetic().coinPrice();
+        return item.onSale() && coins != null && coins >= item.cosmetic().coinPrice();
+    }
+
+    /** "Halloween limited edition" while the item's season is active, else null. */
+    static String seasonLabel(Function<String, String> message, CosmeticService.InventoryItem item) {
+        return item.limitedEdition() ? message.apply(item.cosmetic().seasonLabelKey()) : null;
     }
 
     static List<Entry> entries(CosmeticService.Inventory inventory) {
@@ -63,10 +75,12 @@ final class CosmeticMenuView {
     /**
      * Owned cosmetics first (equipped ones on top), then coin items by price,
      * then rewards, and premium web-shop items last, so the free trail and
-     * anything the player can afford are visible without scrolling.
+     * anything the player can afford are visible without scrolling. A seasonal
+     * cosmetic out of its season is listed only for players who own it.
      */
     static List<Entry> entries(CosmeticService.Inventory inventory, Integer coins) {
-        List<CosmeticService.InventoryItem> ordered = new ArrayList<>(inventory.items());
+        List<CosmeticService.InventoryItem> ordered = new ArrayList<>(inventory.items().stream()
+                .filter(CosmeticService.InventoryItem::visible).toList());
         List<CosmeticDefinition> catalog = CosmeticCatalog.items();
         ordered.sort(Comparator.<CosmeticService.InventoryItem>comparingInt(CosmeticMenuView::group)
                 .thenComparing(item -> !(item.entitled() && item.selected() && item.cosmetic().selectionRequired()))
@@ -76,7 +90,7 @@ final class CosmeticMenuView {
         for (CosmeticService.InventoryItem item : ordered) {
             String action;
             if (!item.entitled()) {
-                action = item.cosmetic().coinPurchasable()
+                action = item.onSale()
                         ? CosmeticMenuAction.buy(item.cosmetic())
                         : CosmeticMenuAction.locked(item.cosmetic());
             } else if (!item.cosmetic().selectionRequired()) {

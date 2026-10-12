@@ -144,7 +144,8 @@ public final class CosmeticsMenu implements Listener {
             reopen(player);
             return;
         }
-        CosmeticMenuAction.parse(encoded).ifPresent(action -> dispatch(player, action, false));
+        CosmeticMenuAction.parse(encoded, service.activeSeasons())
+                .ifPresent(action -> dispatch(player, action, false));
     }
 
     @EventHandler
@@ -183,6 +184,8 @@ public final class CosmeticsMenu implements Listener {
                     : NamedTextColor.GRAY;
             ItemStack stack = item(item.cosmetic().icon(), message(player, item.cosmetic().nameKey()), entry.action(),
                     lore, color);
+            String season = CosmeticMenuView.seasonLabel(key -> message(player, key), item);
+            if (season != null) addFirstLoreLine(stack, Component.text(season, NamedTextColor.GOLD));
             if (item.entitled() && item.selected() && item.cosmetic().selectionRequired()) glint(stack);
             inventory.setItem(JAVA_FIRST_ITEM_SLOT + index, stack);
         }
@@ -206,6 +209,16 @@ public final class CosmeticsMenu implements Listener {
         return CosmeticCatalog.find(cosmeticId).map(item -> message(player, item.nameKey())).orElse(cosmeticId);
     }
 
+    /** Puts a highlighted line (the limited-edition label) above the description. */
+    private static void addFirstLoreLine(ItemStack stack, Component line) {
+        ItemMeta meta = stack.getItemMeta();
+        List<Component> lore = new ArrayList<>();
+        lore.add(line);
+        if (meta.lore() != null) lore.addAll(meta.lore());
+        meta.lore(lore);
+        stack.setItemMeta(meta);
+    }
+
     private static void glint(ItemStack stack) {
         ItemMeta meta = stack.getItemMeta();
         meta.setEnchantmentGlintOverride(true);
@@ -227,9 +240,14 @@ public final class CosmeticsMenu implements Listener {
         return inventory;
     }
 
-    /** Plain-text unlock hint ("750 pièces", "Boutique : cookie-build.com/shop", ...). */
-    static String unlockText(java.util.function.Function<String, String> message, CosmeticDefinition cosmetic) {
-        CosmeticMenuView.UnlockHint hint = CosmeticMenuView.unlockHint(cosmetic);
+    /**
+     * Plain-text unlock hint ("750 pièces", "Boutique : cookie-build.com/shop", ...).
+     *
+     * @param onSale whether a coin item can be bought right now (its season is active)
+     */
+    static String unlockText(java.util.function.Function<String, String> message, CosmeticDefinition cosmetic,
+            boolean onSale) {
+        CosmeticMenuView.UnlockHint hint = CosmeticMenuView.unlockHint(cosmetic, null, onSale);
         return format(message, hint.key(), hint.args());
     }
 
@@ -281,7 +299,7 @@ public final class CosmeticsMenu implements Listener {
             case PREVIEW_VICTORY -> effects.previewVictoryEffect(player);
             case LOCKED -> CosmeticCatalog.find(action.cosmeticId()).ifPresent(cosmetic -> player.sendMessage(
                     ChatColor.YELLOW + message(player, cosmetic.nameKey()) + ChatColor.GRAY + " — "
-                            + unlockText(key -> message(player, key), cosmetic)));
+                            + unlockText(key -> message(player, key), cosmetic, service.onSale(cosmetic))));
             case BUY -> CosmeticCatalog.find(action.cosmeticId()).ifPresent(cosmetic -> confirm(player, cosmetic,
                     bedrock));
             case CONFIRM_BUY -> purchase(player, action.cosmeticId(), bedrock);
@@ -330,6 +348,7 @@ public final class CosmeticsMenu implements Listener {
                         case PURCHASED -> "cosmetics.buy.success";
                         case ALREADY_OWNED -> "cosmetics.buy.already_owned";
                         case INSUFFICIENT_COINS -> "cosmetics.buy.insufficient";
+                        case OUT_OF_SEASON -> "cosmetics.buy.out_of_season";
                         default -> "cosmetics.buy.unavailable";
                     }, name), success ? NamedTextColor.GREEN : NamedTextColor.RED));
                     if (success) {
