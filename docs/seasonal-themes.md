@@ -32,6 +32,14 @@ Safety rules built in:
 
 Players use `/musique` (aliases `/music`, `/musica`, `/musik`) to switch the music box off or on.
 
+The music box plays one song, then stays silent for a random time (`music.gap-seconds: [90, 180]` for Halloween).
+
+To add a song without a release:
+1. Copy a Note Block Studio `.nbs` file (or a `.yml` in the notation of `SongParser`) to `plugins/CookieDough/themes/<id>/music/` on the server.
+2. Run `/theme reload`.
+
+Every file in that folder joins the rotation, and a file named like a bundled song replaces it. Custom NBS instruments are skipped, and notes outside the vanilla two octaves are folded back by octaves.
+
 ## Adding a theme (e.g. Christmas)
 
 1. Add the id to `src/main/resources/themes/index.yml`.

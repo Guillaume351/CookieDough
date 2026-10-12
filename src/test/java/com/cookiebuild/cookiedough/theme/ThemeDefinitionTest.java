@@ -70,6 +70,10 @@ class ThemeDefinitionTest {
         assertTrue(theme.music().gainAt(0) <= 0.5f, "soft next to the box");
         assertTrue(theme.music().gainAt(30) > 0f, "still audible across the lobby");
         assertEquals(0f, theme.music().gainAt(theme.music().radius()));
+        assertEquals(90 * 20, theme.music().minGapTicks(), "a real pause between two songs");
+        assertEquals(180 * 20, theme.music().maxGapTicks());
+        int gap = theme.music().gapTicks(new java.util.Random(7));
+        assertTrue(gap >= 90 * 20 && gap <= 180 * 20);
 
         HuntPlan hunt = theme.hunt();
         assertEquals("halloween-2026", hunt.id());

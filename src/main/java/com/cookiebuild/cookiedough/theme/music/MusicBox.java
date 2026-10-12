@@ -75,7 +75,7 @@ public final class MusicBox {
             songIndex = (songIndex + 1) % playlist.size();
             tick = 0;
             cursor = 0;
-            pause = plan.gapTicks();
+            pause = plan.gapTicks(ThreadLocalRandom.current());
         }
     }
 

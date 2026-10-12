@@ -20,7 +20,14 @@ public enum Instrument {
     COW_BELL("block.note_block.cow_bell", 66),
     BELL("block.note_block.bell", 78),
     CHIME("block.note_block.chime", 78),
-    XYLOPHONE("block.note_block.xylophone", 78);
+    XYLOPHONE("block.note_block.xylophone", 78),
+    BASEDRUM("block.note_block.basedrum", 54),
+    SNARE("block.note_block.snare", 54),
+    HAT("block.note_block.hat", 54);
+
+    /** Note Block Studio instrument ids 0..15, in file order. */
+    private static final Instrument[] NBS = {HARP, BASS, BASEDRUM, SNARE, HAT, GUITAR, FLUTE, BELL, CHIME, XYLOPHONE,
+            IRON_XYLOPHONE, COW_BELL, DIDGERIDOO, BIT, BANJO, PLING};
 
     public static final int RANGE = 24;
 
@@ -54,6 +61,11 @@ public enum Instrument {
             throw new IllegalArgumentException(name() + " cannot play MIDI note " + midi);
         }
         return (float) Math.pow(2.0, (midi - lowestMidi - 12) / 12.0);
+    }
+
+    /** The vanilla instrument of a Note Block Studio instrument id, or null for a custom one. */
+    public static Instrument fromNbs(int id) {
+        return id >= 0 && id < NBS.length ? NBS[id] : null;
     }
 
     public static Instrument parse(String value) {

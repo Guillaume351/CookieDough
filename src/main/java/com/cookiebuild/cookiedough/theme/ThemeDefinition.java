@@ -94,10 +94,15 @@ public record ThemeDefinition(String id, ZonedDateTime start, ZonedDateTime end,
         ConfigurationSection musicSection = yaml.getConfigurationSection("music");
         MusicBoxPlan music = null;
         if (musicSection != null && !musicSection.getStringList("playlist").isEmpty()) {
+            // gap-seconds: a fixed pause or [min, max] picked at random after each song.
+            List<Integer> gap = musicSection.isList("gap-seconds") ? musicSection.getIntegerList("gap-seconds")
+                    : List.of(musicSection.getInt("gap-seconds", 8));
+            int minGap = gap.isEmpty() ? 8 : gap.getFirst();
+            int maxGap = gap.isEmpty() ? minGap : gap.getLast();
             music = new MusicBoxPlan(musicSection.getString("world", "lobby"), musicSection.getDouble("x"),
                     musicSection.getDouble("y"), musicSection.getDouble("z"), (float) musicSection.getDouble("yaw"),
                     musicSection.getDouble("radius", 48), (float) musicSection.getDouble("max-gain", 0.5),
-                    musicSection.getInt("gap-seconds", 8) * 20, musicSection.getStringList("playlist"));
+                    minGap * 20, maxGap * 20, musicSection.getStringList("playlist"));
         }
 
         ConfigurationSection huntSection = yaml.getConfigurationSection("hunt");

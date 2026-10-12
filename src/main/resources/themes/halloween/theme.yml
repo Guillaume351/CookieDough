@@ -62,6 +62,9 @@ lobby:
       blocks: {"minecraft:cobweb": 1}
 
 # The musician witch above the north gate of the plaza, facing the spawn.
+# One song, then a random silence of 1.5 to 3 minutes: never music non-stop.
+# Drop more songs (.yml or Note Block Studio .nbs) in
+# plugins/CookieDough/themes/halloween/music/ and run /theme reload.
 music:
   world: lobby
   x: 1.5
@@ -70,7 +73,7 @@ music:
   yaw: 0
   radius: 44
   max-gain: 0.45
-  gap-seconds: 10
+  gap-seconds: [90, 180]
   playlist: [mountain-king, lullaby, toccata, greensleeves, frere-jacques, moonlight, funeral-march, dies-irae]
 
 # 13 pumpkins hidden in the lobby decor (each spot is a real block, checked at start).
