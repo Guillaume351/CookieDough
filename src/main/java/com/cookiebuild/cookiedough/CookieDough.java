@@ -87,6 +87,8 @@ public final class CookieDough extends JavaPlugin {
     private CosmeticActivation cosmeticActivation;
     private RetentionRewardService retentionRewards;
     private com.cookiebuild.cookiedough.social.SocialMenu socialMenu;
+    private final com.cookiebuild.cookiedough.theme.ThemeService themeService =
+            new com.cookiebuild.cookiedough.theme.ThemeService();
 
     public static CookieDough getInstance() {
         return instance;
@@ -108,6 +110,11 @@ public final class CookieDough extends JavaPlugin {
         getServer().getPluginManager().registerEvents(retentionRewards, this);
         getServer().getPluginManager().registerEvents(
                 new com.cookiebuild.cookiedough.retention.SoireeMotdListener(communityEventManager), this);
+    }
+
+    /** Seasonal theme state; never null, empty when no theme is active. */
+    public com.cookiebuild.cookiedough.theme.ThemeService getThemeService() {
+        return themeService;
     }
 
     public LobbyManager getLobbyManager() {
