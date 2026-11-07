@@ -22,12 +22,15 @@ final class CosmeticParticles {
      * event, never an optional {@code geyseropt:} resource-pack particle), so
      * Bedrock players see the same cosmetic as Java players. {@code WITCH}
      * maps to the {@code WITCH_SPELL} level event and {@code SOUL} to
-     * {@code minecraft:soul_particle} (Halloween cosmetics).
+     * {@code minecraft:soul_particle} (Halloween cosmetics). {@code SNOWFLAKE}
+     * maps to the {@code SNOWFLAKE} level event and {@code ITEM_SNOWBALL} to
+     * the {@code SNOWBALL_POOF} level event (Christmas cosmetics).
      */
     static final Set<Particle> BEDROCK_MAPPED = EnumSet.of(
             Particle.END_ROD, Particle.FALLING_HONEY, Particle.CRIT, Particle.NOTE, Particle.HEART,
             Particle.FIREWORK, Particle.DUST, Particle.CHERRY_LEAVES, Particle.SOUL_FIRE_FLAME,
-            Particle.HAPPY_VILLAGER, Particle.ITEM, Particle.TOTEM_OF_UNDYING, Particle.WITCH, Particle.SOUL);
+            Particle.HAPPY_VILLAGER, Particle.ITEM, Particle.TOTEM_OF_UNDYING, Particle.WITCH, Particle.SOUL,
+            Particle.SNOWFLAKE, Particle.ITEM_SNOWBALL);
 
     /**
      * One {@code spawnParticle} call.
@@ -67,6 +70,12 @@ final class CosmeticParticles {
     private static final Color WISP_CYAN = Color.fromRGB(120, 220, 255);
     private static final Color SPELL_PURPLE = Color.fromRGB(130, 40, 200);
     private static final Color SPELL_GREEN = Color.fromRGB(60, 200, 60);
+    private static final Color SNOW_WHITE = Color.fromRGB(240, 248, 255);
+    private static final Color CANDY_RED = Color.fromRGB(220, 20, 40);
+    private static final Color CANDY_WHITE = Color.fromRGB(255, 255, 255);
+    private static final Color HOLLY_GREEN = Color.fromRGB(20, 140, 60);
+    /** Steps for one full turn of the candy cane twist. */
+    private static final int CANDY_CANE_STEPS = 8;
     private static final List<Color> RAINBOW = List.of(
             Color.fromRGB(255, 59, 48), Color.fromRGB(255, 149, 0), Color.fromRGB(255, 214, 10),
             Color.fromRGB(52, 199, 89), Color.fromRGB(10, 132, 255), Color.fromRGB(94, 92, 230),
@@ -107,7 +116,12 @@ final class CosmeticParticles {
             Map.entry(CosmeticCatalog.WILL_O_WISP_TRAIL, List.of(
                     Burst.at(Particle.SOUL, 1, 1.1, 0.4, 0.3, 0.01),
                     Burst.at(Particle.DUST, 2, 1.2, 0.45, 0.35, 0.0)
-                            .with(new Particle.DustOptions(WISP_CYAN, 0.8f)))));
+                            .with(new Particle.DustOptions(WISP_CYAN, 0.8f)))),
+            // Christmas: snowflakes drift down from shoulder height, a little powder at the feet.
+            Map.entry(CosmeticCatalog.SNOWFLAKE_TRAIL, List.of(
+                    Burst.at(Particle.SNOWFLAKE, 2, 1.3, 0.35, 0.15, 0.0),
+                    Burst.at(Particle.DUST, 1, 0.15, 0.2, 0.04, 0.0)
+                            .with(new Particle.DustOptions(SNOW_WHITE, 0.8f)))));
 
     private static final Map<String, List<Frame>> VICTORIES = Map.ofEntries(
             Map.entry(CosmeticCatalog.GOLDEN_COOKIE_BURST, List.of(new Frame(0,
@@ -120,7 +134,12 @@ final class CosmeticParticles {
                     new Frame(8, List.of(Burst.at(Particle.TOTEM_OF_UNDYING, 24, 2.0, 0.4, 0.4, 0.35)),
                             "entity.player.levelup", 0.5f, 1.8f))),
             Map.entry(CosmeticCatalog.FIREWORK_VICTORY, fireworkSpiral()),
-            Map.entry(CosmeticCatalog.WITCH_SPELL_VICTORY, witchSpell()));
+            Map.entry(CosmeticCatalog.WITCH_SPELL_VICTORY, witchSpell()),
+            Map.entry(CosmeticCatalog.SNOWSTORM_VICTORY, snowstorm()));
+
+    /** The candy cane twist, one list per step of a full turn (built once, like the other recipes). */
+    private static final List<List<Burst>> CANDY_CANE = java.util.stream.IntStream.range(0, CANDY_CANE_STEPS)
+            .mapToObj(CosmeticParticles::candyCane).toList();
 
     private CosmeticParticles() {
     }
@@ -129,6 +148,7 @@ final class CosmeticParticles {
     static Set<String> trailIds() {
         Set<String> ids = new java.util.HashSet<>(TRAILS.keySet());
         ids.add(CosmeticCatalog.RAINBOW_TRAIL);
+        ids.add(CosmeticCatalog.CANDY_CANE_TRAIL);
         return Set.copyOf(ids);
     }
 
@@ -143,7 +163,30 @@ final class CosmeticParticles {
             return List.of(Burst.at(Particle.DUST, 3, 0.2, 0.15, 0.05, 0.0)
                     .with(new Particle.DustOptions(color, 1.3f)));
         }
+        if (CosmeticCatalog.CANDY_CANE_TRAIL.equals(trailId)) {
+            return CANDY_CANE.get((int) Math.floorMod(step, (long) CANDY_CANE.size()));
+        }
         return TRAILS.getOrDefault(trailId, List.of());
+    }
+
+    /**
+     * A red and white double helix at the ankles, like a candy cane stripe: two
+     * levels of opposite red/white dots that turn a little more at each step.
+     */
+    private static List<Burst> candyCane(int step) {
+        double angle = step * 2 * Math.PI / CANDY_CANE_STEPS;
+        List<Burst> bursts = new ArrayList<>(4);
+        for (int level = 0; level < 2; level++) {
+            double turn = angle + level * Math.PI / 2;
+            double x = Math.cos(turn) * 0.3;
+            double z = Math.sin(turn) * 0.3;
+            double y = 0.2 + level * 0.25;
+            bursts.add(new Burst(Particle.DUST, 1, x, y, z, 0.02, 0.02, 0.0,
+                    new Particle.DustOptions(CANDY_RED, 1.1f)));
+            bursts.add(new Burst(Particle.DUST, 1, -x, y, -z, 0.02, 0.02, 0.0,
+                    new Particle.DustOptions(CANDY_WHITE, 1.1f)));
+        }
+        return List.copyOf(bursts);
     }
 
     /** The main particle of a trail, or null for an unknown id. */
@@ -206,6 +249,40 @@ final class CosmeticParticles {
                 "block.enchantment_table.use", 0.8f, 0.8f));
         frames.add(new Frame(3 + points * 2 + 8, List.of(Burst.at(Particle.WITCH, 10, 2.8, 0.5, 0.3, 0.1)),
                 null, 0.0f, 1.0f));
+        return List.copyOf(frames);
+    }
+
+    /**
+     * A sleigh bell and a gust of snow, then red, green and white flakes whirling
+     * up around the winner like a snow globe, and a final snowburst with a chime.
+     */
+    private static List<Frame> snowstorm() {
+        List<Frame> frames = new ArrayList<>();
+        frames.add(new Frame(0, List.of(
+                Burst.at(Particle.SNOWFLAKE, 16, 1.0, 0.9, 0.6, 0.02),
+                Burst.at(Particle.ITEM_SNOWBALL, 6, 0.4, 0.6, 0.2, 0.0)),
+                "block.bell.use", 0.6f, 1.6f));
+        List<Color> colours = List.of(CANDY_RED, HOLLY_GREEN, SNOW_WHITE);
+        int points = 9;
+        for (int index = 0; index < points; index++) {
+            double angle = index * Math.PI / 3.0;
+            double y = 0.3 + index * 0.25;
+            double x = Math.cos(angle) * 1.0;
+            double z = Math.sin(angle) * 1.0;
+            frames.add(new Frame(3 + index * 2, List.of(
+                    new Burst(Particle.DUST, 1, x, y, z, 0.05, 0.05, 0.0,
+                            new Particle.DustOptions(colours.get(index % colours.size()), 1.3f)),
+                    new Burst(Particle.DUST, 1, -x, y, -z, 0.05, 0.05, 0.0,
+                            new Particle.DustOptions(colours.get((index + 1) % colours.size()), 1.3f)),
+                    new Burst(Particle.SNOWFLAKE, 1, x, y, z, 0.1, 0.1, 0.0, null)),
+                    index % 3 == 0 ? "block.note_block.bell" : null, 0.5f, 1.2f + index * 0.1f));
+        }
+        frames.add(new Frame(3 + points * 2 + 2, List.of(
+                Burst.at(Particle.SNOWFLAKE, 20, 2.8, 1.0, 0.4, 0.03),
+                Burst.at(Particle.ITEM_SNOWBALL, 8, 2.6, 0.5, 0.3, 0.0),
+                Burst.at(Particle.DUST, 5, 2.6, 0.7, 0.3, 0.0).with(new Particle.DustOptions(CANDY_RED, 1.4f)),
+                Burst.at(Particle.DUST, 5, 2.6, 0.7, 0.3, 0.0).with(new Particle.DustOptions(HOLLY_GREEN, 1.4f))),
+                "block.note_block.chime", 0.8f, 1.5f));
         return List.copyOf(frames);
     }
 

@@ -64,6 +64,34 @@ class BedrockCosmeticsFormTest {
     }
 
     @Test
+    void christmasLimitedItemsShowTheirLabelAndDispatchABuyAction() throws Exception {
+        var service = new CosmeticService(new InMemoryCosmeticRepository());
+        service.setActiveSeasons(() -> java.util.Set.of("christmas"));
+        var inventory = service.inventory(UUID.randomUUID());
+        List<CosmeticMenuAction> received = new ArrayList<>();
+        var form = BedrockCosmeticsForm.create(inventory, 10_000, key -> key, received::add);
+        var definitions = FormDefinitions.instance();
+        var json = JsonParser.parseString(definitions.codecFor(form).jsonData(form)).getAsJsonObject();
+        var buttons = json.getAsJsonArray("buttons");
+        int snowflake = -1;
+        boolean candy = false;
+        for (int i = 0; i < buttons.size(); i++) {
+            String text = buttons.get(i).getAsJsonObject().get("text").getAsString();
+            if (text.contains("cosmetics.item.snowflake_trail.name")) snowflake = i;
+            if (text.contains("cosmetics.item.candy_cane_trail.name")) candy = true;
+            assertTrue(!text.contains("cosmetics.item.pumpkin_trail.name"), text);
+            assertEquals(text.contains("cosmetics.item.snowflake_trail.name")
+                            || text.contains("cosmetics.item.snowstorm_victory.name"),
+                    text.contains("cosmetics.season.christmas.label"), text);
+        }
+        assertTrue(snowflake >= 0);
+        assertTrue(candy, "the present-hunt reward is listed with its unlock hint");
+        definitions.definitionFor(form).handleFormResponse(form, Integer.toString(snowflake));
+        assertEquals(List.of(new CosmeticMenuAction(CosmeticMenuAction.Kind.BUY, CosmeticSlot.HUB_TRAIL,
+                CosmeticCatalog.SNOWFLAKE_TRAIL)), received);
+    }
+
+    @Test
     void closedAndInvalidNativeResponsesNeverDispatchAnAction() throws Exception {
         var inventory = new CosmeticService(new InMemoryCosmeticRepository()).inventory(UUID.randomUUID());
         List<CosmeticMenuAction> received = new ArrayList<>();

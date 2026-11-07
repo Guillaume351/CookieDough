@@ -52,6 +52,15 @@ public final class CosmeticCatalog {
     public static final String WILL_O_WISP_TRAIL = "will_o_wisp_trail";
     /** Season id of the Halloween limited edition, shared with the theme engine. */
     public static final String HALLOWEEN_SEASON = ThemeService.HALLOWEEN;
+    /* Release christmas-20261107 (website migration 0028): Christmas limited edition. */
+    /** Coin item sold only while the Christmas theme is active. */
+    public static final String SNOWFLAKE_TRAIL = "snowflake_trail";
+    /** Coin item sold only while the Christmas theme is active. */
+    public static final String SNOWSTORM_VICTORY = "snowstorm_victory";
+    /** Reward-only: all 13 hidden lobby presents found during Christmas (never sold). */
+    public static final String CANDY_CANE_TRAIL = "candy_cane_trail";
+    /** Season id of the Christmas limited edition, shared with the theme engine ({@code theme.yml} id). */
+    public static final String CHRISTMAS_SEASON = "christmas";
 
     /*
      * Prices follow measured earnings (Oct 2026): a median active day earns ~55
@@ -62,11 +71,13 @@ public final class CosmeticCatalog {
     public static final int STARTER_SPARK_TRAIL_PRICE = 250;
     public static final int CHERRY_PETAL_TRAIL_PRICE = 400;
     public static final int PUMPKIN_TRAIL_PRICE = 450;
+    public static final int SNOWFLAKE_TRAIL_PRICE = 450;
     public static final int COOKIE_RAIN_VICTORY_PRICE = 500;
     public static final int SOUL_FLAME_TRAIL_PRICE = 600;
     public static final int NOTE_TRAIL_PRICE = 750;
     public static final int TOTEM_VICTORY_PRICE = 900;
     public static final int WITCH_SPELL_VICTORY_PRICE = 900;
+    public static final int SNOWSTORM_VICTORY_PRICE = 900;
     public static final int HEART_TRAIL_PRICE = 1_200;
     public static final int FIREWORK_VICTORY_PRICE = 1_500;
     public static final int RAINBOW_TRAIL_PRICE = 2_000;
@@ -86,18 +97,23 @@ public final class CosmeticCatalog {
             coins(CHERRY_PETAL_TRAIL, CosmeticSlot.HUB_TRAIL, Material.PINK_PETALS, CHERRY_PETAL_TRAIL_PRICE),
             seasonalCoins(PUMPKIN_TRAIL, CosmeticSlot.HUB_TRAIL, Material.JACK_O_LANTERN, PUMPKIN_TRAIL_PRICE,
                     HALLOWEEN_SEASON),
+            seasonalCoins(SNOWFLAKE_TRAIL, CosmeticSlot.HUB_TRAIL, Material.SNOWBALL, SNOWFLAKE_TRAIL_PRICE,
+                    CHRISTMAS_SEASON),
             coins(COOKIE_RAIN_VICTORY, CosmeticSlot.VICTORY_EFFECT, Material.COOKIE, COOKIE_RAIN_VICTORY_PRICE),
             coins(SOUL_FLAME_TRAIL, CosmeticSlot.HUB_TRAIL, Material.SOUL_TORCH, SOUL_FLAME_TRAIL_PRICE),
             coins(NOTE_TRAIL, CosmeticSlot.HUB_TRAIL, Material.NOTE_BLOCK, NOTE_TRAIL_PRICE),
             coins(TOTEM_VICTORY, CosmeticSlot.VICTORY_EFFECT, Material.TOTEM_OF_UNDYING, TOTEM_VICTORY_PRICE),
             seasonalCoins(WITCH_SPELL_VICTORY, CosmeticSlot.VICTORY_EFFECT, Material.BREWING_STAND,
                     WITCH_SPELL_VICTORY_PRICE, HALLOWEEN_SEASON),
+            seasonalCoins(SNOWSTORM_VICTORY, CosmeticSlot.VICTORY_EFFECT, Material.POWDER_SNOW_BUCKET,
+                    SNOWSTORM_VICTORY_PRICE, CHRISTMAS_SEASON),
             coins(HEART_TRAIL, CosmeticSlot.HUB_TRAIL, Material.POPPY, HEART_TRAIL_PRICE),
             coins(FIREWORK_VICTORY, CosmeticSlot.VICTORY_EFFECT, Material.FIREWORK_ROCKET, FIREWORK_VICTORY_PRICE),
             coins(RAINBOW_TRAIL, CosmeticSlot.HUB_TRAIL, Material.PRISMARINE_CRYSTALS, RAINBOW_TRAIL_PRICE),
             reward(STREAK_STAR_TRAIL, CosmeticSlot.HUB_TRAIL, Material.NETHER_STAR, "cosmetics.unlock.streak"),
             reward(LUCKY_CLOVER_TRAIL, CosmeticSlot.HUB_TRAIL, Material.LILY_PAD, "cosmetics.unlock.ten_matches"),
             reward(WILL_O_WISP_TRAIL, CosmeticSlot.HUB_TRAIL, Material.SOUL_LANTERN, "cosmetics.unlock.pumpkin_hunt"),
+            reward(CANDY_CANE_TRAIL, CosmeticSlot.HUB_TRAIL, Material.SUGAR, "cosmetics.unlock.present_hunt"),
             reward(APP_COMPANION_BADGE, CosmeticSlot.BADGE, Material.COMPASS, "cosmetics.unlock.app"));
     private static final Map<String, CosmeticDefinition> BY_ID;
 
