@@ -2,3 +2,4 @@
 # An operator may override a file by copying it to plugins/CookieDough/themes/<id>/.
 themes:
   - halloween
+  - christmas

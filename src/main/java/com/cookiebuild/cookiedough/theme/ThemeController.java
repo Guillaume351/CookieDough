@@ -34,6 +34,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.cookiebuild.cookiedough.listener.WorldPolicy;
+import com.cookiebuild.cookiedough.theme.advent.AdventService;
 import com.cookiebuild.cookiedough.theme.decor.BlockView;
 import com.cookiebuild.cookiedough.theme.decor.DecorPlanner;
 import com.cookiebuild.cookiedough.theme.decor.FakeBlock;
@@ -69,6 +70,7 @@ public final class ThemeController implements Listener {
     private final MusicService music;
     private final LobbyAmbience ambience;
     private final ThemeTexts texts;
+    private final AdventService advent;
     private PaletteLayer palette;
     private List<ThemeDefinition> themes = List.of();
     private ThemeDefinition current;
@@ -83,6 +85,7 @@ public final class ThemeController implements Listener {
         this.music = new MusicService(plugin);
         this.ambience = new LobbyAmbience(plugin);
         this.texts = new ThemeTexts(plugin);
+        this.advent = new AdventService(plugin, repository, rewards, java.time.Clock.systemUTC());
         renderer.addSource(lobbyDecor);
         renderer.addSource(hunt);
         renderer.addSource(new FakeBlockSource() {
@@ -105,6 +108,7 @@ public final class ThemeController implements Listener {
         manager.registerEvents(music, plugin);
         manager.registerEvents(ambience, plugin);
         manager.registerEvents(texts, plugin);
+        manager.registerEvents(advent, plugin);
         manager.registerEvents(this, plugin);
         themes = loadThemes();
         Bukkit.getScheduler().runTaskTimer(plugin, this::evaluate, 20L, 20L * 30L);
@@ -128,6 +132,10 @@ public final class ThemeController implements Listener {
 
     public MusicService music() {
         return music;
+    }
+
+    public AdventService advent() {
+        return advent;
     }
 
     public int decorSize() {
@@ -178,6 +186,14 @@ public final class ThemeController implements Listener {
             List<Song> songs = SongLibrary.load(plugin, theme.id(), theme.music().playlist());
             music.activate(theme.music(), songs, theme.messagePrefix());
         }
+        if (theme.advent() != null) {
+            if (music.active()) {
+                advent.activate(theme.advent(), theme.messagePrefix(), theme.music().world());
+                music.setClickAction(advent::open);
+            } else {
+                plugin.getLogger().warning("Theme " + theme.id() + ": advent calendar needs the musician; off");
+            }
+        }
         texts.activate(theme, this::scoreboardLine);
         if (theme.lobby() != null) planLobby(theme, run);
         for (Player player : Bukkit.getOnlinePlayers()) applyTime(player);
@@ -193,6 +209,7 @@ public final class ThemeController implements Listener {
         current = null;
         service.setActive(null);
         texts.deactivate();
+        advent.deactivate();
         music.deactivate();
         ambience.deactivate();
         hunt.deactivate();
@@ -241,7 +258,11 @@ public final class ThemeController implements Listener {
         }
         Set<Long> excluded = new HashSet<>();
         if (theme.hunt() != null) {
-            for (HuntPlan.Spot spot : theme.hunt().spots()) excluded.add(FakeBlock.pack(spot.x(), spot.y(), spot.z()));
+            for (HuntPlan.Spot spot : theme.hunt().spots()) {
+                excluded.add(FakeBlock.pack(spot.x(), spot.y(), spot.z()));
+                // Nothing on top either (snow, litter): the whole spot stays clickable and readable.
+                excluded.add(FakeBlock.pack(spot.x(), spot.y() + 1, spot.z()));
+            }
         }
         CompletableFuture.allOf(loads.toArray(CompletableFuture[]::new)).whenComplete((ignored, error) ->
                 Bukkit.getScheduler().runTask(plugin, () -> {

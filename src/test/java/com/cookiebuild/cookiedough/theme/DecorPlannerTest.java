@@ -178,4 +178,96 @@ class DecorPlannerTest {
         assertTrue(rules.toppers().on().matches("OAK_FENCE"));
         assertTrue(rules.ground().on().matches("LIME_TERRACOTTA"));
     }
+
+    @Test
+    void keepWeightsLeaveAShareOfTheMatchingBlocksReal() {
+        World world = new World();
+        for (int x = -8; x <= 8; x++) {
+            for (int z = -8; z <= 8; z++) world.put(x, 6, z, "minecraft:oak_leaves[distance=1,persistent=true]");
+        }
+        DecorRules rules = rules("""
+                swaps:
+                  - from: ["#leaves"]
+                    keep-states: false
+                    to: {keep: 9, "minecraft:shroomlight": 1}
+                """);
+        List<FakeBlock> blocks = plan(rules, world, Set.of());
+        assertTrue(blocks.size() > 289 * 0.04 && blocks.size() < 289 * 0.2, "about a tenth: " + blocks.size());
+        for (FakeBlock block : blocks) {
+            assertEquals("minecraft:shroomlight", block.data(), "no states copied, never the keep marker");
+            assertEquals("OAK_LEAVES", block.expected());
+        }
+        assertEquals(blocks, plan(rules, world, Set.of()), "the same leaves glow for everyone");
+        assertTrue(plan(rules("""
+                swaps:
+                  - from: ["#leaves"]
+                    to: {keep: 1}
+                """), world, Set.of()).isEmpty(), "keep only: nothing changes");
+        assertTrue(WeightedBlocks.isKeep(WeightedBlocks.of(Map.of("keep", 1)).pick(0.5)));
+    }
+
+    @Test
+    void keepAlsoWorksForAdditions() {
+        World world = new World();
+        for (int x = -8; x <= 8; x++) {
+            for (int z = -8; z <= 8; z++) world.put(x, 0, z, "minecraft:grass_block");
+        }
+        List<FakeBlock> blocks = plan(rules("""
+                ground:
+                  over: [GRASS_BLOCK]
+                  chance: 1.0
+                  blocks: {keep: 1, "minecraft:snow[layers=1]": 1}
+                """), world, Set.of());
+        assertTrue(blocks.size() > 289 * 0.3 && blocks.size() < 289 * 0.7, "about half: " + blocks.size());
+        assertTrue(blocks.stream().allMatch(block -> block.data().equals("minecraft:snow[layers=1]")));
+    }
+
+    @Test
+    void theChristmasLobbyDecorStaysSafe() throws Exception {
+        YamlConfiguration theme = SongParserTest.bundled("themes/christmas/theme.yml");
+        DecorRules rules = DecorRules.parse(theme.getConfigurationSection("lobby.decor"));
+        assertNull(rules.hanging());
+        assertNull(rules.ceilingCorners(), "no cobwebs at Christmas");
+        // Ground cover is a single snow layer: no collision box, so nobody stands on a fake.
+        assertEquals(List.of("minecraft:snow[layers=1]"), rules.ground().blocks().data());
+        assertTrue(rules.ground().on().matches("LIME_TERRACOTTA") && rules.ground().on().matches("BIRCH_LEAVES"));
+        assertTrue(rules.toppers().on().matches("OAK_FENCE"));
+        for (String topper : rules.toppers().blocks().data()) {
+            assertTrue(topper.matches("minecraft:(lantern|red_candle\\[candles=3,lit=true]|green_candle\\[candles=3,lit=true])"),
+                    topper);
+        }
+        for (DecorRules.Swap swap : rules.swaps()) {
+            for (String block : swap.to().data()) {
+                assertTrue(!block.contains("sweet_berry") && !block.contains("powder_snow"),
+                        "client-side slowdown makes players rubber-band: " + block);
+                assertTrue(!block.contains("_wool"), "wool is reserved for the hidden presents: " + block);
+            }
+            if (swap.from().matches("OAK_LEAVES")) {
+                // Leaves are full collision blocks: baubles must be full blocks too.
+                for (String block : swap.to().data()) {
+                    assertTrue(WeightedBlocks.isKeep(block) || block.matches(
+                            "minecraft:(shroomlight|pearlescent_froglight|redstone_lamp\\[lit=true])"), block);
+                }
+            }
+            if (swap.from().matches("SHORT_GRASS")) {
+                assertEquals(List.of("minecraft:snow[layers=1]"), swap.to().data(), "a plant becomes one snow layer");
+                assertTrue(!swap.keepStates());
+            }
+        }
+
+        // The planner on a tiny snowy garden: snow on top, never inside a block or on a hunt spot.
+        World world = new World();
+        for (int x = -4; x <= 4; x++) {
+            for (int z = -4; z <= 4; z++) world.put(x, 0, z, "minecraft:lime_terracotta");
+        }
+        world.put(2, 1, 2, "minecraft:short_grass");
+        for (int x = -4; x <= 4; x++) world.put(x, 1, -4, "minecraft:oak_fence");
+        List<FakeBlock> blocks = plan(rules, world, Set.of(FakeBlock.pack(0, 1, 0)));
+        assertNull(at(blocks, 0, 1, 0), "excluded cell above a hunt spot");
+        assertEquals("minecraft:snow[layers=1]", at(blocks, 2, 1, 2).data());
+        assertEquals("SHORT_GRASS", at(blocks, 2, 1, 2).expected());
+        assertTrue(blocks.stream().filter(block -> block.y() == 2 && block.z() == -4).count() >= 6,
+                "lights on most fence posts");
+        assertTrue(blocks.stream().allMatch(block -> block.y() >= 1 && block.y() <= 2));
+    }
 }

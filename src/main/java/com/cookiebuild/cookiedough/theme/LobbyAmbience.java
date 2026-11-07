@@ -10,7 +10,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Particle;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.entity.Bat;
@@ -27,9 +26,10 @@ import com.cookiebuild.cookiedough.lobby.LobbyEntityOwnership;
 import com.cookiebuild.cookiedough.theme.decor.FakeBlock;
 
 /**
- * Night-time lobby life: soul particles drifting from the decor, a few bats
- * that never leave the bowl and rare, quiet spooky sounds. Everything is
- * client-side or a non-persistent entity.
+ * Lobby life: particles drifting from some decor blocks (souls at Halloween),
+ * an optional gentle snowfall around each player, a few bats that never leave
+ * the bowl and rare, quiet ambient sounds. Particles and sounds are sent to
+ * each player only; bats are non-persistent entities.
  */
 final class LobbyAmbience implements Listener {
     private final JavaPlugin plugin;
@@ -38,6 +38,7 @@ final class LobbyAmbience implements Listener {
     private final Map<UUID, Long> nextSound = new HashMap<>();
     private ThemeDefinition.Lobby lobby;
     private List<FakeBlock> anchors = List.of();
+    private Location spawn;
     private Location center;
     private BukkitTask particles;
     private BukkitTask keeper;
@@ -51,9 +52,9 @@ final class LobbyAmbience implements Listener {
         deactivate();
         this.lobby = lobby;
         this.center = world.getSpawnLocation().clone();
-        // Lit pumpkins and hanging moss make good particle anchors.
-        this.anchors = decor.stream().filter(block -> block.data().contains("jack_o_lantern")
-                || block.data().contains("hanging_moss") || block.data().contains("cobweb")).toList();
+        this.spawn = center;
+        // Decor blocks that some particle rule anchors to (lit pumpkins, hanging moss...).
+        this.anchors = decor.stream().filter(block -> anchorRule(lobby, block) != null).toList();
         this.particles = Bukkit.getScheduler().runTaskTimer(plugin, () -> tick(world), 40L, 10L);
         this.keeper = Bukkit.getScheduler().runTaskTimer(plugin, () -> keepBats(world), 60L, 100L);
     }
@@ -75,19 +76,28 @@ final class LobbyAmbience implements Listener {
         if (lobby == null) return;
         ThreadLocalRandom random = ThreadLocalRandom.current();
         long now = System.currentTimeMillis();
+        ThemeDefinition.Snowfall snow = lobby.snowfall();
+        double decorRadius = lobby.radius() + 8;
         for (Player player : world.getPlayers()) {
             Location eye = player.getLocation();
             if (!anchors.isEmpty()) {
                 for (int i = 0; i < 2; i++) {
                     FakeBlock anchor = anchors.get(random.nextInt(anchors.size()));
-                    Location at = new Location(world, anchor.x() + 0.5, anchor.y() + 0.9, anchor.z() + 0.5);
+                    ThemeDefinition.AnchorParticle rule = anchorRule(lobby, anchor);
+                    if (rule == null) continue;
+                    Location at = new Location(world, anchor.x() + 0.5, anchor.y() + rule.dy(), anchor.z() + 0.5);
                     if (at.distanceSquared(eye) > 24 * 24) continue;
-                    if (anchor.data().contains("jack_o_lantern")) {
-                        player.spawnParticle(Particle.SOUL, at, 1, 0.15, 0.1, 0.15, 0.01);
-                    } else {
-                        player.spawnParticle(Particle.SOUL_FIRE_FLAME, at.add(0, -1.2, 0), 1, 0.2, 0.1, 0.2, 0.003);
-                    }
+                    player.spawnParticle(rule.particle(), at, 1, rule.spreadXZ(), rule.spreadY(), rule.spreadXZ(),
+                            rule.speed());
                 }
+            }
+            if (snow != null && Math.abs(eye.getX() - spawn.getX()) <= decorRadius
+                    && Math.abs(eye.getZ() - spawn.getZ()) <= decorRadius) {
+                // One packet: the client spreads the flakes in the box (Geyser sends one Bedrock event each).
+                double halfHeight = (snow.maxHeight() - snow.minHeight()) / 2;
+                Location sky = eye.clone().add(0, snow.minHeight() + halfHeight, 0);
+                player.spawnParticle(snow.particle(), sky, snow.count(), snow.radius() / 2, halfHeight / 2,
+                        snow.radius() / 2, 0.0);
             }
             if (!lobby.ambientSounds().isEmpty()) {
                 long due = nextSound.computeIfAbsent(player.getUniqueId(), id -> now + delayMillis(random));
@@ -101,6 +111,13 @@ final class LobbyAmbience implements Listener {
             }
         }
         nextSound.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
+    }
+
+    private static ThemeDefinition.AnchorParticle anchorRule(ThemeDefinition.Lobby lobby, FakeBlock block) {
+        for (ThemeDefinition.AnchorParticle rule : lobby.anchorParticles()) {
+            if (rule.anchors(block.data())) return rule;
+        }
+        return null;
     }
 
     private long delayMillis(ThreadLocalRandom random) {

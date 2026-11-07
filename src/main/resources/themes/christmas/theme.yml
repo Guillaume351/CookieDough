@@ -1,0 +1,132 @@
+# Christmas — everything below is shown to clients only (fake blocks, player
+# time, per-player particles and sounds, non-persistent entities). No world,
+# map or archive is modified: when the window ends (or /theme set off) the
+# real lobby comes back at once.
+id: christmas
+messages: theme.christmas
+window:
+  zone: Europe/Paris
+  # Whole school holidays, ends after Sunday 4 January.
+  start: "2026-12-01T00:00"
+  end: "2027-01-05T00:00"
+
+texts:
+  scoreboard-title: "§c§lCookie §f§lBuild"
+  # Server list, second line. ASCII only (Bedrock and old clients).
+  motd-line: "§bNoel §8- §fCadeaux caches, calendrier de l'Avent et cosmetiques limites !"
+  announce-minutes: 15
+
+lobby:
+  world: lobby
+  radius: 48
+  min-y: 0
+  max-y: 40
+  # Client time: a winter evening, pink sky, still bright enough on phones.
+  player-time: 12800
+  bats: 0
+  ambient:
+    min-seconds: 35
+    max-seconds: 80
+    # Soft and warm, nothing scary.
+    sounds:
+      - block.amethyst_block.chime
+      - block.amethyst_block.resonate
+      - block.bell.resonate
+      - block.campfire.crackle
+  # A few sparkles at the glowing baubles and lanterns (each player sees their own).
+  anchor-particles:
+    - {near: [shroomlight, froglight, redstone_lamp, lantern], particle: END_ROD, dy: 0.6, spread-xz: 0.35, spread-y: 0.3, speed: 0.003}
+  # Gentle snowfall sent to each lobby player only (no weather change):
+  # 6 flakes every half second in a 10-block box, 3 to 10 blocks above them.
+  snowfall:
+    particle: SNOWFLAKE
+    count: 6
+    radius: 10
+    height: [3, 10]
+  decor:
+    swaps:
+      # A few glowing baubles in the trees; most leaves stay as they are (keep).
+      - from: ["#leaves"]
+        keep-states: false
+        to: {keep: 30, "minecraft:shroomlight": 1, "minecraft:pearlescent_froglight": 1, "minecraft:redstone_lamp[lit=true]": 1}
+      - from: [GREEN_CARPET]
+        to: {"minecraft:white_carpet": 3, "minecraft:green_carpet": 1}
+      # Grass tufts under the snow. One snow layer has no collision box.
+      - from: [SHORT_GRASS, FERN]
+        keep-states: false
+        to: "minecraft:snow[layers=1]"
+      - from: ["#small_flowers"]
+        keep-states: false
+        to: {"minecraft:red_tulip": 1, "minecraft:white_tulip": 1}
+    toppers:
+      over: ["#fences"]
+      chance: 0.9
+      blocks: {"minecraft:lantern": 3, "minecraft:red_candle[candles=3,lit=true]": 2, "minecraft:green_candle[candles=3,lit=true]": 1}
+    # Snow cover on the lawns, the garden ring and the tree tops.
+    ground:
+      over: [GRASS_BLOCK, LIME_TERRACOTTA, GREEN_TERRACOTTA, MOSS_BLOCK, "#leaves"]
+      chance: 0.9
+      blocks: "minecraft:snow[layers=1]"
+
+# The musician snowman (a snow golem without its pumpkin) above the north gate
+# of the plaza, where the Halloween witch stood, facing the spawn. A click or a
+# tap tells the song and opens the advent calendar gift of the day.
+# One song, then a random silence of 1.5 to 3 minutes: never music non-stop.
+music:
+  world: lobby
+  x: 1.5
+  y: 13.0
+  z: -14.5
+  yaw: 0
+  musician: snow_golem
+  particle: NOTE
+  name-key: snowman
+  name-color: aqua
+  radius: 44
+  max-gain: 0.45
+  gap-seconds: [90, 180]
+  playlist: [jingle-bells, douce-nuit, mon-beau-sapin, deck-the-halls, we-wish-you, il-est-ne, fee-dragee, carol-of-the-bells, les-anges]
+
+# Advent calendar: from 1 to 24 December (Paris date), one gift a day behind
+# the snowman. A day not opened on its date is lost.
+advent:
+  id: christmas-2026-advent
+  year: 2026
+  month: 12
+  first-day: 1
+  last-day: 24
+  coins: 10
+  last-day-coins: 50
+
+# 13 presents hidden in the lobby (each spot is a real block, checked at start).
+# Spots: analysis/christmas-20261107/survey (none of the Halloween pumpkin spots).
+hunt:
+  id: christmas-2026
+  world: lobby
+  coins-per-find: 15
+  completion-coins: 100
+  reward-cosmetic: candy_cane_trail
+  reward-source: "christmas-2026:hunt"
+  celebration:
+    item: spot
+    particle: FIREWORK
+    sound: entity.player.levelup
+  spots:
+    - {id: g01, x: 19, y: 13, z: 2, real: STONE, block: "minecraft:red_wool"}
+    - {id: g02, x: 31, y: 14, z: 19, real: CYAN_TERRACOTTA, block: "minecraft:lime_wool"}
+    - {id: g03, x: 21, y: 14, z: 13, real: BIRCH_LOG, block: "minecraft:red_wool"}
+    - {id: g04, x: 8, y: 14, z: 15, real: OAK_LOG, block: "minecraft:lime_wool"}
+    - {id: g05, x: 14, y: 14, z: 32, real: CYAN_GLAZED_TERRACOTTA, block: "minecraft:red_wool"}
+    - {id: g06, x: -16, y: 14, z: 31, real: CYAN_TERRACOTTA, block: "minecraft:lime_wool"}
+    - {id: g07, x: -9, y: 14, z: 18, real: GRAY_WOOL, block: "minecraft:red_wool"}
+    - {id: g08, x: -32, y: 14, z: 14, real: CYAN_TERRACOTTA, block: "minecraft:lime_wool"}
+    - {id: g09, x: -13, y: 12, z: -2, real: OAK_PLANKS, block: "minecraft:red_wool"}
+    - {id: g10, x: -20, y: 16, z: -24, real: STONE_BRICKS, block: "minecraft:lime_wool"}
+    - {id: g11, x: -2, y: 12, z: -13, real: OAK_PLANKS, block: "minecraft:red_wool"}
+    - {id: g12, x: 4, y: 14, z: -36, real: CYAN_TERRACOTTA, block: "minecraft:lime_wool"}
+    - {id: g13, x: 17, y: 14, z: -16, real: DARK_OAK_LOG, block: "minecraft:red_wool"}
+
+# No "games" section: match worlds keep their normal sky and blocks, so
+# gameplay stays readable.
+
+build-battle-themes: [Snowman, Christmas Tree, Santa Claus, Reindeer, Gingerbread House, Gift, Sleigh, Igloo, Penguin, Fireplace]

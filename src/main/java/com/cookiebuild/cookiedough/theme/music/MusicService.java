@@ -1,23 +1,34 @@
 package com.cookiebuild.cookiedough.theme.music;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Consumer;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Snowman;
 import org.bukkit.entity.Witch;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockShearEntityEvent;
+import org.bukkit.event.block.EntityBlockFormEvent;
 import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityTargetEvent;
+import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerShearEntityEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -30,9 +41,11 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
- * The theme's music box: a non-persistent musician NPC that loops a playlist
- * of note block songs. Players opt out with {@code /musique}; the choice lives
- * in their own player data.
+ * The theme's music box: a non-persistent musician NPC (a witch, a snow
+ * golem...) that loops a playlist of note block songs. Players opt out with
+ * {@code /musique}; the choice lives in their own player data. A click on the
+ * musician tells the song playing, then runs the theme's extra click action
+ * (the advent calendar at Christmas).
  */
 public final class MusicService implements Listener {
     private final JavaPlugin plugin;
@@ -42,7 +55,9 @@ public final class MusicService implements Listener {
     private String messages;
     private BukkitTask ticker;
     private BukkitTask keeper;
-    private Witch musician;
+    private Mob musician;
+    private Consumer<Player> clickAction;
+    private final Map<UUID, Long> lastClick = new HashMap<>();
 
     public MusicService(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -71,8 +86,20 @@ public final class MusicService implements Listener {
         ticker = null;
         keeper = null;
         box = null;
+        clickAction = null;
+        lastClick.clear();
         if (musician != null && musician.isValid()) musician.remove();
         musician = null;
+    }
+
+    /** Extra action after a player clicked the musician (main thread); {@code null} for none. */
+    public void setClickAction(Consumer<Player> action) {
+        this.clickAction = action;
+    }
+
+    /** Where the musician stands, while the music box is on. */
+    public Optional<MusicBoxPlan> plan() {
+        return box == null ? Optional.empty() : Optional.of(box.plan());
     }
 
     public boolean active() {
@@ -108,30 +135,47 @@ public final class MusicService implements Listener {
         Location at = new Location(world, plan.x(), plan.y(), plan.z(), plan.yaw(), 0f);
         if (!world.isChunkLoaded(at.getBlockX() >> 4, at.getBlockZ() >> 4)) return;
         if (musician == null || !musician.isValid()) {
-            musician = world.spawn(at, Witch.class, witch -> {
-                witch.setPersistent(false);
-                witch.setRemoveWhenFarAway(false);
-                witch.setAI(false);
-                witch.setSilent(true);
-                witch.setInvulnerable(true);
-                witch.setCollidable(false);
-                witch.setCanPickupItems(false);
-                witch.customName(Component.text(LocaleManager.getMessage(messages + ".music.witch", Locale.FRENCH),
-                        NamedTextColor.DARK_PURPLE));
-                witch.setCustomNameVisible(true);
-                witch.getPersistentDataContainer().set(musicianKey, PersistentDataType.BYTE, (byte) 1);
-                LobbyEntityOwnership.mark(plugin, witch, "theme_musician");
-            });
+            musician = spawnMusician(world, at, plan.musician());
         } else if (musician.getLocation().distanceSquared(at) > 1.0) {
             musician.teleport(at);
         }
         if (box.current().isPresent()) {
-            world.spawnParticle(Particle.WITCH, at.clone().add(0, 2.2, 0), 4, 0.3, 0.2, 0.3, 0.0);
+            world.spawnParticle(plan.musician().particle(), at.clone().add(0, 2.2, 0), 4, 0.3, 0.2, 0.3, 0.0);
         }
     }
 
+    private Mob spawnMusician(World world, Location at, Musician kind) {
+        Class<? extends Mob> type = Musician.SNOW_GOLEM.equals(kind.type()) ? Snowman.class : Witch.class;
+        NamedTextColor color = NamedTextColor.NAMES.valueOr(kind.nameColor(), NamedTextColor.DARK_PURPLE);
+        // Bedrock nameplate: the bundles keep this name in Latin-1.
+        String name = LocaleManager.getMessage(messages + ".music." + kind.nameKey(), Locale.FRENCH);
+        return world.spawn(at, type, mob -> {
+            mob.setPersistent(false);
+            mob.setRemoveWhenFarAway(false);
+            mob.setAI(false);
+            mob.setSilent(true);
+            mob.setInvulnerable(true);
+            mob.setCollidable(false);
+            mob.setCanPickupItems(false);
+            if (mob instanceof Snowman snowman) snowman.setDerp(true); // no pumpkin: a friendly face
+            mob.customName(Component.text(name, color));
+            mob.setCustomNameVisible(true);
+            mob.getPersistentDataContainer().set(musicianKey, PersistentDataType.BYTE, (byte) 1);
+            LobbyEntityOwnership.mark(plugin, mob, "theme_musician");
+        });
+    }
+
     private boolean isMusician(Entity entity) {
-        return entity instanceof Witch && entity.getPersistentDataContainer().has(musicianKey, PersistentDataType.BYTE);
+        return entity instanceof Mob && entity.getPersistentDataContainer().has(musicianKey, PersistentDataType.BYTE);
+    }
+
+    private void clicked(Player player) {
+        long now = System.currentTimeMillis();
+        Long previous = lastClick.put(player.getUniqueId(), now);
+        if (previous != null && now - previous < 500) return; // a Bedrock tap may fire both events
+        talk(player);
+        Consumer<Player> action = clickAction;
+        if (action != null && box != null) action.accept(player);
     }
 
     private void talk(Player player) {
@@ -151,14 +195,45 @@ public final class MusicService implements Listener {
     public void onInteract(PlayerInteractEntityEvent event) {
         if (!isMusician(event.getRightClicked())) return;
         event.setCancelled(true);
-        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.HAND) talk(event.getPlayer());
+        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.HAND) clicked(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onAttack(PrePlayerAttackEntityEvent event) {
         if (!isMusician(event.getAttacked())) return;
         event.setCancelled(true);
-        talk(event.getPlayer());
+        clicked(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        lastClick.remove(event.getPlayer().getUniqueId());
+    }
+
+    /** A snow golem leaves a snow trail even without AI: never on the lobby. */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onForm(EntityBlockFormEvent event) {
+        if (isMusician(event.getEntity())) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onShear(PlayerShearEntityEvent event) {
+        if (isMusician(event.getEntity())) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onDispenserShear(BlockShearEntityEvent event) {
+        if (isMusician(event.getEntity())) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onLaunch(ProjectileLaunchEvent event) {
+        if (event.getEntity().getShooter() instanceof Entity shooter && isMusician(shooter)) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onTarget(EntityTargetEvent event) {
+        if (isMusician(event.getEntity())) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGH)

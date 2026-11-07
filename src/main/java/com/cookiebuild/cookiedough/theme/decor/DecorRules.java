@@ -20,7 +20,8 @@ import org.bukkit.configuration.ConfigurationSection;
  *
  * ({@code on} is avoided as a key: YAML 1.1 reads it as a boolean.)
  * Block data may use {@code facing=@center} (towards the decorated area's
- * centre) or {@code facing=@random}.
+ * centre) or {@code facing=@random}. A weight on {@code keep} leaves that
+ * share of the matching blocks real.
  */
 public record DecorRules(List<Swap> swaps, Addition toppers, Addition ground, Addition hanging,
         Addition ceilingCorners) {

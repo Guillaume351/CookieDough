@@ -52,7 +52,9 @@ public final class DecorPlanner {
     private FakeBlock swap(BlockView view, Area area, int x, int y, int z, String type) {
         for (DecorRules.Swap swap : rules.swaps()) {
             if (!swap.from().matches(type)) continue;
-            String target = resolve(swap.to().pick(roll(x, y, z, 1)), area, x, y, z);
+            String picked = swap.to().pick(roll(x, y, z, 1));
+            if (WeightedBlocks.isKeep(picked)) return null;
+            String target = resolve(picked, area, x, y, z);
             if (swap.keepStates() && target.indexOf('[') < 0) {
                 String source = view.data(x, y, z);
                 int states = source == null ? -1 : source.indexOf('[');
@@ -88,7 +90,9 @@ public final class DecorPlanner {
 
     private FakeBlock place(DecorRules.Addition addition, Area area, int x, int y, int z, int stream) {
         if (roll(x, y, z, stream) >= addition.chance()) return null;
-        String data = resolve(addition.blocks().pick(roll(x, y, z, stream + 10)), area, x, y, z);
+        String picked = addition.blocks().pick(roll(x, y, z, stream + 10));
+        if (WeightedBlocks.isKeep(picked)) return null;
+        String data = resolve(picked, area, x, y, z);
         return new FakeBlock(x, y, z, data, FakeBlock.AIR);
     }
 

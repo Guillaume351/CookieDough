@@ -41,7 +41,8 @@ import net.kyori.adventure.title.Title;
 
 /**
  * Hidden collectibles: each spot is a real block of the decor that players who
- * have not found it yet see as a pumpkin. A click (or a tap on Bedrock) on it
+ * have not found it yet see as the theme's spot block (a pumpkin, a present).
+ * A click (or a tap on Bedrock) on it
  * records the find, pays the reward and shows that player the real block again.
  */
 public final class HuntLayer implements FakeBlockSource, Listener {
@@ -85,8 +86,7 @@ public final class HuntLayer implements FakeBlockSource, Listener {
             }
             valid.add(spot);
         }
-        this.plan = new HuntPlan(plan.id(), plan.world(), valid, plan.coinsPerFind(), plan.completionCoins(),
-                plan.rewardCosmetic());
+        this.plan = plan.withSpots(valid);
         this.messages = messagePrefix;
         this.worldId = world.getUID();
         for (HuntPlan.Spot spot : valid) {
@@ -220,7 +220,7 @@ public final class HuntLayer implements FakeBlockSource, Listener {
                         rewards.coins(playerId, current.id() + ":complete", current.completionCoins());
                     }
                     if (current.rewardCosmetic() != null && !current.rewardCosmetic().isBlank()) {
-                        rewards.cosmetic(playerId, current.rewardCosmetic(), current.id() + ":pumpkins");
+                        rewards.cosmetic(playerId, current.rewardCosmetic(), current.rewardSource());
                     }
                 }
             } catch (RuntimeException error) {
@@ -231,11 +231,20 @@ public final class HuntLayer implements FakeBlockSource, Listener {
 
     private void celebrate(Player player, FakeBlock fake, HuntPlan.Outcome outcome) {
         Location center = new Location(player.getWorld(), fake.x() + 0.5, fake.y() + 0.5, fake.z() + 0.5);
-        player.spawnParticle(Particle.ITEM, center, 14, 0.3, 0.3, 0.3, 0.08, new ItemStack(Material.JACK_O_LANTERN));
-        player.spawnParticle(Particle.SOUL, center, 8, 0.4, 0.4, 0.4, 0.02);
+        HuntPlan.Celebration celebration = plan == null ? HuntPlan.Celebration.HALLOWEEN : plan.celebration();
+        String itemName = celebration.item();
+        if (HuntPlan.Celebration.SPOT_ITEM.equals(itemName)) {
+            int states = fake.data().indexOf('[');
+            itemName = states < 0 ? fake.data() : fake.data().substring(0, states);
+        }
+        Material item = Material.matchMaterial(itemName);
+        if (item != null && item.isItem()) {
+            player.spawnParticle(Particle.ITEM, center, 14, 0.3, 0.3, 0.3, 0.08, new ItemStack(item));
+        }
+        player.spawnParticle(celebration.particle(), center, 8, 0.4, 0.4, 0.4, 0.02);
         player.spawnParticle(Particle.HAPPY_VILLAGER, center, 6, 0.4, 0.4, 0.4, 0.0);
         player.playSound(center, "block.note_block.chime", SoundCategory.PLAYERS, 0.8f, 1.6f);
-        player.playSound(center, "entity.witch.celebrate", SoundCategory.PLAYERS, 0.35f, 1.4f);
+        player.playSound(center, celebration.sound(), SoundCategory.PLAYERS, 0.35f, 1.4f);
         int coins = plan == null ? 0 : plan.coinsPerFind();
         player.sendMessage(LocaleManager.getMessage(messages + ".hunt.found", player.locale(),
                 outcome.found(), outcome.total(), coins));

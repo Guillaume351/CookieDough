@@ -53,6 +53,13 @@ public final class ThemeCommand implements TabExecutor {
         sender.sendMessage("§7Décors client du lobby : " + controller.decorSize());
         controller.music().nowPlaying().ifPresent(song ->
                 sender.sendMessage("§7Musique : " + song.title() + " (" + song.composer() + ")"));
+        controller.advent().calendar().ifPresent(calendar -> {
+            java.time.Instant now = java.time.Instant.now();
+            sender.sendMessage("§7Calendrier de l'Avent " + calendar.id() + " : "
+                    + calendar.phase(now).name().toLowerCase(java.util.Locale.ROOT)
+                    + calendar.dayAt(now).map(day -> ", jour " + day + " (" + calendar.coinsFor(day) + " pièces)")
+                            .orElse(""));
+        });
         sender.sendMessage("§7Thèmes connus : " + controller.themes().stream()
                 .map(theme -> theme.id() + " " + theme.start().toLocalDate() + "→" + theme.end().toLocalDate())
                 .toList());

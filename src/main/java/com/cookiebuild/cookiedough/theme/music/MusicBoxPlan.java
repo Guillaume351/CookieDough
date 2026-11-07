@@ -9,12 +9,19 @@ import java.util.List;
  * the music stays soft but can be heard from across the lobby.
  */
 public record MusicBoxPlan(String world, double x, double y, double z, float yaw, double radius, float maxGain,
-        int minGapTicks, int maxGapTicks, List<String> playlist) {
+        int minGapTicks, int maxGapTicks, List<String> playlist, Musician musician) {
     public MusicBoxPlan {
         if (radius <= 0 || maxGain <= 0 || maxGain > 1 || minGapTicks < 0 || maxGapTicks < minGapTicks) {
             throw new IllegalArgumentException("Invalid music box settings");
         }
         playlist = List.copyOf(playlist);
+        if (musician == null) musician = Musician.HALLOWEEN;
+    }
+
+    /** A music box played by the default (Halloween) musician. */
+    public MusicBoxPlan(String world, double x, double y, double z, float yaw, double radius, float maxGain,
+            int minGapTicks, int maxGapTicks, List<String> playlist) {
+        this(world, x, y, z, yaw, radius, maxGain, minGapTicks, maxGapTicks, playlist, Musician.HALLOWEEN);
     }
 
     /** Silence before the next song, so the music never plays non-stop. */

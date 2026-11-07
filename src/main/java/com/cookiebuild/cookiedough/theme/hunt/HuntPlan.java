@@ -10,7 +10,37 @@ import java.util.Set;
  * edition (e.g. {@code halloween-2026}) so next year's hunt starts fresh.
  */
 public record HuntPlan(String id, String world, List<Spot> spots, int coinsPerFind, int completionCoins,
-        String rewardCosmetic) {
+        String rewardCosmetic, String rewardSource, Celebration celebration) {
+    /**
+     * What a player sees and hears on a find: an item-break burst of {@code item}
+     * ({@value #SPOT_ITEM} for the block the spot was shown as), a few
+     * {@code particle}s and a short {@code sound} next to a chime.
+     */
+    public record Celebration(String item, org.bukkit.Particle particle, String sound) {
+        public static final String SPOT_ITEM = "SPOT";
+
+        /** Halloween's pumpkin burst, souls and witch laugh: the default of a theme file. */
+        public static final Celebration HALLOWEEN = new Celebration("JACK_O_LANTERN", org.bukkit.Particle.SOUL,
+                "entity.witch.celebrate");
+
+        public Celebration {
+            if (item == null || item.isBlank() || particle == null || sound == null || sound.isBlank()) {
+                throw new IllegalArgumentException("A hunt celebration needs an item, a particle and a sound");
+            }
+            item = item.trim().toUpperCase(java.util.Locale.ROOT);
+        }
+    }
+
+    /**
+     * Entitlement source of the reward cosmetic when a theme file names none.
+     * It keeps Halloween 2026's {@code halloween-2026:pumpkins}: grants are
+     * idempotent per (player, cosmetic, source), so it must never change for
+     * an edition that already paid rewards.
+     */
+    public static String defaultRewardSource(String huntId) {
+        return huntId + ":pumpkins";
+    }
+
     /** A real full block shown as {@code block} facing {@code facing} to players who haven't found it yet. */
     public record Spot(String id, int x, int y, int z, String expected, String block) {
         public Spot {
@@ -29,6 +59,15 @@ public record HuntPlan(String id, String world, List<Spot> spots, int coinsPerFi
             if (!ids.add(spot.id())) throw new IllegalArgumentException("Duplicate hunt spot " + spot.id());
         }
         if (coinsPerFind < 0 || completionCoins < 0) throw new IllegalArgumentException("Negative hunt reward");
+        if (rewardSource == null || rewardSource.isBlank()) rewardSource = defaultRewardSource(id);
+        if (rewardSource.length() > 128) throw new IllegalArgumentException("Reward source too long");
+        if (celebration == null) celebration = Celebration.HALLOWEEN;
+    }
+
+    /** Same hunt with only the spots that matched the real world. */
+    public HuntPlan withSpots(List<Spot> validSpots) {
+        return new HuntPlan(id, world, validSpots, coinsPerFind, completionCoins, rewardCosmetic, rewardSource,
+                celebration);
     }
 
     /** What finding one more spot means for a player who had already found {@code before}. */

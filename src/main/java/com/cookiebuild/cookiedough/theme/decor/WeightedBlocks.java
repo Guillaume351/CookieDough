@@ -5,8 +5,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Block data strings with integer weights, picked deterministically per position. */
+/**
+ * Block data strings with integer weights, picked deterministically per position.
+ * The entry {@value #KEEP} stands for "leave the real block as it is", so a
+ * swap can change only a share of the matching blocks (e.g. a few glowing
+ * baubles among the leaves).
+ */
 public record WeightedBlocks(List<String> data, List<Integer> weights, int total) {
+    public static final String KEEP = "keep";
+
     public WeightedBlocks {
         data = List.copyOf(data);
         weights = List.copyOf(weights);
@@ -46,5 +53,9 @@ public record WeightedBlocks(List<String> data, List<Integer> weights, int total
             if (target < 0) return data.get(i);
         }
         return data.getLast();
+    }
+
+    public static boolean isKeep(String picked) {
+        return KEEP.equalsIgnoreCase(picked);
     }
 }

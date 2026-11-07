@@ -20,6 +20,8 @@ import com.cookiebuild.cookiedough.utils.LocaleManager;
 public final class ThemeService {
     /** Id of the Halloween theme, also the {@code season} of its limited cosmetics. */
     public static final String HALLOWEEN = "halloween";
+    /** Id of the Christmas theme, also the {@code season} of its limited cosmetics. */
+    public static final String CHRISTMAS = "christmas";
 
     private volatile ThemeDefinition active;
 
