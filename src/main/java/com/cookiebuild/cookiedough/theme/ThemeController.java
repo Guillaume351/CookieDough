@@ -85,7 +85,7 @@ public final class ThemeController implements Listener {
         this.music = new MusicService(plugin);
         this.ambience = new LobbyAmbience(plugin);
         this.texts = new ThemeTexts(plugin);
-        this.advent = new AdventService(plugin, repository, rewards, java.time.Clock.systemUTC());
+        this.advent = new AdventService(plugin, repository, rewards, adventClock(plugin));
         renderer.addSource(lobbyDecor);
         renderer.addSource(hunt);
         renderer.addSource(new FakeBlockSource() {
@@ -397,5 +397,18 @@ public final class ThemeController implements Listener {
             ChunkSnapshot snapshot = snapshots.get(FakeBlock.chunkKey(x >> 4, z >> 4));
             return snapshot == null ? "minecraft:air" : snapshot.getBlockData(x & 15, y, z & 15).getAsString();
         }
+    }
+
+    /**
+     * Local end-to-end tests only: {@code -Dcookiebuild.e2e.adventDate=2026-12-05} pins the advent
+     * calendar to noon (Paris) on that date. Production never sets it and uses the real clock.
+     */
+    static java.time.Clock adventClock(JavaPlugin plugin) {
+        String pinned = System.getProperty("cookiebuild.e2e.adventDate");
+        if (pinned == null || pinned.isBlank()) return java.time.Clock.systemUTC();
+        java.time.Instant at = java.time.LocalDate.parse(pinned.trim())
+                .atTime(12, 0).atZone(java.time.ZoneId.of("Europe/Paris")).toInstant();
+        plugin.getLogger().warning("Advent calendar clock pinned to " + pinned + " (end-to-end test property)");
+        return java.time.Clock.fixed(at, java.time.ZoneOffset.UTC);
     }
 }
