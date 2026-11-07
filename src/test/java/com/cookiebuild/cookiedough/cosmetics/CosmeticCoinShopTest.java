@@ -90,7 +90,7 @@ class CosmeticCoinShopTest {
                 case REWARD -> assertTrue(item.unlockHintKey() != null && !item.unlockHintKey().isBlank());
             }
         }
-        assertEquals(12, CosmeticCatalog.coinShop().size());
+        assertEquals(14, CosmeticCatalog.coinShop().size());
         assertEquals(10, CosmeticCatalog.coinShop(java.util.Set.of()).size());
     }
 
