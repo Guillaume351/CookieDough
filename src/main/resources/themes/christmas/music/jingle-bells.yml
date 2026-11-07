@@ -1,0 +1,41 @@
+# Jingle Bells — James Lord Pierpont (1857), domaine public.
+# Arrangement Cookie Build en sol majeur : couplet puis refrain, clochettes
+# au refrain. Une unite = une croche (4/4).
+title: "Jingle Bells"
+composer: "James Lord Pierpont (1857)"
+phrases:
+  v1: "D4:2 B4:2 A4:2 G4:2 | D4:6 D4 D4 | D4:2 B4:2 A4:2 G4:2 | E4:8 | E4:2 C5:2 B4:2 A4:2 | F#4:8 | D5:2 D5:2 C5:2 A4:2 | B4:8"
+  v2: "D4:2 B4:2 A4:2 G4:2 | D4:8 | D4:2 B4:2 A4:2 G4:2 | E4:6 E4:2 | E4:2 C5:2 B4:2 A4:2 | D5:2 D5:2 D5:2 D5:2 | E5:2 D5:2 C5:2 A4:2 | G4:4 D5:4"
+  c1: "B4:2 B4:2 B4:4 | B4:2 B4:2 B4:4 | B4:2 D5:2 G4:3 A4 | B4:8 | C5:2 C5:2 C5:3 C5 | C5:2 B4:2 B4:2 B4 B4 | B4:2 A4:2 A4:2 B4:2 | A4:4 D5:4"
+  c2: "B4:2 B4:2 B4:4 | B4:2 B4:2 B4:4 | B4:2 D5:2 G4:3 A4 | B4:8 | C5:2 C5:2 C5:3 C5 | C5:2 B4:2 B4:2 B4 B4 | D5:2 D5:2 C5:2 A4:2 | G4:8"
+  melody: "$v1 $v2 $c1 $c2"
+  # basse : fondamentale et quinte, une mesure par phrase
+  bG: "G2:4 D3:4"
+  bC: "C3:4 G2:4"
+  bAm: "A2:4 E2:4"
+  bD7: "D3:4 A2:4"
+  bA7: "A2:4 E2:4"
+  # accords en contretemps (temps 2 et 4)
+  hG: "r:2 G3+B3+D4:2 r:2 G3+B3+D4:2"
+  hC: "r:2 G3+C4+E4:2 r:2 G3+C4+E4:2"
+  hAm: "r:2 A3+C4+E4:2 r:2 A3+C4+E4:2"
+  hD7: "r:2 F#3+A3+C4:2 r:2 F#3+A3+C4:2"
+  hA7: "r:2 G3+C#4+E4:2 r:2 G3+C#4+E4:2"
+  jingle: "r:2 F#5:2 r:2 F#5:2"
+voices:
+  - instrument: bell
+    transpose: 24
+    volume: 0.55
+    play: "@5 $melody"
+  - instrument: harp
+    volume: 0.5
+    play: "@5 $melody"
+  - instrument: harp
+    volume: 0.35
+    play: "@5 $hG $hG $hG $hC | $hAm $hD7 $hD7 $hG | $hG $hG $hG $hC | $hAm $hG $hD7 $hG | $hG $hG $hG $hG | $hC $hG $hA7 $hD7 | $hG $hG $hG $hG | $hC $hG $hD7 G3+B3+D4:8"
+  - instrument: bass
+    volume: 0.7
+    play: "@5 $bG $bG $bG $bC | $bAm $bD7 $bD7 $bG | $bG $bG $bG $bC | $bAm $bG $bD7 $bG | $bG $bG $bG $bG | $bC $bG $bA7 $bD7 | $bG $bG $bG $bG | $bC $bG $bD7 G2:8"
+  - instrument: hat
+    volume: 0.25
+    play: "@5 r:128 $jingle $jingle $jingle $jingle $jingle $jingle $jingle $jingle $jingle $jingle $jingle $jingle $jingle $jingle $jingle r:8"

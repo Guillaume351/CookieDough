@@ -1,0 +1,37 @@
+# Il est ne le divin enfant — noel traditionnel francais (air publie en 1862),
+# domaine public. Arrangement Cookie Build en sol majeur, flute "hautbois" :
+# refrain, couplet, refrain. Une unite = une croche (4/4).
+title: "Il est ne le divin enfant"
+composer: "Noel traditionnel francais"
+phrases:
+  a1: "D4:2 G4:2 G4:2 B4 G4 | D4:2 G4:2 G4:4 | G4:2 G4 A4 B4:2 C5 B4 | A4:2 G4:2 A4 F#4 D4:2"
+  a2: "D4:2 G4:2 G4:2 B4 G4 | D4:2 G4:2 G4:4 | G4:2 A4:2 B4:2 C5 B4 | A4:2 D5:2 G4:4"
+  b1: "B4:2 C5:2 D5:2 C5 B4 | C5:2 E5:2 D5:4 | B4:2 C5:2 D5:2 E5 D5 | C5:2 B4:2 B4:2 A4:2"
+  b2: "B4:2 C5:2 D5:2 C5 B4 | C5:2 E5:2 D5:4 | B4:2 C5:2 D5:2 C5 B4 | A4:2 D5:2 G4:4"
+  melody: "$a1 $a2 $b1 $b2 $a1 $a2"
+  qG: "r:2 G3+B3+D4:2"
+  qC: "r:2 G3+C4+E4:2"
+  qD: "r:2 F#3+A3+D4:2"
+  qD7: "r:2 F#3+A3+C4:2"
+  ha1: "$qG $qG | $qG $qG | $qG $qG | $qD $qD7"
+  ha2: "$qG $qG | $qG $qG | $qG $qC | $qD $qG"
+  hb1: "$qG $qG | $qC $qD | $qG $qG | $qC $qD7"
+  hb2: "$qG $qG | $qC $qD | $qG $qC | $qD $qG"
+  ba1: "G2:4 D3:4 | G2:4 D3:4 | G2:4 D3:4 | D3:4 A2:4"
+  ba2: "G2:4 D3:4 | G2:4 D3:4 | G2:4 C3:4 | D3:4 G2:4"
+  bb1: "G2:4 D3:4 | C3:4 D3:4 | G2:4 D3:4 | C3:4 D3:4"
+  bb2: "G2:4 D3:4 | C3:4 D3:4 | G2:4 C3:4 | D3:4 G2:4"
+voices:
+  - instrument: flute
+    transpose: 12
+    volume: 0.75
+    play: "@5 $melody"
+  - instrument: harp
+    volume: 0.45
+    play: "@5 $melody"
+  - instrument: harp
+    volume: 0.3
+    play: "@5 $ha1 $ha2 $hb1 $hb2 $ha1 $ha2"
+  - instrument: bass
+    volume: 0.7
+    play: "@5 $ba1 $ba2 $bb1 $bb2 $ba1 $ba2"

@@ -1,0 +1,33 @@
+# Les anges dans nos campagnes — noel traditionnel francais (XVIIIe siecle),
+# domaine public. Arrangement Cookie Build en sol majeur : couplet puis deux
+# fois le Gloria, double au carillon. Une unite = une croche (4/4).
+title: "Les anges dans nos campagnes"
+composer: "Noel traditionnel francais"
+phrases:
+  v: "B4:2 B4:2 B4:2 B4 D5 | D5:3 C5 B4:4 | B4:2 B4 A4 B4:2 B4 D5 | B4:3 A4 G4:4"
+  verse: "$v $v"
+  gl: "D5:4 E5 D5 C5 B4 | C5:4 D5 C5 B4 A4 | B4:4 C5 B4 A4 G4 | A4:3 D4 D4:4 | G4:2 A4:2 B4:2 C5:2 | B4:4 A4:4"
+  gloria: "$gl $gl G4:8"
+  sG: "G3+B3+D4:4"
+  sC: "G3+C4+E4:4"
+  sAm: "A3+C4+E4:4"
+  sD: "F#3+A3+D4:4"
+  sEm: "G3+B3+E4:4"
+  hv: "$sG $sG | $sD $sG | $sG $sG | $sD $sG"
+  hg: "$sG $sC | $sAm $sD | $sG $sC | $sD $sD | $sG $sEm | $sG $sD"
+  bv: "G2:4 D3:4 | D3:4 G2:4 | G2:4 D3:4 | D3:4 G2:4"
+  bg: "G2:4 C3:4 | A2:4 D3:4 | G2:4 C3:4 | D3:8 | G2:4 E2:4 | D3:8"
+voices:
+  - instrument: harp
+    volume: 0.85
+    play: "@6 $verse $gloria"
+  - instrument: chime
+    transpose: 24
+    volume: 0.3
+    play: "@6 r:64 $gloria"
+  - instrument: harp
+    volume: 0.3
+    play: "@6 $hv $hv $hg $hg G3+B3+D4:8"
+  - instrument: bass
+    volume: 0.65
+    play: "@6 $bv $bv $bg $bg G2:8"

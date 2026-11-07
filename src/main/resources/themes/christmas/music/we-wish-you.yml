@@ -1,0 +1,37 @@
+# We Wish You a Merry Christmas — chant traditionnel anglais (West Country),
+# domaine public. Arrangement Cookie Build en sol majeur, couplet et refrain
+# deux fois. Une unite = une croche (3/4).
+title: "We Wish You a Merry Christmas"
+composer: "Chant traditionnel anglais"
+phrases:
+  pick: "D4:2"
+  v: "G4:2 G4 A4 G4 F#4 | E4:2 C4:2 E4:2 | A4:2 A4 B4 A4 G4 | F#4:2 D4:2 D4:2 | B4:2 B4 C5 B4 A4 | G4:2 E4:2 D4 D4 | E4:2 A4:2 F#4:2 | G4:4 D4:2"
+  r: "G4:2 G4:2 G4:2 | F#4:4 F#4:2 | G4:2 F#4:2 E4:2 | D4:4 A4:2 | B4:2 A4:2 G4:2 | D5:2 D4:2 D4 D4 | E4:2 A4:2 F#4:2"
+  rNext: "$r G4:4 D4:2"
+  rLast: "$r G4:6"
+  kG: "r:2 G3+B3+D4:2 G3+B3+D4:2"
+  kC: "r:2 G3+C4+E4:2 G3+C4+E4:2"
+  kA7: "r:2 G3+C#4+E4:2 G3+C#4+E4:2"
+  kD: "r:2 F#3+A3+D4:2 F#3+A3+D4:2"
+  kD7: "r:2 F#3+A3+C4:2 F#3+A3+C4:2"
+  kB7: "r:2 F#3+A3+D#4:2 F#3+A3+D#4:2"
+  kEm: "r:2 G3+B3+E4:2 G3+B3+E4:2"
+  kCD: "r:2 G3+C4+E4:2 F#3+A3+D4:2"
+  cv: "$kG $kC $kA7 $kD | $kB7 $kEm $kCD $kG"
+  cr: "$kG $kD $kA7 $kD7 | $kG $kD $kCD"
+  bv: "G2:6 | C3:6 | A2:6 | D3:6 | B2:6 | E2:6 | C3:4 D3:2 | G2:6"
+  br: "G2:6 | D3:6 | A2:6 | D3:6 | G2:6 | D3:6 | C3:4 D3:2"
+voices:
+  - instrument: harp
+    volume: 0.85
+    play: "@5 $pick $v $rNext $v $rLast"
+  - instrument: flute
+    transpose: 12
+    volume: 0.35
+    play: "@5 r:98 $v $rLast"
+  - instrument: harp
+    volume: 0.35
+    play: "@5 r:2 $cv $cr $kG $cv $cr r:2 G3+B3+D4:4"
+  - instrument: bass
+    volume: 0.7
+    play: "@5 r:2 $bv $br G2:6 $bv $br G2:6"

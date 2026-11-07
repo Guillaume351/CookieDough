@@ -1,0 +1,31 @@
+# Carol of the Bells (Chtchedryk) — Mykola Leontovych (1916), sur un chant
+# populaire ukrainien, domaine public. Arrangement Cookie Build en sol mineur
+# construit sur l'ostinato : les voix entrent l'une apres l'autre puis se
+# retirent. Une unite = une croche (3/4).
+title: "Carol of the Bells (Chtchedryk)"
+composer: "Mykola Leontovych (1916)"
+phrases:
+  o: "Bb4:2 A4 Bb4 G4:2"
+  o4: "$o $o $o $o"
+  up: "D5:2 C5 D5 Bb4:2"
+  up4: "$up $up $up $up"
+  line: "G2:6 | F2:6 | Eb2:6 | D2:6"
+  chords: "G3+Bb3+D4:6 | A3+C4+F4:6 | G3+Bb3+Eb4:6 | F#3+A3+D4:6"
+voices:
+  - instrument: harp
+    volume: 0.8
+    play: "@4 $o4 $o4 $o4 $o4 $o4 $o4 $o4 $o G4:6"
+  - instrument: flute
+    transpose: 12
+    volume: 0.45
+    play: "@4 r:48 $up4 $up4 $up4 r:60"
+  - instrument: bell
+    transpose: 12
+    volume: 0.35
+    play: "@4 r:72 $o4 $o4 r:60"
+  - instrument: guitar
+    volume: 0.3
+    play: "@4 r:48 $chords $chords $chords $chords r:36"
+  - instrument: bass
+    volume: 0.7
+    play: "@4 r:24 $line $line $line $line $line r:24 G2:6 G2:6"

@@ -9,7 +9,14 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
@@ -60,18 +67,17 @@ class SongParserTest {
 
     @Test
     void voicesOfEveryBundledSongEndTogether() throws Exception {
-        YamlConfiguration theme = bundled("themes/halloween/theme.yml");
-        for (String id : theme.getStringList("music.playlist")) {
-            YamlConfiguration song = bundled("themes/halloween/music/" + id + ".yml");
+        for (String path : bundledSongs()) {
+            YamlConfiguration song = bundled(path);
             java.util.Set<Integer> ends = new java.util.HashSet<>();
             for (var voice : song.getMapList("voices")) {
                 YamlConfiguration single = new YamlConfiguration();
                 single.set("title", "voice");
                 single.set("phrases", song.getConfigurationSection("phrases"));
                 single.set("voices", java.util.List.of(voice));
-                ends.add(SongParser.parse(id, single).lengthTicks());
+                ends.add(SongParser.parse(path, single).lengthTicks());
             }
-            assertEquals(1, ends.size(), id + " voices end at " + ends);
+            assertEquals(1, ends.size(), path + " voices end at " + ends);
         }
     }
 
@@ -87,22 +93,80 @@ class SongParserTest {
     }
 
     @Test
-    void everyBundledHalloweenSongLoadsInRangeAndFitsTheLobby() throws Exception {
-        YamlConfiguration theme = bundled("themes/halloween/theme.yml");
-        var playlist = theme.getStringList("music.playlist");
-        assertEquals(8, playlist.size());
-        for (String id : playlist) {
-            try (Reader reader = reader("themes/halloween/music/" + id + ".yml")) {
-                Song song = SongParser.parse(id, reader);
-                assertFalse(song.title().isBlank(), id);
-                assertFalse(song.composer().isBlank(), id);
-                assertTrue(song.seconds() >= 8 && song.seconds() <= 150, id + " lasts " + song.seconds() + " s");
-                for (Song.Note note : song.notes()) {
-                    assertTrue(note.instrument().plays(note.midi()), id + " " + note);
-                    assertTrue(note.volume() > 0 && note.volume() <= 1, id);
-                }
+    void everyBundledSongLoadsInRangeAndFitsTheLobby() throws Exception {
+        List<String> songs = bundledSongs();
+        assertTrue(songs.size() >= 17, "bundled songs: " + songs);
+        for (String path : songs) {
+            String text;
+            try (Reader reader = reader(path)) {
+                text = new java.io.BufferedReader(reader).lines()
+                        .collect(java.util.stream.Collectors.joining("\n"));
+            }
+            String header = text.lines().takeWhile(line -> line.startsWith("#"))
+                    .collect(java.util.stream.Collectors.joining(" ")).toLowerCase(java.util.Locale.ROOT);
+            assertTrue(header.contains("domaine public"), path + " must say it is in the public domain");
+            Song song = SongParser.parse(path, new StringReader(text));
+            assertFalse(song.title().isBlank(), path);
+            assertFalse(song.composer().isBlank(), path);
+            assertTrue(song.seconds() >= 8 && song.seconds() <= 150, path + " lasts " + song.seconds() + " s");
+            for (Song.Note note : song.notes()) {
+                assertTrue(note.instrument().plays(note.midi()), path + " " + note);
+                assertTrue(note.volume() > 0 && note.volume() <= 1, path);
             }
         }
+    }
+
+    @Test
+    void everyPlaylistSongIsBundled() throws Exception {
+        for (String theme : themes()) {
+            if (SongParserTest.class.getClassLoader().getResource("themes/" + theme + "/theme.yml") == null) continue;
+            for (String id : bundled("themes/" + theme + "/theme.yml").getStringList("music.playlist")) {
+                assertTrue(bundledSongs().contains("themes/" + theme + "/music/" + id + ".yml"),
+                        theme + " playlist song " + id + " is not bundled");
+            }
+        }
+        assertEquals(8, bundled("themes/halloween/theme.yml").getStringList("music.playlist").size());
+    }
+
+    @Test
+    void christmasHasTheNineSongsOfTheReleaseAtAPleasantLength() throws Exception {
+        Set<String> expected = Set.of("jingle-bells", "douce-nuit", "mon-beau-sapin", "deck-the-halls", "we-wish-you",
+                "il-est-ne", "fee-dragee", "carol-of-the-bells", "les-anges");
+        Set<String> found = new TreeSet<>();
+        for (String path : bundledSongs()) {
+            if (!path.startsWith("themes/christmas/music/")) continue;
+            String id = path.substring(path.lastIndexOf('/') + 1, path.length() - ".yml".length());
+            found.add(id);
+            try (Reader reader = reader(path)) {
+                Song song = SongParser.parse(id, reader);
+                assertTrue(song.seconds() >= 30 && song.seconds() <= 75, id + " lasts " + song.seconds() + " s");
+            }
+        }
+        assertEquals(new TreeSet<>(expected), found);
+    }
+
+    /** Every theme folder bundled under {@code themes/}. */
+    static List<String> themes() throws Exception {
+        Path root = Path.of(Objects.requireNonNull(
+                SongParserTest.class.getClassLoader().getResource("themes"), "themes").toURI());
+        try (Stream<Path> children = Files.list(root)) {
+            return children.filter(Files::isDirectory).map(child -> child.getFileName().toString()).sorted().toList();
+        }
+    }
+
+    /** Resource paths of every bundled {@code themes/<theme>/music/*.yml} song. */
+    static List<String> bundledSongs() throws Exception {
+        List<String> songs = new ArrayList<>();
+        for (String theme : themes()) {
+            Path music = Path.of(Objects.requireNonNull(
+                    SongParserTest.class.getClassLoader().getResource("themes/" + theme), theme).toURI()).resolve("music");
+            if (!Files.isDirectory(music)) continue;
+            try (Stream<Path> files = Files.list(music)) {
+                files.map(file -> file.getFileName().toString()).filter(name -> name.endsWith(".yml")).sorted()
+                        .forEach(name -> songs.add("themes/" + theme + "/music/" + name));
+            }
+        }
+        return songs;
     }
 
     static YamlConfiguration bundled(String path) throws Exception {

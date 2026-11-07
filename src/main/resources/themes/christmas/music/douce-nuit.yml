@@ -1,0 +1,30 @@
+# Douce nuit (Stille Nacht, heilige Nacht) — Franz Xaver Gruber (1818),
+# domaine public. Arrangement Cookie Build en ut majeur, arpeges de guitare
+# comme dans la version originale. Une unite = une croche (6/8).
+title: "Douce nuit (Stille Nacht)"
+composer: "Franz Xaver Gruber (1818)"
+phrases:
+  a: "G4:3 A4 G4:2 | E4:6 | G4:3 A4 G4:2 | E4:6"
+  b: "D5:4 D5:2 | B4:6 | C5:4 C5:2 | G4:6"
+  c: "A4:4 A4:2 | C5:3 B4 A4:2 | G4:3 A4 G4:2 | E4:6"
+  d: "D5:4 D5:2 | F5:3 D5 B4:2 | C5:6 | E5:6"
+  e: "C5:3 G4 E4:2 | G4:3 F4 D4:2 | C4:12"
+  melody: "$a $b $c $c $d $e"
+  gC: "r G3 C4 E4 C4 G3"
+  gF: "r F3 A3 C4 A3 F3"
+  gG: "r G3 B3 D4 B3 G3"
+  gG7: "r G3 B3 F4 B3 G3"
+voices:
+  - instrument: harp
+    volume: 0.9
+    play: "@7 $melody"
+  - instrument: flute
+    transpose: 12
+    volume: 0.3
+    play: "@7 $melody"
+  - instrument: guitar
+    volume: 0.45
+    play: "@7 $gC $gC $gC $gC | $gG $gG $gC $gC | $gF $gF $gC $gC | $gF $gF $gC $gC | $gG $gG7 $gC $gC | $gC $gG7 C3+G3+C4+E4:12"
+  - instrument: bass
+    volume: 0.6
+    play: "@7 C3:6 C3:6 C3:6 C3:6 | G2:6 G2:6 C3:6 C3:6 | F2:6 F2:6 C3:6 C3:6 | F2:6 F2:6 C3:6 C3:6 | G2:6 G2:6 C3:6 C3:6 | C3:6 G2:6 C3:12"

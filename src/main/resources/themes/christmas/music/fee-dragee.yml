@@ -1,0 +1,37 @@
+# Danse de la fee Dragee (Casse-Noisette, 1892) — Piotr Ilitch Tchaikovski,
+# domaine public. Theme du celesta, arrangement Cookie Build transpose en
+# re mineur (vibraphone, puis glockenspiel en echo), basse en pizzicato.
+# Une unite = une double croche ; une mesure = 16 unites.
+title: "Danse de la fee Dragee"
+composer: "Piotr Ilitch Tchaikovski (1892)"
+phrases:
+  m1: "r:4 G5:2 E5:2 G5:4 F#5:4"
+  m2: "D#5:4 E5:4 D5:2 D5:2 D5:4"
+  m3: "C#5:2 C#5:2 C#5:4 C5:2 C5:2 C5:4"
+  m4: "B4:2 E5:2 C5:2 E5:2 B4:4 E4 D4 C4 B3"
+  m5: "Bb3:4 G4:2 E4:2 G4:4 F#4:4"
+  m6: "C5:4 B4:4 G5:2 G5:2 G5:4"
+  m7: "F#5:2 F#5:2 F#5:4 E5:2 E5:2 E5:4"
+  m8: "D#5:2 F#5:2 E5:2 F#5:2 D5:4 B4 A4 G4 F#4"
+  m9: "E4:4 G5:2 E5:2 G5:4 F#5:4"
+  m12: "B4:2 E5:2 C5:2 E5:2 B4:4 G4 F#4 E4 D4"
+  m13: "C#4:4 E5:2 C#5:2 E5:4 D#5:4"
+  m14: "B3:4 D5:2 B4:2 D5:4 C#5:4"
+  m15: "A3:4 C5:2 A4:2 C5:4 B4:4"
+  m16: "r:4 B3 D#4 F#4 B4 E4:8"
+  theme: "$m1 | $m2 | $m3 | $m4 | $m5 | $m6 | $m7 | $m8 | $m9 | $m2 | $m3 | $m12 | $m13 | $m14 | $m15 | $m16"
+  pz: "E2:4 r:4 B1:4 r:4"
+  bass: "$pz | $pz | $pz | C2:4 r:4 B1:4 r:4 | $pz | A1:4 r:4 E2:4 r:4 | B1:4 r:4 E2:4 r:4 | B1:4 r:4 B1:4 r:4 | $pz | $pz | $pz | C2:4 r:4 E2:4 r:4 | A2:4 r:4 B2:4 r:4 | G2:4 r:4 A2:4 r:4 | F#2:4 r:4 B1:4 r:4 | B1:4 r:4 E2:8"
+voices:
+  - instrument: iron_xylophone
+    transpose: -2
+    volume: 0.8
+    play: "@2 r:32 $theme $theme"
+  - instrument: bell
+    transpose: 22
+    volume: 0.3
+    play: "@2 r:32 r:256 $theme"
+  - instrument: bass
+    transpose: -2
+    volume: 0.7
+    play: "@2 $pz $pz $bass $bass"
