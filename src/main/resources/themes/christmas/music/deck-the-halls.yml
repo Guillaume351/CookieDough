@@ -1,0 +1,37 @@
+# Deck the Halls (Nos Galan) — air traditionnel gallois, domaine public.
+# Arrangement Cookie Build en fa majeur, joue deux fois (xylophone la
+# seconde fois). Une unite = une croche (4/4).
+title: "Deck the Halls"
+composer: "Air traditionnel gallois"
+phrases:
+  l1: "C5:3 Bb4 A4:2 G4:2 | F4:2 G4:2 A4:2 F4:2 | G4 A4 Bb4 G4 A4:3 G4 | F4:2 E4:2 F4:4"
+  l3: "G4:3 A4 Bb4:2 G4:2 | A4:3 Bb4 C5:2 G4:2 | A4 B4 C5:2 D5 E5 F5:2 | E5:2 D5:2 C5:4"
+  l4: "C5:3 Bb4 A4:2 G4:2 | F4:2 G4:2 A4:2 F4:2 | D5 D5 D5 D5 C5:3 Bb4 | A4:2 G4:2 F4:4"
+  verse: "$l1 $l1 $l3 $l4"
+  # accords en contretemps, un par demi-mesure
+  cF: "r:2 A3+C4+F4:2"
+  cC7: "r:2 G3+Bb3+E4:2"
+  cC: "r:2 G3+C4+E4:2"
+  cDm: "r:2 A3+D4+F4:2"
+  cG7: "r:2 G3+B3+F4:2"
+  cBb: "r:2 Bb3+D4+F4:2"
+  h1: "$cF $cF | $cF $cF | $cC7 $cF | $cC7 $cF"
+  h3: "$cC7 $cC7 | $cF $cC7 | $cDm $cG7 | $cG7 $cC"
+  h4: "$cF $cF | $cF $cF | $cBb $cC7 | $cF $cF"
+  b1: "F2:4 C3:4 | F2:4 C3:4 | C3:4 F2:4 | C3:4 F2:4"
+  b3: "C3:4 G2:4 | F2:4 C3:4 | D3:4 G2:4 | G2:4 C3:4"
+  b4: "F2:4 C3:4 | F2:4 C3:4 | Bb2:4 C3:4 | F2:8"
+voices:
+  - instrument: harp
+    volume: 0.85
+    play: "@5 $verse $verse"
+  - instrument: xylophone
+    transpose: 24
+    volume: 0.4
+    play: "@5 r:128 $verse"
+  - instrument: harp
+    volume: 0.35
+    play: "@5 $h1 $h1 $h3 $h4 $h1 $h1 $h3 $h4"
+  - instrument: bass
+    volume: 0.7
+    play: "@5 $b1 $b1 $b3 $b4 $b1 $b1 $b3 $b4"
