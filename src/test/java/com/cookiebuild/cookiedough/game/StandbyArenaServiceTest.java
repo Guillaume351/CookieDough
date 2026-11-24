@@ -5,12 +5,19 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.cookiebuild.cookiedough.player.CookiePlayer;
 
@@ -210,6 +217,48 @@ class StandbyArenaServiceTest {
 
         assertFalse(service.activateNext());
         assertEquals(2, plans.get(), "the next selection is made only when N+1 preparation is requested");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void emptyPoolWarnsOnlyInWarmModeAndBothModesWarnOnPreparationFailure(boolean keepWarmStandby) {
+        FakeScheduler scheduler = new FakeScheduler();
+        List<String> warnings = new ArrayList<>();
+        Logger logger = Logger.getAnonymousLogger();
+        logger.setUseParentHandlers(false);
+        logger.addHandler(new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                if (record.getLevel() == Level.WARNING) warnings.add(record.getMessage());
+            }
+
+            @Override public void flush() { }
+            @Override public void close() { }
+        });
+        AtomicInteger attempts = new AtomicInteger();
+        StandbyArenaService<String, TestGame> service = new StandbyArenaService<>(
+                "Fixture", scheduler, () -> "plan",
+                plan -> {
+                    if (attempts.incrementAndGet() == 1) throw new IllegalStateException("fixture failure");
+                    return plan;
+                },
+                prepared -> new TestGame(), ignored -> { }, () -> true,
+                ignored -> { }, ignored -> { }, logger, keepWarmStandby);
+
+        assertFalse(service.activateNext());
+        assertEquals(keepWarmStandby
+                ? List.of("No prepared Fixture standby is available; recovery is scheduled")
+                : List.of(), warnings);
+
+        scheduler.advanceTo(StandbyRefillPolicy.RUNTIME_DELAY_TICKS);
+        assertEquals(1, attempts.get());
+        String failure = warnings.getLast();
+        assertTrue(failure.startsWith("Fixture arena preparation failed at "));
+        assertTrue(failure.endsWith("fixture failure"));
+
+        scheduler.advanceTo(StandbyRefillPolicy.RUNTIME_DELAY_TICKS + StandbyRefillPolicy.FAILURE_RETRY_TICKS);
+        assertEquals(2, attempts.get());
+        assertEquals(1, service.standbyCount());
     }
 
     @Test

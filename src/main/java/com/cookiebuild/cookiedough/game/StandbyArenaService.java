@@ -123,7 +123,10 @@ public final class StandbyArenaService<P, T extends Game> {
         if (stopped) return false;
         T arena = standbys.poll();
         if (arena == null) {
-            logger.warning("No prepared " + mode + " standby is available; recovery is scheduled");
+            // Some modes wait until the next arena is needed to select its map.
+            if (keepWarmStandby) {
+                logger.warning("No prepared " + mode + " standby is available; recovery is scheduled");
+            }
             request(StandbyRefillPolicy.RUNTIME_DELAY_TICKS);
             return false;
         }
